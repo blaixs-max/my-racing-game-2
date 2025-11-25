@@ -1,4 +1,8 @@
-# React + Vite
+# My Racing Game
+
+New version of the car racing game.
+
+## Development Info (Vite + React)
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
