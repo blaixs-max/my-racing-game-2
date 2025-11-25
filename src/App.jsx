@@ -2097,12 +2097,77 @@ function Game() {
       </Canvas>
     </div >
   );
-}
+  // ==================== LOADING SCREEN ====================
+  import { useProgress } from '@react-three/drei';
 
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <Game />
-    </ErrorBoundary>
-  );
-}
+  const LoadingScreen = () => {
+    const { progress, active } = useProgress();
+
+    if (!active && progress === 100) return null;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: '#000',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        transition: 'opacity 0.5s ease-out',
+        pointerEvents: 'none'
+      }}>
+        <div style={{
+          fontSize: '24px',
+          fontWeight: 'bold',
+          marginBottom: '20px',
+          color: '#00ffff',
+          textShadow: '0 0 10px #00ffff'
+        }}>
+          LOADING ASSETS
+        </div>
+        <div style={{
+          width: '200px',
+          height: '10px',
+          background: '#333',
+          borderRadius: '5px',
+          overflow: 'hidden',
+          border: '1px solid #555'
+        }}>
+          <div style={{
+            width: `${progress}%`,
+            height: '100%',
+            background: 'linear-gradient(90deg, #00ffff, #0088ff)',
+            transition: 'width 0.2s ease-out'
+          }} />
+        </div>
+        <div style={{
+          marginTop: '10px',
+          fontSize: '14px',
+          color: '#aaa'
+        }}>
+          {Math.floor(progress)}%
+        </div>
+        <div style={{
+          marginTop: '30px',
+          fontSize: '12px',
+          color: '#666',
+          maxWidth: '300px',
+          textAlign: 'center'
+        }}>
+          Note: 3G connections may take longer to load 3D models.
+        </div>
+      </div>
+    );
+  };
+
+  export default function App() {
+    return (
+      <ErrorBoundary>
+        <LoadingScreen />
+        <Game />
+      </ErrorBoundary>
+    );
+  }
