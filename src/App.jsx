@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, Suspense, useMemo, useCallback, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, Stars, useGLTF, Instances, Instance } from '@react-three/drei';
+import { PerspectiveCamera, Stars, useGLTF, Instances, Instance, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { create } from 'zustand';
 
@@ -2097,77 +2097,78 @@ function Game() {
       </Canvas>
     </div >
   );
-  // ==================== LOADING SCREEN ====================
-  import { useProgress } from '@react-three/drei';
+}
 
-  const LoadingScreen = () => {
-    const { progress, active } = useProgress();
+// ==================== LOADING SCREEN ====================
 
-    if (!active && progress === 100) return null;
+const LoadingScreen = () => {
+  const { progress, active } = useProgress();
 
-    return (
+  if (!active && progress === 100) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 9999,
+      background: '#000',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#fff',
+      transition: 'opacity 0.5s ease-out',
+      pointerEvents: 'none'
+    }}>
       <div style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: '#000',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
-        transition: 'opacity 0.5s ease-out',
-        pointerEvents: 'none'
+        fontSize: '24px',
+        fontWeight: 'bold',
+        marginBottom: '20px',
+        color: '#00ffff',
+        textShadow: '0 0 10px #00ffff'
+      }}>
+        LOADING ASSETS
+      </div>
+      <div style={{
+        width: '200px',
+        height: '10px',
+        background: '#333',
+        borderRadius: '5px',
+        overflow: 'hidden',
+        border: '1px solid #555'
       }}>
         <div style={{
-          fontSize: '24px',
-          fontWeight: 'bold',
-          marginBottom: '20px',
-          color: '#00ffff',
-          textShadow: '0 0 10px #00ffff'
-        }}>
-          LOADING ASSETS
-        </div>
-        <div style={{
-          width: '200px',
-          height: '10px',
-          background: '#333',
-          borderRadius: '5px',
-          overflow: 'hidden',
-          border: '1px solid #555'
-        }}>
-          <div style={{
-            width: `${progress}%`,
-            height: '100%',
-            background: 'linear-gradient(90deg, #00ffff, #0088ff)',
-            transition: 'width 0.2s ease-out'
-          }} />
-        </div>
-        <div style={{
-          marginTop: '10px',
-          fontSize: '14px',
-          color: '#aaa'
-        }}>
-          {Math.floor(progress)}%
-        </div>
-        <div style={{
-          marginTop: '30px',
-          fontSize: '12px',
-          color: '#666',
-          maxWidth: '300px',
-          textAlign: 'center'
-        }}>
-          Note: 3G connections may take longer to load 3D models.
-        </div>
+          width: `${progress}%`,
+          height: '100%',
+          background: 'linear-gradient(90deg, #00ffff, #0088ff)',
+          transition: 'width 0.2s ease-out'
+        }} />
       </div>
-    );
-  };
+      <div style={{
+        marginTop: '10px',
+        fontSize: '14px',
+        color: '#aaa'
+      }}>
+        {Math.floor(progress)}%
+      </div>
+      <div style={{
+        marginTop: '30px',
+        fontSize: '12px',
+        color: '#666',
+        maxWidth: '300px',
+        textAlign: 'center'
+      }}>
+        Note: 3G connections may take longer to load 3D models.
+      </div>
+    </div>
+  );
+};
 
-  export default function App() {
-    return (
-      <ErrorBoundary>
-        <LoadingScreen />
-        <Game />
-      </ErrorBoundary>
-    );
-  }
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <LoadingScreen />
+      <Game />
+    </ErrorBoundary>
+  );
+}
