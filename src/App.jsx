@@ -1,16 +1,21 @@
 import React, { useRef, useEffect, useState, Suspense, useMemo, useCallback, memo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, Stars, useGLTF, Instances, Instance, useProgress, useTexture } from '@react-three/drei';
+import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
+import { PerspectiveCamera, Stars, useGLTF, Instances, Instance, useProgress, useTexture, PositionalAudio } from '@react-three/drei';
 import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
+
+// Preload 3D Models to prevent Suspense fallback (black screen) during gameplay
+useGLTF.preload('/models/truck.glb');
+useGLTF.preload('/models/Car 2/scene.gltf');
+useGLTF.preload('/models/Car 3/scene.gltf');
+useGLTF.preload('/models/ferrari.glb');
 
 // ==================== RESPONSIVE HELPER (Debounce Eklendi) ====================
 const useResponsive = () => {
   const [dimensions, setDimensions] = useState(() => {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    // Mobil cihaz tespiti: touch desteği veya küçük ekran
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const isSmallScreen = Math.min(width, height) < 768;
     const isMobileDevice = isTouchDevice && isSmallScreen;
@@ -577,8 +582,8 @@ const useGameStore = create((set, get) => ({
       }
     }
 
-    // FIX 7: Coin spawn zamana dayalı (3x increased)
-    if (Math.random() < 0.06 * (clampedDelta * 60) && newCoins.length < 10) {
+    // FIX 7: Coin spawn zamana dayalı (4.5x increased total)
+    if (Math.random() < 0.09 * (clampedDelta * 60) && newCoins.length < 15) {
       const coinLane = Math.floor(Math.random() * 3) - 1;
       const coinX = coinLane * 4.5;
       const isSafeCar = !newEnemies.some(e => Math.abs(e.x - coinX) < 2 && Math.abs(e.z - -400) < 40);
@@ -1661,6 +1666,31 @@ const LandscapeBlocker = memo(() => {
 
 LandscapeBlocker.displayName = 'LandscapeBlocker';
 
+// ==================== SHADER WARMUP ====================
+// Forces shader compilation by rendering all models once invisibly
+const ShaderWarmup = () => {
+  return (
+    <group position={[0, -50, 0]}>
+      <CarModel modelPath="/models/truck.glb" scale={1.678} />
+      <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
+      <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.0} />
+      <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
+      <SpinningCoin />
+    </group>
+  );
+};
+
+// ==================== AUDIO LISTENER ====================
+const AudioListenerController = () => {
+  const { camera } = useThree();
+  useEffect(() => {
+    const listener = new THREE.AudioListener();
+    camera.add(listener);
+    return () => camera.remove(listener);
+  }, [camera]);
+  return null;
+};
+
 // New GameContent component to encapsulate Canvas children
 const GameContent = () => (
   <>
@@ -1669,9 +1699,11 @@ const GameContent = () => (
       position={[0, 4, 11]} // Moved back from 8 to 11 to show full car
       fov={50}
     />
+    <AudioListenerController />
     <ambientLight intensity={0.6} color="#ffffff" />
     <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
     <Suspense fallback={null}>
+      {/* <ShaderWarmup /> */}
       <SkyEnvironment />
       <CameraShake />
       <ParticleSystem />
@@ -2147,7 +2179,20 @@ function Game() {
 const LoadingScreen = () => {
   const { progress, active } = useProgress();
 
-  if (!active && progress === 100) return null;
+  const [finished, setFinished] = useState(false);
+  const [shouldRender, setShouldRender] = useState(true);
+
+  useEffect(() => {
+    if (!active && progress === 100) {
+      setFinished(true);
+      // Wait for transition to finish before removing from DOM
+      setTimeout(() => {
+        setShouldRender(false);
+      }, 1000); // 1s buffer to ensure smooth transition
+    }
+  }, [active, progress]);
+
+  if (!shouldRender) return null;
 
   return (
     <div style={{
@@ -2160,7 +2205,8 @@ const LoadingScreen = () => {
       alignItems: 'center',
       justifyContent: 'center',
       color: '#fff',
-      transition: 'opacity 0.5s ease-out',
+      transition: 'opacity 1s ease-out',
+      opacity: finished ? 0 : 1,
       pointerEvents: 'none'
     }}>
       <div style={{
