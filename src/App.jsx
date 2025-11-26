@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState, Suspense, useMemo, useCallback, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, Stars, useGLTF, Instances, Instance, useProgress } from '@react-three/drei';
+import { PerspectiveCamera, Stars, useGLTF, Instances, Instance, useProgress, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { create } from 'zustand';
+import coinLogo from './assets/coin_logo.png';
 
 // ==================== RESPONSIVE HELPER (Debounce Eklendi) ====================
 const useResponsive = () => {
@@ -123,7 +124,12 @@ class AudioSystem {
   }
 
   init() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      if (this.context && this.context.state === 'suspended') {
+        this.context.resume();
+      }
+      return;
+    }
     try {
       this.context = new (window.AudioContext || window.webkitAudioContext)();
       this.initialized = true;
@@ -134,6 +140,8 @@ class AudioSystem {
 
   playCrash() {
     if (!this.context) return;
+    if (this.context.state === 'suspended') this.context.resume();
+
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
     osc.type = 'square';
@@ -152,6 +160,8 @@ class AudioSystem {
 
   playNearMiss() {
     if (!this.context) return;
+    if (this.context.state === 'suspended') this.context.resume();
+
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
     osc.type = 'sine';
@@ -167,6 +177,38 @@ class AudioSystem {
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }
+  }
+
+  playCoin() {
+    if (!this.context) return;
+    if (this.context.state === 'suspended') this.context.resume();
+
+    // Super Mario Coin Sound Synthesis (B5 -> E6)
+    const now = this.context.currentTime;
+
+    // First tone (B5 - 987.77 Hz)
+    const osc1 = this.context.createOscillator();
+    const gain1 = this.context.createGain();
+    osc1.type = 'square';
+    osc1.frequency.setValueAtTime(988, now);
+    gain1.gain.setValueAtTime(0.1, now);
+    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    osc1.connect(gain1);
+    gain1.connect(this.context.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.1);
+
+    // Second tone (E6 - 1318.51 Hz) - slightly delayed
+    const osc2 = this.context.createOscillator();
+    const gain2 = this.context.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(1319, now + 0.05);
+    gain2.gain.setValueAtTime(0.1, now + 0.05);
+    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+    osc2.connect(gain2);
+    gain2.connect(this.context.destination);
+    osc2.start(now + 0.05);
+    osc2.stop(now + 0.35);
   }
 }
 
@@ -313,6 +355,7 @@ const useGameStore = create((set, get) => ({
   deactivateNitro: () => set({ isNitroActive: false }),
 
   collectCoin: (id) => {
+    audioSystem.playCoin(); // Play coin sound
     set((state) => ({
       score: state.score + 100,
       coins: state.coins.filter(c => c.id !== id),
@@ -617,27 +660,27 @@ const Coins = memo(() => {
   );
 });
 
+
 const SpinningCoin = () => {
   const ref = useRef();
+  const texture = useTexture(coinLogo);
+
   useFrame((state, delta) => {
     if (ref.current) {
-      ref.current.rotation.z += delta * 3; // Spin around the Z axis (which is vertical relative to the coin face now)
+      ref.current.rotation.z += delta * 3;
     }
   });
 
   return (
-    // Rotate X by 90 degrees to make the cylinder stand up like a coin
     <group rotation={[Math.PI / 2, 0, 0]}>
       <mesh ref={ref}>
-        {/* Cylinder: radiusTop, radiusBottom, height, radialSegments */}
         <cylinderGeometry args={[0.4, 0.4, 0.1, 32]} />
-        <meshStandardMaterial
-          color="#FFFF00"
-          metalness={0.8}
-          roughness={0.2}
-          emissive="#FFD700"
-          emissiveIntensity={0.4}
-        />
+        {/* Material 0: Side (Gold) */}
+        <meshStandardMaterial attach="material-0" color="#FFD700" metalness={0.9} roughness={0.1} emissive="#FFA500" emissiveIntensity={0.5} />
+        {/* Material 1: Top (Logo) */}
+        <meshStandardMaterial attach="material-1" map={texture} metalness={0.9} roughness={0.1} emissive="#FFD700" emissiveIntensity={0.2} />
+        {/* Material 2: Bottom (Logo) */}
+        <meshStandardMaterial attach="material-2" map={texture} metalness={0.9} roughness={0.1} emissive="#FFD700" emissiveIntensity={0.2} />
       </mesh>
     </group>
   );
