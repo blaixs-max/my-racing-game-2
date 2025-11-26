@@ -577,8 +577,8 @@ const useGameStore = create((set, get) => ({
       }
     }
 
-    // FIX 7: Coin spawn zamana dayalı
-    if (Math.random() < 0.02 * (clampedDelta * 60) && newCoins.length < 3) {
+    // FIX 7: Coin spawn zamana dayalı (3x increased)
+    if (Math.random() < 0.06 * (clampedDelta * 60) && newCoins.length < 10) {
       const coinLane = Math.floor(Math.random() * 3) - 1;
       const coinX = coinLane * 4.5;
       const isSafeCar = !newEnemies.some(e => Math.abs(e.x - coinX) < 2 && Math.abs(e.z - -400) < 40);
