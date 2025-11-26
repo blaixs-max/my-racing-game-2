@@ -5,6 +5,15 @@ import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
 
+// --- OYUN AYARLARI (SUPABASE & WALLET) ---
+const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNsZGp3YWpoY2VweXp2bXdqY216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMzIxMDcsImV4cCI6MjA3OTcwODEwN30.y4s4UH2JERVhUgdztg1u6DaAsvMy4PNNM2euYQCvre0';
+
+// CDN'den gelen kütüphaneleri kullan
+// Eğer window.supabase yoksa (index.html'e eklenmediyse) hata vermesin diye kontrol et
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const ethers = window.ethers;
+
 // Preload 3D Models to prevent Suspense fallback (black screen) during gameplay
 useGLTF.preload('/models/truck.glb');
 useGLTF.preload('/models/Car 2/scene.gltf');
@@ -237,6 +246,7 @@ const useGameStore = create((set, get) => ({
   cameraShake: 0,
   totalDistance: 0,
   nearMissCount: 0,
+  startTime: 0, // Oyun süresi için
 
   nitro: 100,
   maxNitro: 100,
@@ -290,6 +300,7 @@ const useGameStore = create((set, get) => ({
       nitro: 100,
       isNitroActive: false,
       updateCounter: 0,
+      startTime: 0, // Reset time
 
       cameraShake: 0,
       lastSpawnZ: -400
@@ -304,7 +315,7 @@ const useGameStore = create((set, get) => ({
         set({ countdown: "GO!" });
       } else {
         clearInterval(timer);
-        set({ gameState: 'playing', countdown: null, speed: 110, targetSpeed: 110, countdownTimer: null });
+        set({ gameState: 'playing', countdown: null, speed: 110, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
       }
     }, 1000);
 
@@ -532,7 +543,7 @@ const useGameStore = create((set, get) => ({
       z: c.z + newSpeed * clampedDelta * 0.5
     })).filter(c => c.z < 50);
 
-    const difficulty = Math.min(state.score / 15000, 1.0);
+    // const difficulty = Math.min(state.score / 15000, 1.0);
     // FIX 7: Spawn rate zamana dayalı
 
     let newLastSpawnZ = state.lastSpawnZ;
@@ -552,7 +563,7 @@ const useGameStore = create((set, get) => ({
 
       if (availableLanes.length > 0) {
         const lane = availableLanes[Math.floor(Math.random() * availableLanes.length)];
-        const typeRoll = Math.random();
+        // const typeRoll = Math.random();
         // SYSTEMATIC DEBUGGING: Final - All Safe Vehicles (No Police)
         const allowedTypes = ['truck', 'sedan', 'suv', 'sport'];
         // const allowedTypes = [];  
@@ -1722,8 +1733,47 @@ function Game() {
     speed, score, message, gameOver, gameState, countdown,
     startGame, quitGame, steer, cleanupTimer,
     totalDistance, nearMissCount, nitro, maxNitro, isNitroActive,
-    activateNitro, deactivateNitro
+    activateNitro, deactivateNitro, startTime
   } = useGameStore();
+
+  const [wallet, setWallet] = React.useState(null);
+
+  // 1. Cüzdan Bağlama
+  async function connectWallet() {
+    if (!window.ethereum) return alert("MetaMask Yükle!");
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    const signer = provider.getSigner();
+    const address = await signer.getAddress();
+    setWallet(address);
+    alert("Bağlandı: " + address);
+  }
+
+  // 2. Skoru Kaydetme (Oyun Bitince Çağırılacak)
+  // Bu fonksiyonu "useEffect" ile tetiklemek en doğrusu
+  // Game Over state'i true olduğunda çalışır
+  useEffect(() => {
+    if (gameOver && wallet && supabase && startTime > 0) {
+      const saveScore = async () => {
+        const duration = Math.floor((Date.now() - startTime) / 1000);
+        console.log("Skor Gönderiliyor:", score);
+        
+        const { error } = await supabase.rpc('submit_score', { 
+            p_wallet: wallet, 
+            p_score: Math.floor(score),
+            p_duration: duration,
+            p_is_degen: false,
+            p_team: 'NONE' // Şimdilik takım yok
+        });
+    
+        if (!error) alert("SKOR KAYDEDİLDİ! 🏆");
+        else console.error("Skor Hatası:", error);
+      };
+      
+      saveScore();
+    }
+  }, [gameOver, wallet, score, startTime]);
+
 
   const { isMobile, isPortrait } = useResponsive();
   const isLandscape = isMobile && !isPortrait;
@@ -1955,6 +2005,20 @@ function Game() {
           }
         }
       `}</style>
+
+      {/* --- CÜZDAN BAĞLAMA BUTONU --- */}
+      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 999 }}>
+        {!wallet ? (
+            <button onClick={connectWallet} style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer', background: '#FFD700', border: 'none', borderRadius: '5px' }}>
+            🦊 CÜZDAN BAĞLA
+            </button>
+        ) : (
+            <div style={{ color: '#0f0', background: 'rgba(0,0,0,0.8)', padding: '5px 10px', borderRadius: '5px' }}>
+            ✅ {wallet.substring(0, 6)}...
+            </div>
+        )}
+      </div>
+      {/* --------------------------- */}
 
       {gameState === 'playing' && isMobile && <MobileControls isLandscape={!isPortrait} />}
 
