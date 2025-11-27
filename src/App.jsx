@@ -1655,16 +1655,50 @@ function Game() {
   } = useGameStore();
 
   const [wallet, setWallet] = React.useState(null);
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+
+  // Network durumu monitoring
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      console.log("✅ İnternet bağlantısı geri geldi");
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      console.log("❌ İnternet bağlantısı kesildi");
+      alert("⚠️ İnternet bağlantısı kesildi!\nBağlantı geri geldiğinde oyuna devam edebilirsiniz.");
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 1. Cüzdan Bağlama
   async function connectWallet() {
     if (!window.ethereum) return alert("MetaMask Yükle!");
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    const signer = provider.getSigner();
-    const address = await signer.getAddress();
-    setWallet(address);
-    alert("Bağlandı: " + address);
+
+    // Ethers kütüphanesi kontrol
+    if (!window.ethers) {
+      return alert("Ethers kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin ve sayfayı yenileyin.");
+    }
+
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = provider.getSigner();
+      const address = await signer.getAddress();
+      setWallet(address);
+      alert("Bağlandı: " + address);
+    } catch (error) {
+      console.error("Cüzdan bağlantı hatası:", error);
+      alert("Cüzdan bağlantısı başarısız. Lütfen tekrar deneyin.\nHata: " + (error.message || "Bilinmeyen hata"));
+    }
   }
 
   // 2. Skoru Kaydetme (Oyun Bitince Çağırılacak)
@@ -1672,22 +1706,51 @@ function Game() {
   // Game Over state'i true olduğunda çalışır
   useEffect(() => {
     if (gameOver && wallet && supabase && startTime > 0) {
-      const saveScore = async () => {
+      const saveScore = async (retryCount = 0) => {
         const duration = Math.floor((Date.now() - startTime) / 1000);
         console.log("Skor Gönderiliyor:", score);
-        
-        const { error } = await supabase.rpc('submit_score', { 
-            p_wallet: wallet, 
-            p_score: Math.floor(score),
-            p_duration: duration,
-            p_is_degen: false,
-            p_team: 'NONE' // Şimdilik takım yok
-        });
-    
-        if (!error) alert("SKOR KAYDEDİLDİ! 🏆");
-        else console.error("Skor Hatası:", error);
+
+        // Bağlantı kontrolü
+        if (!navigator.onLine) {
+          alert("❌ İnternet bağlantısı yok!\nSkorunuz kaydedilemedi. Lütfen bağlantınızı kontrol edin ve sayfayı yenileyin.");
+          return;
+        }
+
+        try {
+          const { error } = await supabase.rpc('submit_score', {
+              p_wallet: wallet,
+              p_score: Math.floor(score),
+              p_duration: duration,
+              p_is_degen: false,
+              p_team: 'NONE' // Şimdilik takım yok
+          });
+
+          if (!error) {
+            alert("SKOR KAYDEDİLDİ! 🏆");
+          } else {
+            console.error("Skor Hatası:", error);
+
+            // Retry mekanizması (maksimum 3 deneme)
+            if (retryCount < 3) {
+              console.log(`Yeniden deneniyor... (${retryCount + 1}/3)`);
+              setTimeout(() => saveScore(retryCount + 1), 2000 * (retryCount + 1)); // Exponential backoff
+            } else {
+              alert("❌ Skor kaydedilemedi!\nLütfen internet bağlantınızı kontrol edin.\nHata: " + (error.message || error.toString()));
+            }
+          }
+        } catch (error) {
+          console.error("Skor kaydetme hatası:", error);
+
+          // Network hatası için retry
+          if (retryCount < 3) {
+            console.log(`Network hatası, yeniden deneniyor... (${retryCount + 1}/3)`);
+            setTimeout(() => saveScore(retryCount + 1), 2000 * (retryCount + 1));
+          } else {
+            alert("❌ Bağlantı hatası!\nSkorunuz kaydedilemedi. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.");
+          }
+        }
       };
-      
+
       saveScore();
     }
   }, [gameOver, wallet, score, startTime]);
@@ -1852,7 +1915,33 @@ function Game() {
     }}>
       <SpeedBlurOverlay />
 
+      {/* Bağlantı Durumu Göstergesi */}
+      {!isOnline && (
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(255, 0, 0, 0.9)',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          zIndex: 10000,
+          boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)',
+          animation: 'pulse 2s infinite'
+        }}>
+          ⚠️ İnternet Bağlantısı Yok
+        </div>
+      )}
+
       <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+
         * {
           user-select: none !important;
           -webkit-user-select: none !important;
