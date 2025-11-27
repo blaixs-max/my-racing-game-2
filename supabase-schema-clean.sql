@@ -75,7 +75,7 @@ CREATE TABLE scores (
 CREATE INDEX idx_scores_user_id ON scores(user_id);
 CREATE INDEX idx_scores_score ON scores(score DESC);
 CREATE INDEX idx_scores_created_at ON scores(created_at DESC);
-CREATE INDEX idx_scores_daily ON scores(DATE(created_at), score DESC);
+-- Note: Removed problematic DATE() index - daily queries will use created_at index
 
 -- ==================== ROW LEVEL SECURITY (RLS) ====================
 -- Güvenlik için RLS aktif edilmeli
