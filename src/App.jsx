@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, Suspense, useMemo, useCallback, memo } from 'react';
-import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
-import { PerspectiveCamera, Stars, useGLTF, Instances, Instance, useProgress, useTexture, PositionalAudio } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { PerspectiveCamera, Stars, useGLTF, useProgress, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
@@ -254,10 +254,6 @@ const useGameStore = create((set, get) => ({
   nitroRegenRate: 5,
 
   selectedCar: 'default',
-
-  roadSegments: [],
-  currentRoadType: 'straight',
-  roadTransition: 0,
 
   updateCounter: 0,
   lastSpawnZ: -400,
@@ -543,9 +539,7 @@ const useGameStore = create((set, get) => ({
       z: c.z + newSpeed * clampedDelta * 0.5
     })).filter(c => c.z < 50);
 
-    // const difficulty = Math.min(state.score / 15000, 1.0);
     // FIX 7: Spawn rate zamana dayalı
-
     let newLastSpawnZ = state.lastSpawnZ;
     const playerZ = state.totalDistance; // Approximate player Z for spawning logic relative to distance
 
@@ -563,10 +557,8 @@ const useGameStore = create((set, get) => ({
 
       if (availableLanes.length > 0) {
         const lane = availableLanes[Math.floor(Math.random() * availableLanes.length)];
-        // const typeRoll = Math.random();
         // SYSTEMATIC DEBUGGING: Final - All Safe Vehicles (No Police)
         const allowedTypes = ['truck', 'sedan', 'suv', 'sport'];
-        // const allowedTypes = [];  
 
         if (allowedTypes.length > 0) {
           const type = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
@@ -950,10 +942,6 @@ const VEHICLE_DIMENSIONS = {
   player: { width: 1.8, length: 5.5 }, // Increased for tighter collision
   sedan: { width: 3.0, length: 6.75, height: 2.7 }, // Scaled up by 35%
   truck: { width: 3.1, length: 8.3, height: 4.2 }, // Reduced by 8% (3.36->3.1, 9.0->8.3)
-  bus: { width: 3.0, length: 8.5, height: 4.0 },
-  pickup: { width: 2.4, length: 7.0, height: 2.6 },
-  police: { width: 2.0, length: 4.8, height: 1.8 }, // Car 1 (Original Sedan)
-  ambulance: { width: 2.8, length: 7.0, height: 3.3 },
   sport: { width: 1.9, length: 4.2, height: 1.9 }, // Sport Increased by 5% (1.8->1.9, 4.0->4.2)
   suv: { width: 2.9, length: 7.6, height: 3.8 } // SUV Reduced by 8% (3.1->2.9, 8.2->7.6)
 };
@@ -1011,7 +999,6 @@ function TreeModel({ scale = 1, rotation = [0, 0, 0] }) {
 function PlayerCar() {
   const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed } = useGameStore();
   const group = useRef();
-  const wheels = useRef([]);
 
   const [leftTarget] = useState(() => {
     const obj = new THREE.Object3D();
@@ -1044,8 +1031,6 @@ function PlayerCar() {
     const moveDiff = (group.current.position.x - currentX) / clampedDelta;
     group.current.rotation.z = -moveDiff * 0.002;
     group.current.rotation.x = -speed * 0.0002;
-
-    wheels.current.forEach(w => { if (w) w.rotation.x += speed * clampedDelta * 0.1; });
 
     const playerWidth = VEHICLE_DIMENSIONS.player.width;
     const playerLength = VEHICLE_DIMENSIONS.player.length;
@@ -1108,7 +1093,7 @@ function PlayerCar() {
     neon: new THREE.MeshStandardMaterial({ color: '#00ffff', emissive: '#00ffff', emissiveIntensity: 2 }),
     tailLight: new THREE.MeshBasicMaterial({ color: 'red' }),
     wheel: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.8 })
-  }), [selectedCar, carColors]);
+  }), [selectedCar]);
 
   useEffect(() => {
     return () => {
@@ -1180,14 +1165,9 @@ const Traffic = memo(() => {
   const materials = useMemo(() => ({
     truck: new THREE.MeshStandardMaterial({ color: '#335577', roughness: 0.5 }),
     container: new THREE.MeshStandardMaterial({ color: '#999', roughness: 0.8 }),
-    bus: new THREE.MeshStandardMaterial({ color: '#ddaa00', roughness: 0.5 }),
     sedan: new THREE.MeshStandardMaterial({ color: '#ccc', roughness: 0.3 }),
-    police: new THREE.MeshStandardMaterial({ color: '#000', roughness: 0.3 }),
-    ambulance: new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.3 }),
     sport: new THREE.MeshStandardMaterial({ color: '#ff0000', metalness: 0.8, roughness: 0.2 }),
-    tailLight: new THREE.MeshStandardMaterial({ color: '#ff0000', emissive: '#ff0000', emissiveIntensity: 4 }),
-    policeLight: new THREE.MeshStandardMaterial({ color: '#0000ff', emissive: '#0000ff', emissiveIntensity: 5 }),
-    ambulanceLight: new THREE.MeshStandardMaterial({ color: '#ff0000', emissive: '#ff0000', emissiveIntensity: 5 })
+    tailLight: new THREE.MeshStandardMaterial({ color: '#ff0000', emissive: '#ff0000', emissiveIntensity: 4 })
   }), []);
 
   useEffect(() => {
@@ -1210,18 +1190,6 @@ const Traffic = memo(() => {
                 <CarModel modelPath="/models/truck.glb" scale={1.678} />
               </group>
             )}
-            {enemy.type === 'bus' && (
-              <group rotation={[0, Math.PI, 0]}>
-                {/* Bus: Fallback to Truck but longer. Scaled up another 15% */}
-                <CarModel modelPath="/models/truck.glb" scale={[1.52, 1.52, 2.4]} color="#FFD700" />
-              </group>
-            )}
-            {enemy.type === 'pickup' && (
-              <group rotation={[0, Math.PI, 0]}>
-                {/* Pickup: Car 3 */}
-                <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.0} />
-              </group>
-            )}
             {enemy.type === 'suv' && (
               <group rotation={[0, Math.PI, 0]}>
                 {/* SUV: Car 2 - Reduced by 8% (1.66 * 0.92 = 1.527 -> 1.53) */}
@@ -1232,11 +1200,6 @@ const Traffic = memo(() => {
               <group rotation={[0, Math.PI, 0]}>
                 {/* Sedan: Car 3 (Green Taxi/Pickup) - Scaled up by 35% */}
                 <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.35} />
-              </group>
-            )}
-            {enemy.type === 'ambulance' && (
-              <group rotation={[0, Math.PI, 0]}>
-                <CarModel modelPath="/models/truck.glb" scale={1.52} />
               </group>
             )}
             {enemy.type === 'sport' && (
@@ -1315,7 +1278,6 @@ const SideObjects = memo(({ side }) => {
     const rand = Math.random();
     let type = 'empty', height = 0, width = 0;
 
-    // Periodic Tunnels - REMOVED
     if (rand > 0.7) {
       type = 'tree';
       width = 2 + rand * 2;
@@ -1629,68 +1591,6 @@ const SpeedBlurOverlay = memo(() => {
 
 SpeedBlurOverlay.displayName = 'SpeedBlurOverlay';
 
-// ==================== LANDSCAPE BLOCKER - MOBİL İÇİN ====================
-const LandscapeBlocker = memo(() => {
-  const { isMobile, isPortrait } = useResponsive();
-
-  if (!isMobile || isPortrait) return null;
-
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: '#000',
-      zIndex: 9999,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#fff',
-      textAlign: 'center',
-      padding: '20px'
-    }}>
-      <div style={{ fontSize: '60px', marginBottom: '20px' }}>📱</div>
-      <h1 style={{ fontSize: '32px', marginBottom: '20px', color: '#00ffff' }}>Lütfen Telefonunuzu Döndürün</h1>
-      <p style={{ fontSize: '18px', color: '#aaa' }}>Bu oyun sadece dikey (portrait) modda oynanabilir</p>
-      <div style={{
-        marginTop: '30px',
-        width: '80px',
-        height: '120px',
-        border: '4px solid #00ffff',
-        borderRadius: '10px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        animation: 'rotatePhone 2s ease-in-out infinite'
-      }}>
-        <div style={{ fontSize: '40px' }}>📲</div>
-      </div>
-      <style>{`
-        @keyframes rotatePhone {
-          0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(90deg); }
-        }
-      `}</style>
-    </div>
-  );
-});
-
-LandscapeBlocker.displayName = 'LandscapeBlocker';
-
-// ==================== SHADER WARMUP ====================
-// Forces shader compilation by rendering all models once invisibly
-const ShaderWarmup = () => {
-  return (
-    <group position={[0, -50, 0]}>
-      <CarModel modelPath="/models/truck.glb" scale={1.678} />
-      <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
-      <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.0} />
-      <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
-      <SpinningCoin />
-    </group>
-  );
-};
-
 // ==================== AUDIO LISTENER ====================
 const AudioListenerController = () => {
   const { camera } = useThree();
@@ -1714,7 +1614,6 @@ const GameContent = () => (
     <ambientLight intensity={0.6} color="#ffffff" />
     <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
     <Suspense fallback={null}>
-      {/* <ShaderWarmup /> */}
       <SkyEnvironment />
       <CameraShake />
       <ParticleSystem />
@@ -1915,11 +1814,6 @@ function Game() {
 
     startGame();
   }, [startGame]);
-
-  // Landscape modda da oynanabilir
-  // if (isMobile && !isPortrait) {
-  //   return <LandscapeBlocker />;
-  // }
 
   return (
     <div style={{
