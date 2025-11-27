@@ -311,10 +311,11 @@ const useGameStore = create((set, get) => ({
         set({ countdown: "GO!" });
       } else {
         clearInterval(timer);
-        // Wait 300ms after "GO!" for shaders to compile (prevents black flash on mobile)
+        // Show "GO!" for longer to prevent black flash (especially on mobile)
+        // This gives GPU time to compile shaders and warm up rendering pipeline
         setTimeout(() => {
-          set({ gameState: 'playing', countdown: null, speed: 110, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
-        }, 300);
+          set({ gameState: 'playing', countdown: null, speed: 0, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
+        }, 1300); // Increased from 300ms to 1300ms for smoother transition
       }
     }, 1000);
 
