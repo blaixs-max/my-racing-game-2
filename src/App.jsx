@@ -4,6 +4,7 @@ import { PerspectiveCamera, Stars, useGLTF, useProgress, useTexture } from '@rea
 import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
+import LauncherUI from './components/LauncherUI';
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
 const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
@@ -230,7 +231,7 @@ const audioSystem = new AudioSystem();
 
 // ==================== OYUN VERİ MERKEZİ ====================
 const useGameStore = create((set, get) => ({
-  gameState: 'menu',
+  gameState: 'loading', // 'loading' | 'launcher' | 'countdown' | 'playing' | 'gameOver'
   countdown: 3,
   speed: 0,
   targetSpeed: 60,
@@ -255,10 +256,23 @@ const useGameStore = create((set, get) => ({
 
   selectedCar: 'default',
 
+  // Wallet & Credit System
+  walletAddress: null,
+  credits: 0,
+
   updateCounter: 0,
   lastSpawnZ: -400,
 
   countdownTimer: null,
+
+  // Set game state
+  setGameState: (newState) => set({ gameState: newState }),
+
+  // Set wallet data
+  setWalletData: (address, credits) => set({
+    walletAddress: address,
+    credits: credits
+  }),
 
   // FIX 1: Enemy passed flag güncellemesi için yeni action
   updateEnemyPassed: (enemyId) => set((state) => ({
@@ -1919,36 +1933,12 @@ function Game() {
         }
       `}</style>
 
-      {/* --- CÜZDAN BAĞLAMA BUTONU --- */}
-      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 999 }}>
-        {!wallet ? (
-            <button onClick={connectWallet} style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer', background: '#FFD700', border: 'none', borderRadius: '5px' }}>
-            🦊 CÜZDAN BAĞLA
-            </button>
-        ) : (
-            <div style={{ color: '#0f0', background: 'rgba(0,0,0,0.8)', padding: '5px 10px', borderRadius: '5px' }}>
-            ✅ {wallet.substring(0, 6)}...
-            </div>
-        )}
-      </div>
-      {/* --------------------------- */}
-
       {gameState === 'playing' && isMobile && <MobileControls isLandscape={!isPortrait} />}
 
       {
         gameState === 'countdown' && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
             <h1 style={{ fontSize: isMobile ? '80px' : '150px', color: '#00ff00', textShadow: '0 0 30px #fff', fontStyle: 'italic', fontFamily: 'Arial', userSelect: 'none' }}>{countdown}</h1>
-          </div>
-        )
-      }
-
-      {
-        gameState === 'menu' && (
-          <div style={{ position: 'absolute', zIndex: 60, inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)', gap: isMobile ? '15px' : '20px', userSelect: 'none', WebkitUserSelect: 'none', padding: '20px' }}>
-            <button onClick={handleStart} style={{ padding: isMobile ? '15px 40px' : '20px 60px', fontSize: isMobile ? '20px' : '30px', background: '#00ff00', color: '#000', border: 'none', borderRadius: '50px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 0 20px #00ff00', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>
-              START RACE
-            </button>
           </div>
         )
       }
@@ -2155,6 +2145,7 @@ function Game() {
 
 const LoadingScreen = () => {
   const { progress, active } = useProgress();
+  const setGameState = useGameStore(state => state.setGameState);
 
   const [finished, setFinished] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
@@ -2165,9 +2156,11 @@ const LoadingScreen = () => {
       // Wait for transition to finish before removing from DOM
       setTimeout(() => {
         setShouldRender(false);
+        // Go to launcher after loading
+        setGameState('launcher');
       }, 1000); // 1s buffer to ensure smooth transition
     }
-  }, [active, progress]);
+  }, [active, progress, setGameState]);
 
   if (!shouldRender) return null;
 
@@ -2231,10 +2224,28 @@ const LoadingScreen = () => {
 };
 
 export default function App() {
+  const gameState = useGameStore(state => state.gameState);
+  const setGameState = useGameStore(state => state.setGameState);
+  const setWalletData = useGameStore(state => state.setWalletData);
+
+  const handleLauncherStart = (data) => {
+    // Launcher'dan gelen wallet ve credit bilgilerini kaydet
+    setWalletData(data.walletAddress, data.credits);
+    // Oyunu başlat
+    setGameState('countdown');
+  };
+
   return (
     <ErrorBoundary>
-      <LoadingScreen />
-      <Game />
+      {gameState === 'loading' && <LoadingScreen />}
+
+      {gameState === 'launcher' && (
+        <LauncherUI onStartGame={handleLauncherStart} />
+      )}
+
+      {(gameState === 'countdown' || gameState === 'playing' || gameState === 'gameOver') && (
+        <Game />
+      )}
     </ErrorBoundary>
   );
 }
