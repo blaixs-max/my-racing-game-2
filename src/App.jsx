@@ -311,7 +311,10 @@ const useGameStore = create((set, get) => ({
         set({ countdown: "GO!" });
       } else {
         clearInterval(timer);
-        set({ gameState: 'playing', countdown: null, speed: 110, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
+        // Wait 300ms after "GO!" for shaders to compile (prevents black flash on mobile)
+        setTimeout(() => {
+          set({ gameState: 'playing', countdown: null, speed: 110, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
+        }, 300);
       }
     }, 1000);
 
