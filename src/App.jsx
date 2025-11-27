@@ -311,7 +311,11 @@ const useGameStore = create((set, get) => ({
         set({ countdown: "GO!" });
       } else {
         clearInterval(timer);
-        set({ gameState: 'playing', countdown: null, speed: 110, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
+        // Show "GO!" for longer to prevent black flash (especially on mobile)
+        // This gives GPU time to compile shaders and warm up rendering pipeline
+        setTimeout(() => {
+          set({ gameState: 'playing', countdown: null, speed: 0, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
+        }, 1300); // Increased from 300ms to 1300ms for smoother transition
       }
     }, 1000);
 
@@ -1591,6 +1595,20 @@ const SpeedBlurOverlay = memo(() => {
 
 SpeedBlurOverlay.displayName = 'SpeedBlurOverlay';
 
+// ==================== SHADER WARMUP ====================
+// Preloads and compiles shaders to prevent stuttering on first render
+const ShaderWarmup = () => {
+  return (
+    <group position={[0, -1000, 0]} visible={false}>
+      <CarModel modelPath="/models/truck.glb" scale={1.678} />
+      <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
+      <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.0} />
+      <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
+      <SpinningCoin />
+    </group>
+  );
+};
+
 // ==================== AUDIO LISTENER ====================
 const AudioListenerController = () => {
   const { camera } = useThree();
@@ -1614,6 +1632,7 @@ const GameContent = () => (
     <ambientLight intensity={0.6} color="#ffffff" />
     <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
     <Suspense fallback={null}>
+      <ShaderWarmup />
       <SkyEnvironment />
       <CameraShake />
       <ParticleSystem />
