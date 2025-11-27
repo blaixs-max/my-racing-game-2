@@ -4,7 +4,7 @@ import { PerspectiveCamera, Stars, useGLTF, useProgress, useTexture } from '@rea
 import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
-import LauncherUI from './components/LauncherUI';
+import RealLauncherUI from './components/RealLauncherUI';
 import { useCredit, getUserCredits } from './utils/supabaseClient';
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
@@ -2379,7 +2379,7 @@ export default function App() {
       {gameState === 'loading' && <LoadingScreen />}
 
       {gameState === 'launcher' && (
-        <LauncherUI onStartGame={handleLauncherStart} />
+        <RealLauncherUI onStartGame={handleLauncherStart} />
       )}
 
       {(gameState === 'countdown' || gameState === 'playing' || gameState === 'gameOver') && (
