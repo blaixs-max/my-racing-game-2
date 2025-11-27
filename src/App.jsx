@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
 import LauncherUI from './components/LauncherUI';
+import { useCredit, getUserCredits } from './utils/supabaseClient';
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
 const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
@@ -281,10 +282,25 @@ const useGameStore = create((set, get) => ({
     )
   })),
 
-  startGame: () => {
+  startGame: async () => {
     audioSystem.init();
 
     const state = get();
+
+    // Credit kontrolü - Oyun başlamadan önce kontrol et
+    if (!state.walletAddress) {
+      console.error('❌ Wallet not connected');
+      alert('Please connect your wallet first!');
+      return;
+    }
+
+    if (state.credits < 1) {
+      console.error('❌ Insufficient credits');
+      alert('❌ Insufficient credits!\n\nPlease purchase more credits to play.');
+      set({ gameState: 'launcher' }); // Launcher'a geri dön
+      return;
+    }
+
     if (state.countdownTimer) {
       clearInterval(state.countdownTimer);
     }
@@ -327,8 +343,36 @@ const useGameStore = create((set, get) => ({
         clearInterval(timer);
         // Show "GO!" for longer to prevent black flash (especially on mobile)
         // This gives GPU time to compile shaders and warm up rendering pipeline
-        setTimeout(() => {
-          set({ gameState: 'playing', countdown: null, speed: 0, targetSpeed: 110, countdownTimer: null, startTime: Date.now() });
+        setTimeout(async () => {
+          // Oyun başlarken credit düş (1 credit = 1 race)
+          const currentState = get();
+          try {
+            console.log('🎮 Starting race - deducting 1 credit...');
+            await useCredit(currentState.walletAddress);
+
+            // Güncel credit sayısını al
+            const newCredits = await getUserCredits(currentState.walletAddress);
+            console.log(`✅ Credit deducted. Remaining: ${newCredits}`);
+
+            set({
+              gameState: 'playing',
+              countdown: null,
+              speed: 0,
+              targetSpeed: 110,
+              countdownTimer: null,
+              startTime: Date.now(),
+              credits: newCredits // Store'u güncelle
+            });
+          } catch (error) {
+            console.error('❌ Credit deduction failed:', error);
+            // Hata durumunda oyunu başlatma
+            set({
+              gameState: 'launcher',
+              countdown: null,
+              countdownTimer: null
+            });
+            alert('Failed to start game. Please check your credits and try again.');
+          }
         }, 1300); // Increased from 300ms to 1300ms for smoother transition
       }
     }, 1000);
@@ -2116,14 +2160,109 @@ function Game() {
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(50,0,0,0.95)', zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'Arial', userSelect: 'none', WebkitUserSelect: 'none', padding: '20px' }}>
             <h1 style={{ fontSize: isMobile ? 'clamp(30px, 8vw, 50px)' : 'clamp(40px, 10vw, 80px)', color: '#ff0000', margin: '0 0 20px 0', textShadow: '0 0 30px red', textTransform: 'uppercase', textAlign: 'center', userSelect: 'none' }}>YOU CRASHED</h1>
             <h2 style={{ color: '#fff', fontSize: isMobile ? '20px' : '30px', marginBottom: isMobile ? '15px' : '20px', userSelect: 'none' }}>FINAL SCORE: {Math.floor(score)}</h2>
-            <div style={{ color: '#00ffff', fontSize: isMobile ? '16px' : '20px', marginBottom: isMobile ? '30px' : '40px', userSelect: 'none', textAlign: 'center' }}>
+            <div style={{ color: '#00ffff', fontSize: isMobile ? '16px' : '20px', marginBottom: isMobile ? '20px' : '30px', userSelect: 'none', textAlign: 'center' }}>
               <div>Distance: {Math.floor(totalDistance)}m</div>
               <div>Near Misses: {nearMissCount}</div>
             </div>
 
+            {/* Credits Display */}
+            <div style={{
+              marginBottom: isMobile ? '20px' : '30px',
+              padding: isMobile ? '12px 20px' : '15px 30px',
+              background: useGameStore.getState().credits > 0 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(220, 38, 38, 0.2)',
+              border: useGameStore.getState().credits > 0 ? '2px solid rgba(99, 102, 241, 0.5)' : '2px solid rgba(220, 38, 38, 0.5)',
+              borderRadius: '10px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: isMobile ? '14px' : '16px', color: '#aaa', marginBottom: '5px' }}>REMAINING CREDITS</div>
+              <div style={{
+                fontSize: isMobile ? '28px' : '36px',
+                fontWeight: 'bold',
+                color: useGameStore.getState().credits > 0 ? '#fbbf24' : '#ef4444'
+              }}>
+                {useGameStore.getState().credits}
+              </div>
+            </div>
+
             <div style={{ display: 'flex', gap: isMobile ? '15px' : '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <button onClick={startGame} style={{ padding: isMobile ? '15px 30px' : '20px 40px', fontSize: isMobile ? '18px' : '24px', cursor: 'pointer', background: '#fff', color: '#000', border: 'none', borderRadius: '5px', fontWeight: 'bold', textTransform: 'uppercase', boxShadow: '0 0 20px white', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>RESTART</button>
-              <button onClick={quitGame} style={{ padding: isMobile ? '15px 30px' : '20px 40px', fontSize: isMobile ? '18px' : '24px', cursor: 'pointer', background: '#333', color: '#fff', border: '1px solid #666', borderRadius: '5px', fontWeight: 'bold', textTransform: 'uppercase', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' }}>QUIT</button>
+              {useGameStore.getState().credits > 0 ? (
+                <button
+                  onClick={startGame}
+                  style={{
+                    padding: isMobile ? '15px 30px' : '20px 40px',
+                    fontSize: isMobile ? '18px' : '24px',
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    boxShadow: '0 0 20px rgba(99, 102, 241, 0.5)',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    WebkitTouchCallout: 'none',
+                    touchAction: 'manipulation',
+                    transition: 'transform 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                >
+                  🏁 PLAY AGAIN
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    useGameStore.getState().setGameState('launcher');
+                  }}
+                  style={{
+                    padding: isMobile ? '15px 30px' : '20px 40px',
+                    fontSize: isMobile ? '18px' : '24px',
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    boxShadow: '0 0 20px rgba(245, 158, 11, 0.5)',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    WebkitTouchCallout: 'none',
+                    touchAction: 'manipulation',
+                    transition: 'transform 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                >
+                  💎 BUY CREDITS
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  useGameStore.getState().setGameState('launcher');
+                }}
+                style={{
+                  padding: isMobile ? '15px 30px' : '20px 40px',
+                  fontSize: isMobile ? '18px' : '24px',
+                  cursor: 'pointer',
+                  background: '#1f2937',
+                  color: '#fff',
+                  border: '2px solid #374151',
+                  borderRadius: '10px',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  WebkitTouchCallout: 'none',
+                  touchAction: 'manipulation',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+              >
+                🏠 BACK TO MENU
+              </button>
             </div>
           </div>
         )
