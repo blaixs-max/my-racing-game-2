@@ -3,6 +3,10 @@
 -- ==========================================
 -- ÖNCE ESKİ TABLOLARI SİL, SONRA YENİDEN OLUŞTUR
 
+-- Eski view'leri sil (varsa)
+DROP VIEW IF EXISTS daily_leaderboard CASCADE;
+DROP VIEW IF EXISTS alltime_leaderboard CASCADE;
+
 -- Eski tabloları sil (varsa)
 DROP TABLE IF EXISTS scores CASCADE;
 DROP TABLE IF EXISTS transactions CASCADE;
