@@ -4,7 +4,7 @@ import { bscTestnet } from 'wagmi/chains';
 // Wallet Configuration
 export const config = getDefaultConfig({
   appName: 'LUMEXIA Racing',
-  projectId: 'YOUR_WALLETCONNECT_PROJECT_ID', // WalletConnect Cloud'dan alınacak
+  projectId: 'a01e43bf25a11bf3e32d058780b62fe8', // Dummy projectId for testing (MetaMask will work)
   chains: [bscTestnet],
   ssr: false, // Vite kullanıyoruz, SSR yok
 });
