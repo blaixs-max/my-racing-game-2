@@ -1,12 +1,39 @@
-import { getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { connectorsForWallets } from '@rainbow-me/rainbowkit';
+import {
+  rainbowWallet,
+  walletConnectWallet,
+  coinbaseWallet,
+  trustWallet,
+} from '@rainbow-me/rainbowkit/wallets';
+import { createConfig, http } from 'wagmi';
 import { bscTestnet } from 'wagmi/chains';
 
+// Wallet Connectors (MetaMask olmadan - injected otomatik algılanır)
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Popular',
+      wallets: [
+        rainbowWallet,
+        walletConnectWallet,
+        coinbaseWallet,
+        trustWallet,
+      ],
+    },
+  ],
+  {
+    appName: 'LUMEXIA Racing',
+    projectId: 'a01e43bf25a11bf3e32d058780b62fe8',
+  }
+);
+
 // Wallet Configuration
-export const config = getDefaultConfig({
-  appName: 'LUMEXIA Racing',
-  projectId: 'a01e43bf25a11bf3e32d058780b62fe8', // Dummy projectId for testing (MetaMask will work)
+export const config = createConfig({
+  connectors,
   chains: [bscTestnet],
-  ssr: false, // Vite kullanıyoruz, SSR yok
+  transports: {
+    [bscTestnet.id]: http(),
+  },
 });
 
 // BSC Testnet Configuration
