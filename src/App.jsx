@@ -2455,12 +2455,13 @@ export default function App() {
   const gameState = useGameStore(state => state.gameState);
   const setGameState = useGameStore(state => state.setGameState);
   const setWalletData = useGameStore(state => state.setWalletData);
+  const startGame = useGameStore(state => state.startGame);
 
   const handleLauncherStart = (data) => {
     // Launcher'dan gelen wallet ve credit bilgilerini kaydet
     setWalletData(data.walletAddress, data.credits);
-    // Oyunu başlat
-    setGameState('countdown');
+    // Oyunu başlat (countdown timer'ı başlatır)
+    startGame();
   };
 
   return (
