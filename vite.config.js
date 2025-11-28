@@ -6,5 +6,17 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true
+  },
+  optimizeDeps: {
+    include: ['@metamask/sdk'],
+    esbuildOptions: {
+      target: 'esnext'
+    }
+  },
+  build: {
+    target: 'esnext',
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
   }
 })
