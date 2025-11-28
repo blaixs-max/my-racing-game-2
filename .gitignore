@@ -17,6 +17,9 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Local git archive (deleted branches)
+.git-archive/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
