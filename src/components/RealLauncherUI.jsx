@@ -205,6 +205,25 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
   };
 
+  // Start game with existing credits (no purchase needed)
+  const handleStartGameWithCredits = () => {
+    if (!isConnected || !address) {
+      alert('Please connect wallet first');
+      return;
+    }
+
+    if (state.credits < 1) {
+      alert('You need at least 1 credit to start the game. Please purchase credits first.');
+      return;
+    }
+
+    // Start game immediately with current credits
+    onStartGame({
+      walletAddress: address,
+      credits: state.credits
+    });
+  };
+
   // Render
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-hidden">
@@ -269,29 +288,73 @@ const RealLauncherUI = ({ onStartGame }) => {
             </div>
           </div>
 
-          {/* Action Button */}
-          <button
-            onClick={handlePurchaseAndStart}
-            disabled={!isConnected || !state.selectedPackage || state.isProcessing}
-            className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-              !isConnected || !state.selectedPackage || state.isProcessing
-                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-            }`}
-          >
-            {state.isProcessing ? (
-              <span className="flex items-center justify-center gap-2">
-                <i className="fas fa-spinner fa-spin"></i>
-                Processing...
-              </span>
-            ) : !isConnected ? (
-              'Connect Wallet First'
-            ) : !state.selectedPackage ? (
-              'Select a Package'
-            ) : (
-              `Purchase & Start Game`
-            )}
-          </button>
+          {/* Action Buttons */}
+          {isConnected && state.credits > 0 ? (
+            <>
+              {/* Start Game Button (when user has credits) */}
+              <button
+                onClick={handleStartGameWithCredits}
+                disabled={state.isProcessing}
+                className={`w-full py-5 rounded-xl font-bold text-xl transition-all duration-300 mb-4 ${
+                  state.isProcessing
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 animate-pulse'
+                }`}
+              >
+                {state.isProcessing ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <i className="fas fa-spinner fa-spin"></i>
+                    Processing...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <i className="fas fa-play-circle"></i>
+                    START GAME
+                  </span>
+                )}
+              </button>
+
+              {/* Purchase More Credits Section */}
+              <div className="text-center mb-3">
+                <p className="text-gray-400 text-sm">Or purchase more credits:</p>
+              </div>
+              <button
+                onClick={handlePurchaseAndStart}
+                disabled={!state.selectedPackage || state.isProcessing}
+                className={`w-full py-3 rounded-xl font-semibold text-base transition-all duration-300 ${
+                  !state.selectedPackage || state.isProcessing
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
+                }`}
+              >
+                {!state.selectedPackage ? 'Select a Package to Purchase' : 'Purchase Credits'}
+              </button>
+            </>
+          ) : (
+            /* Purchase & Start Button (when user has NO credits) */
+            <button
+              onClick={handlePurchaseAndStart}
+              disabled={!isConnected || !state.selectedPackage || state.isProcessing}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
+                !isConnected || !state.selectedPackage || state.isProcessing
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
+              }`}
+            >
+              {state.isProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <i className="fas fa-spinner fa-spin"></i>
+                  Processing...
+                </span>
+              ) : !isConnected ? (
+                'Connect Wallet First'
+              ) : !state.selectedPackage ? (
+                'Select a Package'
+              ) : (
+                `Purchase & Start Game`
+              )}
+            </button>
+          )}
 
           {/* Status Message */}
           <p className="text-center text-sm text-gray-300 mt-4">
