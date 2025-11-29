@@ -11,5 +11,11 @@
 *.glb
 *.gltf
 
-# Büyük dosyalar
+# Büyük dosyalar ve asset klasörleri
 public/models/
+public/assets/
+
+# Geçici ve cache dosyaları
+.cache/
+dist/
+node_modules/
