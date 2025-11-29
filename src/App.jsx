@@ -8,7 +8,7 @@ import RealLauncherUI from './components/RealLauncherUI';
 import { useCredit, getUserCredits } from './utils/supabaseClient';
 import PhysicsWorld from './components/PhysicsWorld';
 import PostProcessing from './components/PostProcessing';
-import { NitroBoostParticles, TireSmokeParticles, CollisionSparks } from './components/AdvancedParticles';
+import { NitroBoostParticles, CollisionSparks } from './components/AdvancedParticles';
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
 const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
@@ -1234,11 +1234,6 @@ function PlayerCar() {
       {/* Advanced Particle Effects */}
       <NitroBoostParticles
         isActive={isNitroActive}
-        position={playerPos}
-        speed={speed}
-      />
-      <TireSmokeParticles
-        isDrifting={Math.abs(targetX - group.current?.position.x || 0) > 0.5}
         position={playerPos}
         speed={speed}
       />
