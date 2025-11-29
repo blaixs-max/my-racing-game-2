@@ -1,13 +1,11 @@
 import React, { useRef, useEffect, useState, Suspense, useMemo, useCallback, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Stars, useGLTF, useProgress, useTexture } from '@react-three/drei';
-import { RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
 import RealLauncherUI from './components/RealLauncherUI';
 import { useCredit, getUserCredits } from './utils/supabaseClient';
-import PhysicsWorld from './components/PhysicsWorld';
 import PostProcessing from './components/PostProcessing';
 import { NitroBoostParticles, CollisionSparks } from './components/AdvancedParticles';
 
@@ -736,17 +734,9 @@ const Coins = memo(() => {
   return (
     <group>
       {coins.map(c => (
-        <RigidBody
-          key={c.id}
-          type="fixed"
-          colliders="cylinder"
-          sensor={true}
-          name={`coin-${c.id}`}
-        >
-          <group position={[c.x, 1, c.z]}>
-            <SpinningCoin />
-          </group>
-        </RigidBody>
+        <group key={c.id} position={[c.x, 1, c.z]}>
+          <SpinningCoin />
+        </group>
       ))}
     </group>
   );
@@ -1226,27 +1216,19 @@ function PlayerCar() {
 
   return (
     <>
-      {/* Rapier Physics RigidBody - Sensor mode for collision detection only */}
-      <RigidBody
-        type="fixed"
-        colliders="cuboid"
-        sensor={true}
-        name="player"
-      >
-        <group ref={group} position={[0, 0.1, -2]}>
-          <primitive object={leftTarget} />
-          <primitive object={rightTarget} />
-          <spotLight position={[0.8, 0.6, -1.5]} target={rightTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
-          <spotLight position={[-0.8, 0.6, -1.5]} target={leftTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
+      <group ref={group} position={[0, 0.1, -2]}>
+        <primitive object={leftTarget} />
+        <primitive object={rightTarget} />
+        <spotLight position={[0.8, 0.6, -1.5]} target={rightTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
+        <spotLight position={[-0.8, 0.6, -1.5]} target={leftTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
 
-          {/* 3D Model Replacement */}
-          <group rotation={[0, 0, 0]} position={[0, 0, 0]}>
-            {/* Player is now F1 Car (sport_car.glb) */}
-            {/* Scaled up another 15% from 0.14 -> ~0.16 */}
-            <CarModel modelPath="/models/sport_car.glb" scale={0.16} />
-          </group>
+        {/* 3D Model Replacement */}
+        <group rotation={[0, 0, 0]} position={[0, 0, 0]}>
+          {/* Player is now F1 Car (sport_car.glb) */}
+          {/* Scaled up another 15% from 0.14 -> ~0.16 */}
+          <CarModel modelPath="/models/sport_car.glb" scale={0.16} />
         </group>
-      </RigidBody>
+      </group>
 
       {/* Advanced Particle Effects */}
       <NitroBoostParticles
@@ -1327,40 +1309,32 @@ const Traffic = memo(() => {
         const tilt = enemy.isChanging ? (enemy.targetLane > enemy.lane ? -0.1 : 0.1) : 0;
 
         return (
-          <RigidBody
-            key={enemy.id}
-            type="fixed"
-            colliders="cuboid"
-            sensor={true}
-            name={`enemy-${enemy.id}`}
-          >
-            <group position={[x, 0, enemy.z]} rotation={[0, 0, tilt]}>
-              {enemy.type === 'truck' && (
-                <group rotation={[0, Math.PI, 0]}>
-                  {/* Truck: Reduced by 8% from 1.824 -> 1.678 */}
-                  <CarModel modelPath="/models/truck.glb" scale={1.678} />
-                </group>
-              )}
-              {enemy.type === 'suv' && (
-                <group rotation={[0, Math.PI, 0]}>
-                  {/* SUV: Car 2 - Reduced by 8% (1.66 * 0.92 = 1.527 -> 1.53) */}
-                  <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
-                </group>
-              )}
-              {enemy.type === 'sedan' && (
-                <group rotation={[0, Math.PI, 0]}>
-                  {/* Sedan: Car 3 (Green Taxi/Pickup) - Scaled up by 35% */}
-                  <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.35} />
-                </group>
-              )}
-              {enemy.type === 'sport' && (
-                <group rotation={[0, 0, 0]}>
-                  {/* Sport: Ferrari Model. Increased by 5% (1.15 * 1.05 = 1.21) */}
-                  <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
-                </group>
-              )}
-            </group>
-          </RigidBody>
+          <group key={enemy.id} position={[x, 0, enemy.z]} rotation={[0, 0, tilt]}>
+            {enemy.type === 'truck' && (
+              <group rotation={[0, Math.PI, 0]}>
+                {/* Truck: Reduced by 8% from 1.824 -> 1.678 */}
+                <CarModel modelPath="/models/truck.glb" scale={1.678} />
+              </group>
+            )}
+            {enemy.type === 'suv' && (
+              <group rotation={[0, Math.PI, 0]}>
+                {/* SUV: Car 2 - Reduced by 8% (1.66 * 0.92 = 1.527 -> 1.53) */}
+                <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
+              </group>
+            )}
+            {enemy.type === 'sedan' && (
+              <group rotation={[0, Math.PI, 0]}>
+                {/* Sedan: Car 3 (Green Taxi/Pickup) - Scaled up by 35% */}
+                <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.35} />
+              </group>
+            )}
+            {enemy.type === 'sport' && (
+              <group rotation={[0, 0, 0]}>
+                {/* Sport: Ferrari Model. Increased by 5% (1.15 * 1.05 = 1.21) */}
+                <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
+              </group>
+            )}
+          </group>
         );
       })}
     </>
@@ -1512,31 +1486,14 @@ const Barrier = memo(({ x }) => {
 
   return (
     <group position={[x, 0, 0]}>
-      {/* Barrier posts */}
       {Array.from({ length: 40 }).map((_, i) => (
-        <RigidBody
-          key={i}
-          type="fixed"
-          colliders="cuboid"
-          sensor={false}
-          name={`barrier-post-${x}-${i}`}
-        >
-          <mesh position={[0, 0.5, -i * 10]} material={barrierMaterials.post}>
-            <boxGeometry args={[0.2, 1.0, 0.2]} />
-          </mesh>
-        </RigidBody>
-      ))}
-      {/* Barrier rail */}
-      <RigidBody
-        type="fixed"
-        colliders="cuboid"
-        sensor={false}
-        name={`barrier-rail-${x}`}
-      >
-        <mesh position={[0, 0.8, -200]} material={barrierMaterials.rail}>
-          <boxGeometry args={[0.3, 0.4, 1000]} />
+        <mesh key={i} position={[0, 0.5, -i * 10]} material={barrierMaterials.post}>
+          <boxGeometry args={[0.2, 1.0, 0.2]} />
         </mesh>
-      </RigidBody>
+      ))}
+      <mesh position={[0, 0.8, -200]} material={barrierMaterials.rail}>
+        <boxGeometry args={[0.3, 0.4, 1000]} />
+      </mesh>
     </group>
   );
 });
@@ -1809,20 +1766,17 @@ const GameContent = () => {
         isNitroActive={isNitroActive}
       />
 
-      {/* Rapier Physics World - Realistic physics simulation */}
-      <PhysicsWorld debug={false} gravity={[0, -9.81, 0]}>
-        <Suspense fallback={null}>
-          <ShaderWarmup />
-          <SkyEnvironment />
-          <CameraShake />
-          <ParticleSystem />
-          <PlayerCar />
-          <Traffic />
-          <Coins />
-          <SpeedLines />
-          <RoadEnvironment />
-        </Suspense>
-      </PhysicsWorld>
+      <Suspense fallback={null}>
+        <ShaderWarmup />
+        <SkyEnvironment />
+        <CameraShake />
+        <ParticleSystem />
+        <PlayerCar />
+        <Traffic />
+        <Coins />
+        <SpeedLines />
+        <RoadEnvironment />
+      </Suspense>
     </>
   );
 };
