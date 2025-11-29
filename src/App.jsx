@@ -2324,12 +2324,131 @@ function Game() {
 
       {
         gameOver && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(50,0,0,0.95)', zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'Arial', userSelect: 'none', WebkitUserSelect: 'none', padding: '20px' }}>
-            <h1 style={{ fontSize: isMobile ? 'clamp(30px, 8vw, 50px)' : 'clamp(40px, 10vw, 80px)', color: '#ff0000', margin: '0 0 20px 0', textShadow: '0 0 30px red', textTransform: 'uppercase', textAlign: 'center', userSelect: 'none' }}>YOU CRASHED</h1>
-            <h2 style={{ color: '#fff', fontSize: isMobile ? '20px' : '30px', marginBottom: isMobile ? '15px' : '20px', userSelect: 'none' }}>FINAL SCORE: {Math.floor(score)}</h2>
-            <div style={{ color: '#00ffff', fontSize: isMobile ? '16px' : '20px', marginBottom: isMobile ? '20px' : '30px', userSelect: 'none', textAlign: 'center' }}>
-              <div>Distance: {Math.floor(totalDistance)}m</div>
-              <div>Near Misses: {nearMissCount}</div>
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(135deg, rgba(20, 0, 0, 0.97) 0%, rgba(60, 0, 20, 0.97) 50%, rgba(20, 0, 0, 0.97) 100%)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontFamily: "'Inter', 'Arial', sans-serif",
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            padding: '20px',
+            overflow: 'auto'
+          }}>
+            {/* Crashed Title with Icon */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: isMobile ? '10px' : '20px',
+              marginBottom: isMobile ? '15px' : '20px'
+            }}>
+              <span style={{ fontSize: isMobile ? '40px' : '60px' }}>💥</span>
+              <h1 style={{
+                fontSize: isMobile ? 'clamp(30px, 8vw, 50px)' : 'clamp(40px, 10vw, 80px)',
+                color: '#ff3333',
+                margin: 0,
+                textShadow: '0 0 30px rgba(255, 0, 0, 0.8), 0 0 60px rgba(255, 0, 0, 0.4)',
+                textTransform: 'uppercase',
+                textAlign: 'center',
+                userSelect: 'none',
+                fontWeight: '900',
+                letterSpacing: '2px'
+              }}>YOU CRASHED</h1>
+              <span style={{ fontSize: isMobile ? '40px' : '60px' }}>💥</span>
+            </div>
+
+            {/* Score Display */}
+            <h2 style={{
+              color: '#FFD700',
+              fontSize: isMobile ? '24px' : '36px',
+              marginBottom: isMobile ? '10px' : '15px',
+              userSelect: 'none',
+              fontWeight: 'bold',
+              textShadow: '0 0 20px rgba(255, 215, 0, 0.5)'
+            }}>FINAL SCORE: {Math.floor(score)}</h2>
+
+            {/* Statistics */}
+            <div style={{
+              color: '#00ffff',
+              fontSize: isMobile ? '16px' : '20px',
+              marginBottom: isMobile ? '15px' : '20px',
+              userSelect: 'none',
+              textAlign: 'center',
+              background: 'rgba(0, 255, 255, 0.1)',
+              padding: isMobile ? '10px 20px' : '15px 30px',
+              borderRadius: '10px',
+              border: '1px solid rgba(0, 255, 255, 0.3)'
+            }}>
+              <div style={{ marginBottom: '5px' }}>🏁 Distance: {Math.floor(totalDistance)}m</div>
+              <div>⚡ Near Misses: {nearMissCount}</div>
+            </div>
+
+            {/* Database Save Confirmation */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.2))',
+              border: '2px solid rgba(34, 197, 94, 0.4)',
+              borderRadius: '12px',
+              padding: isMobile ? '12px 20px' : '15px 30px',
+              marginBottom: isMobile ? '15px' : '20px',
+              textAlign: 'center',
+              maxWidth: '500px',
+              width: '90%'
+            }}>
+              <div style={{
+                fontSize: isMobile ? '14px' : '16px',
+                color: '#4ade80',
+                marginBottom: '5px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}>
+                <span>✅</span>
+                <span style={{ fontWeight: 'bold' }}>Score Saved to Database!</span>
+              </div>
+              <div style={{
+                fontSize: isMobile ? '12px' : '14px',
+                color: '#86efac',
+                lineHeight: '1.5'
+              }}>
+                Your performance has been recorded
+              </div>
+            </div>
+
+            {/* Encouraging Message */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(126, 34, 206, 0.2))',
+              border: '2px solid rgba(147, 51, 234, 0.4)',
+              borderRadius: '12px',
+              padding: isMobile ? '15px 20px' : '20px 30px',
+              marginBottom: isMobile ? '20px' : '30px',
+              textAlign: 'center',
+              maxWidth: '500px',
+              width: '90%'
+            }}>
+              <div style={{
+                fontSize: isMobile ? '18px' : '24px',
+                color: '#FFD700',
+                marginBottom: '8px',
+                fontWeight: 'bold',
+                textShadow: '0 0 15px rgba(255, 215, 0, 0.4)'
+              }}>
+                🎮 Keep Racing!
+              </div>
+              <div style={{
+                fontSize: isMobile ? '13px' : '16px',
+                color: '#c4b5fd',
+                lineHeight: '1.6'
+              }}>
+                The more you play, the better your chances of earning rewards!
+                Master the track and climb the leaderboard! 🏆
+              </div>
             </div>
 
             {/* Credits Display */}
@@ -2452,6 +2571,7 @@ function Game() {
 const LoadingScreen = () => {
   const { progress, active } = useProgress();
   const setGameState = useGameStore(state => state.setGameState);
+  const { isMobile, isPortrait, width, height } = useResponsive();
 
   const [finished, setFinished] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
@@ -2470,12 +2590,30 @@ const LoadingScreen = () => {
 
   if (!shouldRender) return null;
 
+  // Responsive sizing for banner image (85% of screen)
+  const bannerHeight = isMobile
+    ? (isPortrait ? height * 0.5 : height * 0.6)
+    : height * 0.6;
+
+  const bannerWidth = isMobile
+    ? (isPortrait ? width * 0.9 : width * 0.85)
+    : width * 0.7;
+
+  // Responsive text sizing
+  const titleSize = isMobile
+    ? (isPortrait ? '28px' : '24px')
+    : '48px';
+
+  const percentSize = isMobile
+    ? (isPortrait ? '20px' : '18px')
+    : '32px';
+
   return (
     <div style={{
       position: 'fixed',
       inset: 0,
       zIndex: 9999,
-      background: '#000',
+      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 50%, #0a0a0a 100%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -2483,48 +2621,144 @@ const LoadingScreen = () => {
       color: '#fff',
       transition: 'opacity 1s ease-out',
       opacity: finished ? 0 : 1,
-      pointerEvents: 'none'
+      pointerEvents: 'none',
+      padding: isMobile ? '20px' : '40px'
     }}>
+      {/* Banner Image */}
       <div style={{
-        fontSize: '24px',
-        fontWeight: 'bold',
-        marginBottom: '20px',
-        color: '#00ffff',
-        textShadow: '0 0 10px #00ffff'
-      }}>
-        LOADING ASSETS
-      </div>
-      <div style={{
-        width: '200px',
-        height: '10px',
-        background: '#333',
-        borderRadius: '5px',
+        width: bannerWidth,
+        height: bannerHeight,
+        maxWidth: '1200px',
+        maxHeight: '600px',
+        marginBottom: isMobile ? '30px' : '50px',
+        borderRadius: '20px',
         overflow: 'hidden',
-        border: '1px solid #555'
+        boxShadow: '0 20px 60px rgba(255, 215, 0, 0.3), 0 0 40px rgba(255, 165, 0, 0.2)',
+        border: '2px solid rgba(255, 215, 0, 0.3)',
+        position: 'relative',
+        animation: 'pulse 3s ease-in-out infinite'
+      }}>
+        <img
+          src="/assets/race-banner.jpg"
+          alt="Race Endless Earn Limitless"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center'
+          }}
+          onError={(e) => {
+            // Fallback: Show gradient with text if image fails to load
+            e.target.style.display = 'none';
+            e.target.parentElement.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            e.target.parentElement.innerHTML = `
+              <div style="
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: ${isMobile ? '24px' : '48px'};
+                font-weight: bold;
+                text-align: center;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: #FFD700;
+                text-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+                padding: 20px;
+              ">
+                🏁 RACE ENDLESS<br/>EARN LIMITLESS 🪙
+              </div>
+            `;
+          }}
+        />
+      </div>
+
+      {/* Loading Game Text */}
+      <div style={{
+        fontSize: titleSize,
+        fontWeight: '900',
+        marginBottom: '25px',
+        background: 'linear-gradient(90deg, #FFD700, #FFA500, #FFD700)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+        textShadow: '0 0 30px rgba(255, 215, 0, 0.5)',
+        letterSpacing: isMobile ? '3px' : '8px',
+        textTransform: 'uppercase',
+        fontFamily: "'Inter', 'Arial Black', sans-serif",
+        animation: 'glow 2s ease-in-out infinite alternate'
+      }}>
+        Loading Game
+      </div>
+
+      {/* Progress Bar */}
+      <div style={{
+        width: isMobile ? (isPortrait ? '80%' : '60%') : '400px',
+        maxWidth: '500px',
+        height: isMobile ? '8px' : '12px',
+        background: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: '20px',
+        overflow: 'hidden',
+        border: '2px solid rgba(255, 215, 0, 0.3)',
+        boxShadow: '0 0 20px rgba(255, 215, 0, 0.2)',
+        position: 'relative'
       }}>
         <div style={{
           width: `${progress}%`,
           height: '100%',
-          background: 'linear-gradient(90deg, #00ffff, #0088ff)',
-          transition: 'width 0.2s ease-out'
-        }} />
+          background: 'linear-gradient(90deg, #FFD700, #FFA500, #FF8C00)',
+          borderRadius: '20px',
+          transition: 'width 0.3s ease-out',
+          boxShadow: '0 0 20px rgba(255, 165, 0, 0.6)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Animated shine effect */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: '-100%',
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent)',
+            animation: 'shine 1.5s infinite'
+          }} />
+        </div>
       </div>
+
+      {/* Percentage */}
       <div style={{
-        marginTop: '10px',
-        fontSize: '14px',
-        color: '#aaa'
+        marginTop: '15px',
+        fontSize: percentSize,
+        fontWeight: 'bold',
+        color: '#FFD700',
+        textShadow: '0 0 20px rgba(255, 215, 0, 0.6)',
+        fontFamily: "'Inter', sans-serif"
       }}>
         {Math.floor(progress)}%
       </div>
-      <div style={{
-        marginTop: '30px',
-        fontSize: '12px',
-        color: '#666',
-        maxWidth: '300px',
-        textAlign: 'center'
-      }}>
-        Note: 3G connections may take longer to load 3D models.
-      </div>
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.02); }
+        }
+
+        @keyframes glow {
+          from {
+            filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.4));
+          }
+          to {
+            filter: drop-shadow(0 0 40px rgba(255, 215, 0, 0.8));
+          }
+        }
+
+        @keyframes shine {
+          0% { left: -100%; }
+          100% { left: 100%; }
+        }
+      `}</style>
     </div>
   );
 };

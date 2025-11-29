@@ -140,16 +140,9 @@ const RealLauncherUI = ({ onStartGame }) => {
         `✅ Payment Successful!\n\n` +
         `Credits added: ${state.selectedPackage}\n` +
         `New balance: ${verifyResult.credits} credits\n\n` +
-        `View transaction:\n${getBSCScanLink(txResult.hash)}`
+        `View transaction:\n${getBSCScanLink(txResult.hash)}\n\n` +
+        `Click "START GAME" to begin racing!`
       );
-
-      // Wait 2 seconds then start game
-      setTimeout(() => {
-        onStartGame({
-          walletAddress: address,
-          credits: verifyResult.credits
-        });
-      }, 2000);
 
     } catch (error) {
       console.error('❌ Payment failed:', error);
