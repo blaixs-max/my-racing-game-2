@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { EffectComposer, Bloom, DepthOfField, ChromaticAberration, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 
 /**
@@ -7,11 +7,11 @@ import { BlendFunction } from 'postprocessing';
  *
  * Effects Stack:
  * - Bloom: Glowing lights (headlights, neon, coins)
- * - Depth of Field: Cinematic focus effect
  * - Chromatic Aberration: Speed-based color separation
  * - Vignette: Edge darkening for focus
  *
- * Performance: ~5-10% GPU overhead (optimized)
+ * Performance: ~3-5% GPU overhead (optimized)
+ * Note: Depth of Field removed to prevent gameplay blur
  *
  * @param {boolean} enabled - Toggle all effects (default: true)
  * @param {number} speed - Current game speed for dynamic effects
@@ -27,12 +27,6 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
       luminanceThreshold: 0.8, // Only bright objects bloom
       luminanceSmoothing: 0.3,
       ...settings.bloom
-    },
-    depthOfField: {
-      focusDistance: 0.02,
-      focalLength: 0.05,
-      bokehScale: 3,
-      ...settings.depthOfField
     },
     chromaticAberration: {
       // Speed-based intensity (faster = more aberration)
@@ -68,12 +62,14 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
         blendFunction={BlendFunction.ADD}
       />
 
-      {/* Depth of Field - Cinematic focus */}
+      {/* Depth of Field - DISABLED (causes blur during gameplay) */}
+      {/*
       <DepthOfField
         focusDistance={config.depthOfField.focusDistance}
         focalLength={config.depthOfField.focalLength}
         bokehScale={config.depthOfField.bokehScale}
       />
+      */}
 
       {/* Chromatic Aberration - Speed effect */}
       <ChromaticAberration
@@ -101,9 +97,9 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
  * - Use BlendFunction wisely (NORMAL < ADD < SCREEN)
  *
  * Mobile Optimization:
- * - Disable Depth of Field on mobile (expensive)
- * - Reduce bloom intensity
- * - Lower bokehScale
+ * - Only Bloom and Vignette enabled
+ * - Reduced bloom intensity
+ * - Chromatic aberration only at high speeds
  */
 
 export function MobileOptimizedPostProcessing({ enabled = true, speed = 0 }) {
