@@ -1,0 +1,15 @@
+# Görsel dosyaları
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+
+# Model dosyaları
+*.glb
+*.gltf
+
+# Büyük dosyalar
+public/models/
