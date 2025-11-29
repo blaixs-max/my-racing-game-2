@@ -8,6 +8,7 @@ import RealLauncherUI from './components/RealLauncherUI';
 import { useCredit, getUserCredits } from './utils/supabaseClient';
 import PhysicsWorld from './components/PhysicsWorld';
 import PostProcessing from './components/PostProcessing';
+import { NitroBoostParticles, TireSmokeParticles, CollisionSparks } from './components/AdvancedParticles';
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
 const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
@@ -572,14 +573,21 @@ const useGameStore = create((set, get) => ({
         const newProgress = updated.changeProgress + clampedDelta * 2;
         const startX = updated.lane * 4.5;
         const endX = updated.targetLane * 4.5;
-        const newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
+        let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
+
+        // SAFETY: Clamp X position to stay within road bounds (-9 to +9)
+        // Road is 20 units wide (-10 to +10), keep 1 unit margin from edges
+        newX = Math.max(-9, Math.min(9, newX));
 
         if (newProgress >= 1) {
+          // Clamp final position to road bounds
+          const finalX = Math.max(-9, Math.min(9, updated.targetLane * 4.5));
+
           updated = {
             ...updated,
             isChanging: false,
             lane: updated.targetLane,
-            x: updated.targetLane * 4.5,
+            x: finalX,
             changeProgress: 0,
             z: e.z + (newSpeed - e.ownSpeed) * clampedDelta // Removed 0.5 factor completely for 1:1 movement
           };
@@ -632,9 +640,12 @@ const useGameStore = create((set, get) => ({
           else if (type === 'sedan' || type === 'suv') ownSpeed = 50 + Math.random() * 15; // 50-65 (Medium)
           else if (type === 'sport') ownSpeed = 65 + Math.random() * 10; // 65-75 (Fast)
 
+          // Clamp spawn X position to road bounds
+          const spawnX = Math.max(-9, Math.min(9, lane * 4.5));
+
           newEnemies.push({
             id: Date.now(),
-            x: lane * 4.5,
+            x: spawnX,
             z: -400, // Spawn further away
             lane,
             speed: Math.random() * 0.5 + 0.5,
@@ -1061,8 +1072,11 @@ function TreeModel({ scale = 1, rotation = [0, 0, 0] }) {
 
 
 function PlayerCar() {
-  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed } = useGameStore();
+  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed, isNitroActive } = useGameStore();
   const group = useRef();
+
+  // Track player position for particles
+  const [playerPos, setPlayerPos] = useState([0, 0.1, -2]);
 
   const [leftTarget] = useState(() => {
     const obj = new THREE.Object3D();
@@ -1091,6 +1105,9 @@ function PlayerCar() {
     const currentX = group.current.position.x;
     const lerpSpeed = 5;
     group.current.position.x = THREE.MathUtils.lerp(currentX, targetX, clampedDelta * lerpSpeed);
+
+    // Update player position for particles
+    setPlayerPos([group.current.position.x, group.current.position.y, group.current.position.z]);
 
     const moveDiff = (group.current.position.x - currentX) / clampedDelta;
     group.current.rotation.z = -moveDiff * 0.002;
@@ -1199,19 +1216,33 @@ function PlayerCar() {
   }, [materials]);
 
   return (
-    <group ref={group} position={[0, 0.1, -2]}>
-      <primitive object={leftTarget} />
-      <primitive object={rightTarget} />
-      <spotLight position={[0.8, 0.6, -1.5]} target={rightTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
-      <spotLight position={[-0.8, 0.6, -1.5]} target={leftTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
+    <>
+      <group ref={group} position={[0, 0.1, -2]}>
+        <primitive object={leftTarget} />
+        <primitive object={rightTarget} />
+        <spotLight position={[0.8, 0.6, -1.5]} target={rightTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
+        <spotLight position={[-0.8, 0.6, -1.5]} target={leftTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
 
-      {/* 3D Model Replacement */}
-      <group rotation={[0, 0, 0]} position={[0, 0, 0]}>
-        {/* Player is now F1 Car (sport_car.glb) */}
-        {/* Scaled up another 15% from 0.14 -> ~0.16 */}
-        <CarModel modelPath="/models/sport_car.glb" scale={0.16} />
+        {/* 3D Model Replacement */}
+        <group rotation={[0, 0, 0]} position={[0, 0, 0]}>
+          {/* Player is now F1 Car (sport_car.glb) */}
+          {/* Scaled up another 15% from 0.14 -> ~0.16 */}
+          <CarModel modelPath="/models/sport_car.glb" scale={0.16} />
+        </group>
       </group>
-    </group>
+
+      {/* Advanced Particle Effects */}
+      <NitroBoostParticles
+        isActive={isNitroActive}
+        position={playerPos}
+        speed={speed}
+      />
+      <TireSmokeParticles
+        isDrifting={Math.abs(targetX - group.current?.position.x || 0) > 0.5}
+        position={playerPos}
+        speed={speed}
+      />
+    </>
   );
 }
 
