@@ -1,5 +1,6 @@
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
+  metaMaskWallet,
   rainbowWallet,
   walletConnectWallet,
   coinbaseWallet,
@@ -8,12 +9,13 @@ import {
 import { createConfig, http } from 'wagmi';
 import { bscTestnet } from 'wagmi/chains';
 
-// Wallet Connectors (MetaMask olmadan - injected otomatik algılanır)
+// Wallet Connectors
 const connectors = connectorsForWallets(
   [
     {
       groupName: 'Popular',
       wallets: [
+        metaMaskWallet,
         rainbowWallet,
         walletConnectWallet,
         coinbaseWallet,
@@ -23,7 +25,7 @@ const connectors = connectorsForWallets(
   ],
   {
     appName: 'LUMEXIA Racing',
-    projectId: 'a01e43bf25a11bf3e32d058780b62fe8',
+    projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'a01e43bf25a11bf3e32d058780b62fe8',
   }
 );
 

@@ -226,7 +226,7 @@ const RealLauncherUI = ({ onStartGame }) => {
 
   // Render
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-hidden">
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto">
       {/* Animated Background Orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
@@ -235,18 +235,18 @@ const RealLauncherUI = ({ onStartGame }) => {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6">
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 py-8">
 
         {/* Logo */}
-        <div className="mb-8 flex items-center gap-3">
-          <i className="fas fa-bolt text-yellow-400 text-5xl drop-shadow-lg animate-pulse"></i>
-          <h1 className="text-6xl font-bold text-white tracking-wider drop-shadow-2xl" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div className="mb-6 sm:mb-8 flex items-center gap-2 sm:gap-3">
+          <i className="fas fa-bolt text-yellow-400 text-3xl sm:text-5xl drop-shadow-lg animate-pulse"></i>
+          <h1 className="text-4xl sm:text-6xl font-bold text-white tracking-wider drop-shadow-2xl" style={{ fontFamily: 'Inter, sans-serif' }}>
             LUMEXIA
           </h1>
         </div>
 
         {/* Glassmorphism Card */}
-        <div className="w-full max-w-md backdrop-blur-lg bg-white/10 rounded-3xl p-8 shadow-2xl border border-white/20">
+        <div className="w-full max-w-md backdrop-blur-lg bg-white/10 rounded-3xl p-4 sm:p-8 shadow-2xl border border-white/20">
 
           {/* Wallet Connect Button */}
           <div className="mb-6">
