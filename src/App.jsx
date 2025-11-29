@@ -6,6 +6,8 @@ import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
 import RealLauncherUI from './components/RealLauncherUI';
 import { useCredit, getUserCredits } from './utils/supabaseClient';
+import PostProcessing from './components/PostProcessing';
+import { NitroBoostParticles, CollisionSparks } from './components/AdvancedParticles';
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
 const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
@@ -570,14 +572,21 @@ const useGameStore = create((set, get) => ({
         const newProgress = updated.changeProgress + clampedDelta * 2;
         const startX = updated.lane * 4.5;
         const endX = updated.targetLane * 4.5;
-        const newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
+        let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
+
+        // SAFETY: Clamp X position to stay within road bounds (-9 to +9)
+        // Road is 20 units wide (-10 to +10), keep 1 unit margin from edges
+        newX = Math.max(-9, Math.min(9, newX));
 
         if (newProgress >= 1) {
+          // Clamp final position to road bounds
+          const finalX = Math.max(-9, Math.min(9, updated.targetLane * 4.5));
+
           updated = {
             ...updated,
             isChanging: false,
             lane: updated.targetLane,
-            x: updated.targetLane * 4.5,
+            x: finalX,
             changeProgress: 0,
             z: e.z + (newSpeed - e.ownSpeed) * clampedDelta // Removed 0.5 factor completely for 1:1 movement
           };
@@ -630,9 +639,12 @@ const useGameStore = create((set, get) => ({
           else if (type === 'sedan' || type === 'suv') ownSpeed = 50 + Math.random() * 15; // 50-65 (Medium)
           else if (type === 'sport') ownSpeed = 65 + Math.random() * 10; // 65-75 (Fast)
 
+          // Clamp spawn X position to road bounds
+          const spawnX = Math.max(-9, Math.min(9, lane * 4.5));
+
           newEnemies.push({
             id: Date.now(),
-            x: lane * 4.5,
+            x: spawnX,
             z: -400, // Spawn further away
             lane,
             speed: Math.random() * 0.5 + 0.5,
@@ -1059,8 +1071,11 @@ function TreeModel({ scale = 1, rotation = [0, 0, 0] }) {
 
 
 function PlayerCar() {
-  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed } = useGameStore();
+  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed, isNitroActive } = useGameStore();
   const group = useRef();
+
+  // Track player position for particles
+  const [playerPos, setPlayerPos] = useState([0, 0.1, -2]);
 
   const [leftTarget] = useState(() => {
     const obj = new THREE.Object3D();
@@ -1089,6 +1104,9 @@ function PlayerCar() {
     const currentX = group.current.position.x;
     const lerpSpeed = 5;
     group.current.position.x = THREE.MathUtils.lerp(currentX, targetX, clampedDelta * lerpSpeed);
+
+    // Update player position for particles
+    setPlayerPos([group.current.position.x, group.current.position.y, group.current.position.z]);
 
     const moveDiff = (group.current.position.x - currentX) / clampedDelta;
     group.current.rotation.z = -moveDiff * 0.002;
@@ -1150,12 +1168,45 @@ function PlayerCar() {
   }), []);
 
   const materials = useMemo(() => ({
-    body: new THREE.MeshStandardMaterial({ color: carColors[selectedCar] || '#aaaaaa', metalness: 0.9, roughness: 0.2 }),
-    glass: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.1 }),
-    neon: new THREE.MeshStandardMaterial({ color: '#00ffff', emissive: '#00ffff', emissiveIntensity: 2 }),
-    tailLight: new THREE.MeshBasicMaterial({ color: 'red' }),
-    wheel: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.8 })
-  }), [selectedCar]);
+    // Upgraded to MeshPhysicalMaterial for realistic car paint with clearcoat
+    body: new THREE.MeshPhysicalMaterial({
+      color: carColors[selectedCar] || '#aaaaaa',
+      metalness: 0.9,
+      roughness: 0.15, // Smoother than before
+      clearcoat: 1.0, // Car paint clearcoat effect
+      clearcoatRoughness: 0.1, // Glossy clearcoat
+      reflectivity: 1.0
+    }),
+    // Glass with transmission (realistic transparency)
+    glass: new THREE.MeshPhysicalMaterial({
+      color: '#111',
+      roughness: 0.05,
+      transmission: 0.9, // Glass transparency
+      thickness: 0.5,
+      metalness: 0.0
+    }),
+    // Neon lights with higher emissive
+    neon: new THREE.MeshStandardMaterial({
+      color: '#00ffff',
+      emissive: '#00ffff',
+      emissiveIntensity: 3.0, // Brighter for bloom effect
+      metalness: 0.5,
+      roughness: 0.2
+    }),
+    // Tail lights (bright for bloom)
+    tailLight: new THREE.MeshBasicMaterial({
+      color: 'red',
+      fog: false
+    }),
+    // Wheels with realistic rubber material
+    wheel: new THREE.MeshPhysicalMaterial({
+      color: '#111',
+      roughness: 0.9,
+      metalness: 0.1,
+      clearcoat: 0.3,
+      clearcoatRoughness: 0.8
+    })
+  }), [selectedCar, carColors]);
 
   useEffect(() => {
     return () => {
@@ -1164,19 +1215,28 @@ function PlayerCar() {
   }, [materials]);
 
   return (
-    <group ref={group} position={[0, 0.1, -2]}>
-      <primitive object={leftTarget} />
-      <primitive object={rightTarget} />
-      <spotLight position={[0.8, 0.6, -1.5]} target={rightTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
-      <spotLight position={[-0.8, 0.6, -1.5]} target={leftTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
+    <>
+      <group ref={group} position={[0, 0.1, -2]}>
+        <primitive object={leftTarget} />
+        <primitive object={rightTarget} />
+        <spotLight position={[0.8, 0.6, -1.5]} target={rightTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
+        <spotLight position={[-0.8, 0.6, -1.5]} target={leftTarget} angle={0.3} penumbra={0.2} intensity={120} color="#fff" distance={250} />
 
-      {/* 3D Model Replacement */}
-      <group rotation={[0, 0, 0]} position={[0, 0, 0]}>
-        {/* Player is now F1 Car (sport_car.glb) */}
-        {/* Scaled up another 15% from 0.14 -> ~0.16 */}
-        <CarModel modelPath="/models/sport_car.glb" scale={0.16} />
+        {/* 3D Model Replacement */}
+        <group rotation={[0, 0, 0]} position={[0, 0, 0]}>
+          {/* Player is now F1 Car (sport_car.glb) */}
+          {/* Scaled up another 15% from 0.14 -> ~0.16 */}
+          <CarModel modelPath="/models/sport_car.glb" scale={0.16} />
+        </group>
       </group>
-    </group>
+
+      {/* Advanced Particle Effects */}
+      <NitroBoostParticles
+        isActive={isNitroActive}
+        position={playerPos}
+        speed={speed}
+      />
+    </>
   );
 }
 
@@ -1184,12 +1244,16 @@ function PlayerCar() {
 const SingleCoin = memo(({ x, z }) => {
   const group = useRef();
   const material = useMemo(() =>
-    new THREE.MeshStandardMaterial({
+    // Upgraded to MeshPhysicalMaterial for realistic gold
+    new THREE.MeshPhysicalMaterial({
       color: "#FFD700",
-      metalness: 0.8,
-      roughness: 0.2,
+      metalness: 1.0, // Pure metal
+      roughness: 0.15, // Polished gold
       emissive: "#FFD700",
-      emissiveIntensity: 0.4
+      emissiveIntensity: 0.6, // Brighter for bloom
+      clearcoat: 0.5, // Slight clearcoat for extra shine
+      clearcoatRoughness: 0.2,
+      reflectivity: 1.0
     }), []
   );
 
@@ -1679,29 +1743,43 @@ const AudioListenerController = () => {
 };
 
 // New GameContent component to encapsulate Canvas children
-const GameContent = () => (
-  <>
-    <PerspectiveCamera
-      makeDefault
-      position={[0, 4, 11]} // Moved back from 8 to 11 to show full car
-      fov={50}
-    />
-    <AudioListenerController />
-    <ambientLight intensity={0.6} color="#ffffff" />
-    <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
-    <Suspense fallback={null}>
-      <ShaderWarmup />
-      <SkyEnvironment />
-      <CameraShake />
-      <ParticleSystem />
-      <PlayerCar />
-      <Traffic />
-      <Coins />
-      <SpeedLines />
-      <RoadEnvironment />
-    </Suspense>
-  </>
-);
+const GameContent = () => {
+  // Get game state for post-processing effects
+  const speed = useGameStore(state => state.speed);
+  const isNitroActive = useGameStore(state => state.isNitroActive);
+
+  return (
+    <>
+      <PerspectiveCamera
+        makeDefault
+        position={[0, 4, 11]} // Moved back from 8 to 11 to show full car
+        fov={50}
+      />
+      <AudioListenerController />
+      <ambientLight intensity={0.6} color="#ffffff" />
+      <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
+
+      {/* Professional Post-Processing Effects */}
+      <PostProcessing
+        enabled={true}
+        speed={speed}
+        isNitroActive={isNitroActive}
+      />
+
+      <Suspense fallback={null}>
+        <ShaderWarmup />
+        <SkyEnvironment />
+        <CameraShake />
+        <ParticleSystem />
+        <PlayerCar />
+        <Traffic />
+        <Coins />
+        <SpeedLines />
+        <RoadEnvironment />
+      </Suspense>
+    </>
+  );
+};
 
 // ==================== ANA UYGULAMA ====================
 function Game() {
