@@ -2624,7 +2624,7 @@ const LoadingScreen = () => {
       pointerEvents: 'none',
       padding: isMobile ? '20px' : '40px'
     }}>
-      {/* Banner Image */}
+      {/* Banner - Gradient Design */}
       <div style={{
         width: bannerWidth,
         height: bannerHeight,
@@ -2636,41 +2636,23 @@ const LoadingScreen = () => {
         boxShadow: '0 20px 60px rgba(255, 215, 0, 0.3), 0 0 40px rgba(255, 165, 0, 0.2)',
         border: '2px solid rgba(255, 215, 0, 0.3)',
         position: 'relative',
-        animation: 'pulse 3s ease-in-out infinite'
+        animation: 'pulse 3s ease-in-out infinite',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
       }}>
-        <img
-          src="/assets/race-banner.jpg"
-          alt="Race Endless Earn Limitless"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center'
-          }}
-          onError={(e) => {
-            // Fallback: Show gradient with text if image fails to load
-            e.target.style.display = 'none';
-            e.target.parentElement.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-            e.target.parentElement.innerHTML = `
-              <div style="
-                width: 100%;
-                height: 100%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: ${isMobile ? '24px' : '48px'};
-                font-weight: bold;
-                text-align: center;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: #FFD700;
-                text-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
-                padding: 20px;
-              ">
-                🏁 RACE ENDLESS<br/>EARN LIMITLESS 🪙
-              </div>
-            `;
-          }}
-        />
+        <div style={{
+          fontSize: isMobile ? '24px' : '48px',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          color: '#FFD700',
+          textShadow: '0 0 30px rgba(255, 215, 0, 0.8)',
+          padding: '20px',
+          lineHeight: '1.4'
+        }}>
+          🏁 RACE ENDLESS<br/>EARN LIMITLESS 🪙
+        </div>
       </div>
 
       {/* Loading Game Text */}
