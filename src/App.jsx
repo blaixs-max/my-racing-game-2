@@ -6,6 +6,8 @@ import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
 import RealLauncherUI from './components/RealLauncherUI';
 import { useCredit, getUserCredits } from './utils/supabaseClient';
+import PhysicsWorld from './components/PhysicsWorld';
+import PostProcessing from './components/PostProcessing';
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
 const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
@@ -1150,12 +1152,45 @@ function PlayerCar() {
   }), []);
 
   const materials = useMemo(() => ({
-    body: new THREE.MeshStandardMaterial({ color: carColors[selectedCar] || '#aaaaaa', metalness: 0.9, roughness: 0.2 }),
-    glass: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.1 }),
-    neon: new THREE.MeshStandardMaterial({ color: '#00ffff', emissive: '#00ffff', emissiveIntensity: 2 }),
-    tailLight: new THREE.MeshBasicMaterial({ color: 'red' }),
-    wheel: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.8 })
-  }), [selectedCar]);
+    // Upgraded to MeshPhysicalMaterial for realistic car paint with clearcoat
+    body: new THREE.MeshPhysicalMaterial({
+      color: carColors[selectedCar] || '#aaaaaa',
+      metalness: 0.9,
+      roughness: 0.15, // Smoother than before
+      clearcoat: 1.0, // Car paint clearcoat effect
+      clearcoatRoughness: 0.1, // Glossy clearcoat
+      reflectivity: 1.0
+    }),
+    // Glass with transmission (realistic transparency)
+    glass: new THREE.MeshPhysicalMaterial({
+      color: '#111',
+      roughness: 0.05,
+      transmission: 0.9, // Glass transparency
+      thickness: 0.5,
+      metalness: 0.0
+    }),
+    // Neon lights with higher emissive
+    neon: new THREE.MeshStandardMaterial({
+      color: '#00ffff',
+      emissive: '#00ffff',
+      emissiveIntensity: 3.0, // Brighter for bloom effect
+      metalness: 0.5,
+      roughness: 0.2
+    }),
+    // Tail lights (bright for bloom)
+    tailLight: new THREE.MeshBasicMaterial({
+      color: 'red',
+      fog: false
+    }),
+    // Wheels with realistic rubber material
+    wheel: new THREE.MeshPhysicalMaterial({
+      color: '#111',
+      roughness: 0.9,
+      metalness: 0.1,
+      clearcoat: 0.3,
+      clearcoatRoughness: 0.8
+    })
+  }), [selectedCar, carColors]);
 
   useEffect(() => {
     return () => {
@@ -1184,12 +1219,16 @@ function PlayerCar() {
 const SingleCoin = memo(({ x, z }) => {
   const group = useRef();
   const material = useMemo(() =>
-    new THREE.MeshStandardMaterial({
+    // Upgraded to MeshPhysicalMaterial for realistic gold
+    new THREE.MeshPhysicalMaterial({
       color: "#FFD700",
-      metalness: 0.8,
-      roughness: 0.2,
+      metalness: 1.0, // Pure metal
+      roughness: 0.15, // Polished gold
       emissive: "#FFD700",
-      emissiveIntensity: 0.4
+      emissiveIntensity: 0.6, // Brighter for bloom
+      clearcoat: 0.5, // Slight clearcoat for extra shine
+      clearcoatRoughness: 0.2,
+      reflectivity: 1.0
     }), []
   );
 
@@ -1679,29 +1718,43 @@ const AudioListenerController = () => {
 };
 
 // New GameContent component to encapsulate Canvas children
-const GameContent = () => (
-  <>
-    <PerspectiveCamera
-      makeDefault
-      position={[0, 4, 11]} // Moved back from 8 to 11 to show full car
-      fov={50}
-    />
-    <AudioListenerController />
-    <ambientLight intensity={0.6} color="#ffffff" />
-    <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
-    <Suspense fallback={null}>
-      <ShaderWarmup />
-      <SkyEnvironment />
-      <CameraShake />
-      <ParticleSystem />
-      <PlayerCar />
-      <Traffic />
-      <Coins />
-      <SpeedLines />
-      <RoadEnvironment />
-    </Suspense>
-  </>
-);
+const GameContent = () => {
+  // Get game state for post-processing effects
+  const speed = useGameStore(state => state.speed);
+  const isNitroActive = useGameStore(state => state.isNitroActive);
+
+  return (
+    <>
+      <PerspectiveCamera
+        makeDefault
+        position={[0, 4, 11]} // Moved back from 8 to 11 to show full car
+        fov={50}
+      />
+      <AudioListenerController />
+      <ambientLight intensity={0.6} color="#ffffff" />
+      <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
+
+      {/* Professional Post-Processing Effects */}
+      <PostProcessing
+        enabled={true}
+        speed={speed}
+        isNitroActive={isNitroActive}
+      />
+
+      <Suspense fallback={null}>
+        <ShaderWarmup />
+        <SkyEnvironment />
+        <CameraShake />
+        <ParticleSystem />
+        <PlayerCar />
+        <Traffic />
+        <Coins />
+        <SpeedLines />
+        <RoadEnvironment />
+      </Suspense>
+    </>
+  );
+};
 
 // ==================== ANA UYGULAMA ====================
 function Game() {
