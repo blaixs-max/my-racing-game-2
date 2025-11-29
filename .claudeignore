@@ -1,0 +1,21 @@
+# Görsel dosyaları
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+
+# Model dosyaları
+*.glb
+*.gltf
+
+# Büyük dosyalar ve asset klasörleri
+public/models/
+public/assets/
+
+# Geçici ve cache dosyaları
+.cache/
+dist/
+node_modules/
