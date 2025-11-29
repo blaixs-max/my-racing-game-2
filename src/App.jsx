@@ -1226,11 +1226,11 @@ function PlayerCar() {
 
   return (
     <>
-      {/* Rapier Physics RigidBody - Kinematic control with physics collision */}
+      {/* Rapier Physics RigidBody - Sensor mode for collision detection only */}
       <RigidBody
-        type="kinematicPosition"
+        type="fixed"
         colliders="cuboid"
-        sensor={false}
+        sensor={true}
         name="player"
       >
         <group ref={group} position={[0, 0.1, -2]}>
@@ -1329,9 +1329,9 @@ const Traffic = memo(() => {
         return (
           <RigidBody
             key={enemy.id}
-            type="kinematicPosition"
+            type="fixed"
             colliders="cuboid"
-            sensor={false}
+            sensor={true}
             name={`enemy-${enemy.id}`}
           >
             <group position={[x, 0, enemy.z]} rotation={[0, 0, tilt]}>
