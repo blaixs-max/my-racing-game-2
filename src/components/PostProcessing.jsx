@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 
 /**
@@ -7,11 +7,13 @@ import { BlendFunction } from 'postprocessing';
  *
  * Effects Stack:
  * - Bloom: Glowing lights (headlights, neon, coins)
- * - Chromatic Aberration: Speed-based color separation
  * - Vignette: Edge darkening for focus
  *
- * Performance: ~3-5% GPU overhead (optimized)
- * Note: Depth of Field removed to prevent gameplay blur
+ * Performance: ~2-3% GPU overhead (optimized)
+ *
+ * Removed Effects (caused blur):
+ * - Depth of Field: Made gameplay blurry
+ * - Chromatic Aberration: Rainbow color separation blur
  *
  * @param {boolean} enabled - Toggle all effects (default: true)
  * @param {number} speed - Current game speed for dynamic effects
@@ -28,14 +30,6 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
       luminanceSmoothing: 0.3,
       ...settings.bloom
     },
-    chromaticAberration: {
-      // Speed-based intensity (faster = more aberration)
-      offset: [
-        Math.min(0.002 + (speed / 200) * 0.001, 0.004),
-        Math.min(0.002 + (speed / 200) * 0.001, 0.004)
-      ],
-      ...settings.chromaticAberration
-    },
     vignette: {
       offset: 0.3,
       darkness: 0.5,
@@ -43,10 +37,9 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
     }
   }), [speed, settings]);
 
-  // Nitro boost effect - increase bloom and aberration
+  // Nitro boost effect - increase bloom
   const nitroBoost = useMemo(() => ({
-    bloomIntensity: isNitroActive ? config.bloom.intensity * 1.5 : config.bloom.intensity,
-    aberrationMultiplier: isNitroActive ? 1.5 : 1.0
+    bloomIntensity: isNitroActive ? config.bloom.intensity * 1.8 : config.bloom.intensity
   }), [isNitroActive, config.bloom.intensity]);
 
   if (!enabled) return null;
@@ -71,7 +64,8 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
       />
       */}
 
-      {/* Chromatic Aberration - Speed effect */}
+      {/* Chromatic Aberration - DISABLED (causes rainbow blur) */}
+      {/*
       <ChromaticAberration
         offset={[
           config.chromaticAberration.offset[0] * nitroBoost.aberrationMultiplier,
@@ -79,6 +73,7 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
         ]}
         blendFunction={BlendFunction.NORMAL}
       />
+      */}
 
       {/* Vignette - Edge darkening */}
       <Vignette
@@ -99,10 +94,10 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
  * Mobile Optimization:
  * - Only Bloom and Vignette enabled
  * - Reduced bloom intensity
- * - Chromatic aberration only at high speeds
+ * - No blur effects
  */
 
-export function MobileOptimizedPostProcessing({ enabled = true, speed = 0 }) {
+export function MobileOptimizedPostProcessing({ enabled = true }) {
   if (!enabled) return null;
 
   return (
@@ -119,13 +114,6 @@ export function MobileOptimizedPostProcessing({ enabled = true, speed = 0 }) {
         offset={0.5}
         darkness={0.6}
       />
-
-      {/* Light chromatic aberration only at high speeds */}
-      {speed > 100 && (
-        <ChromaticAberration
-          offset={[0.001, 0.001]}
-        />
-      )}
     </EffectComposer>
   );
 }
