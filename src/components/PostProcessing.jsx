@@ -3,17 +3,17 @@ import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 
 /**
- * PostProcessing - Professional cinematic effects
+ * PostProcessing - ALL EFFECTS DISABLED
  *
- * Effects Stack:
- * - Bloom: Glowing lights (headlights, neon, coins)
- * - Vignette: Edge darkening for focus
+ * All post-processing effects have been disabled for clean gameplay visuals.
  *
- * Performance: ~2-3% GPU overhead (optimized)
- *
- * Removed Effects (caused blur):
+ * Removed Effects (all caused visual issues):
+ * - Bloom: Glowing effect - caused bad visuals
  * - Depth of Field: Made gameplay blurry
  * - Chromatic Aberration: Rainbow color separation blur
+ * - Vignette: Edge darkening
+ *
+ * Performance: ~0% overhead (no active effects)
  *
  * @param {boolean} enabled - Toggle all effects (default: true)
  * @param {number} speed - Current game speed for dynamic effects
@@ -46,7 +46,10 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
 
   return (
     <EffectComposer multisampling={0}>
-      {/* Bloom Effect - Glowing lights */}
+      {/* ALL POST-PROCESSING DISABLED - Clean gameplay visuals */}
+
+      {/* Bloom - DISABLED (caused visual issues) */}
+      {/*
       <Bloom
         intensity={nitroBoost.bloomIntensity}
         luminanceThreshold={config.bloom.luminanceThreshold}
@@ -54,6 +57,7 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
         mipmapBlur
         blendFunction={BlendFunction.ADD}
       />
+      */}
 
       {/* Depth of Field - DISABLED (causes blur during gameplay) */}
       {/*
@@ -75,12 +79,14 @@ export default function PostProcessing({ enabled = true, speed = 0, isNitroActiv
       />
       */}
 
-      {/* Vignette - Edge darkening */}
+      {/* Vignette - DISABLED (keeping visuals clean) */}
+      {/*
       <Vignette
         offset={config.vignette.offset}
         darkness={config.vignette.darkness}
         blendFunction={BlendFunction.NORMAL}
       />
+      */}
     </EffectComposer>
   );
 }
@@ -102,7 +108,8 @@ export function MobileOptimizedPostProcessing({ enabled = true }) {
 
   return (
     <EffectComposer multisampling={0}>
-      {/* Mobile: Only Bloom and Vignette */}
+      {/* Mobile: ALL EFFECTS DISABLED - Clean visuals */}
+      {/*
       <Bloom
         intensity={1.0}
         luminanceThreshold={0.9}
@@ -114,6 +121,7 @@ export function MobileOptimizedPostProcessing({ enabled = true }) {
         offset={0.5}
         darkness={0.6}
       />
+      */}
     </EffectComposer>
   );
 }
