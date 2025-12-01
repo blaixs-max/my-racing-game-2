@@ -9,6 +9,16 @@ import {
 import { createConfig, http } from 'wagmi';
 import { bscTestnet } from 'wagmi/chains';
 
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'a01e43bf25a11bf3e32d058780b62fe8';
+
+const appInfo = {
+  appName: 'LUMEXIA Racing',
+  projectId,
+  appDescription: 'Endless Web3 Racing Game',
+  appUrl: 'https://newracing.netlify.app',
+  appIcon: 'https://newracing.netlify.app/icon.png', // Varsayılan bir ikon, yoksa tarayıcı favicon'u kullanır
+};
+
 // Wallet Connectors
 const connectors = connectorsForWallets(
   [
@@ -24,8 +34,11 @@ const connectors = connectorsForWallets(
     },
   ],
   {
-    appName: 'LUMEXIA Racing',
-    projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'a01e43bf25a11bf3e32d058780b62fe8',
+    appName: appInfo.appName,
+    projectId: appInfo.projectId,
+    appDescription: appInfo.appDescription,
+    appUrl: appInfo.appUrl,
+    appIcon: appInfo.appIcon,
   }
 );
 

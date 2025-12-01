@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useAccount, useConnect, useDisconnect, useBalance, useConfig } from 'wagmi';
+import { useAccount, useBalance, useConfig } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { sendBNBPayment, formatAddress, hasEnoughBalance, getBSCScanLink } from '../utils/realWallet';
-import { getOrCreateUser, getUserCredits } from '../utils/supabaseClient';
+import { sendBNBPayment, hasEnoughBalance, getBSCScanLink } from '../utils/realWallet';
+import { getOrCreateUser } from '../utils/supabaseClient';
 import { PRICING } from '../wagmi.config';
 
 const RealLauncherUI = ({ onStartGame }) => {
   const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
   const config = useConfig();
   const { data: balanceData } = useBalance({
     address: address,
@@ -103,10 +102,11 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: true,
-        statusMessage: '⏳ Sending BNB payment... Please confirm in your wallet'
+        statusMessage: '⏳ Opening wallet... Please confirm transaction'
       }));
 
       // Send BNB payment to our wallet
+      // Note: On mobile, this should trigger the wallet app to open
       const txResult = await sendBNBPayment(config, address, state.selectedPackage);
 
       console.log('✅ Payment sent:', txResult);
@@ -219,7 +219,7 @@ const RealLauncherUI = ({ onStartGame }) => {
 
   // Render
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto">
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto" style={{ zIndex: 9999 }}>
       {/* Animated Background Orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
