@@ -15,6 +15,7 @@ createRoot(document.getElementById('root')).render(
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
+          initialChain={bscTestnet}
           theme={darkTheme({
             accentColor: '#6366f1',
             accentColorForeground: 'white',
