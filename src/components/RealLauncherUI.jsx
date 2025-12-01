@@ -14,11 +14,15 @@ const RealLauncherUI = ({ onStartGame }) => {
 
   const isWrongNetwork = isConnected && chainId !== bscTestnet.id;
 
-  // Force network switch check (Auto)
+  // Force network switch check (Auto) with Delay
   useEffect(() => {
     if (isWrongNetwork) {
-      console.log('Wrong network detected. Requesting switch to BSC Testnet...');
-      switchChain({ chainId: bscTestnet.id });
+      const timer = setTimeout(() => {
+        console.log('Wrong network detected. Requesting switch to BSC Testnet...');
+        switchChain({ chainId: bscTestnet.id });
+      }, 1500); // 1.5s delay to allow wallet connection to stabilize
+
+      return () => clearTimeout(timer);
     }
   }, [isWrongNetwork, switchChain]);
 
