@@ -39,6 +39,14 @@ const connectors = connectorsForWallets(
     appDescription: appInfo.appDescription,
     appUrl: appInfo.appUrl,
     appIcon: appInfo.appIcon,
+    walletConnectParameters: {
+      metadata: {
+        name: appInfo.appName,
+        description: appInfo.appDescription,
+        url: appInfo.appUrl,
+        icons: [appInfo.appIcon],
+      },
+    },
   }
 );
 

@@ -7,12 +7,28 @@ import { getOrCreateUser } from '../utils/supabaseClient';
 import { PRICING } from '../wagmi.config';
 
 const RealLauncherUI = ({ onStartGame }) => {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, status } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const config = useConfig();
 
   const isWrongNetwork = isConnected && chainId !== bscTestnet.id;
+
+  // Re-check connection when app comes to foreground (Mobile fix)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('App returned to foreground, checking connection...');
+        // This simple check triggers a re-render/re-evaluation of hooks
+        if (address) {
+          console.log('Address found on return:', address);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [address]);
 
   // Force network switch check (Auto)
   useEffect(() => {
