@@ -15,8 +15,8 @@ const appInfo = {
   appName: 'LUMEXIA Racing',
   projectId,
   appDescription: 'Endless Web3 Racing Game',
-  appUrl: 'https://newracing.netlify.app',
-  appIcon: 'https://newracing.netlify.app/icon.png', // Varsayılan bir ikon, yoksa tarayıcı favicon'u kullanır
+  appUrl: 'https://newracing.netlify.app/', // Trailing slash is important for deep linking
+  appIcon: 'https://newracing.netlify.app/icon.png',
 };
 
 // Wallet Connectors

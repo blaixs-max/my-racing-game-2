@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAccount, useBalance, useConfig } from 'wagmi';
+import { useAccount, useBalance, useConfig, useSwitchChain, useChainId } from 'wagmi';
+import { bscTestnet } from 'wagmi/chains';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { sendBNBPayment, hasEnoughBalance, getBSCScanLink } from '../utils/realWallet';
 import { getOrCreateUser } from '../utils/supabaseClient';
@@ -7,10 +8,21 @@ import { PRICING } from '../wagmi.config';
 
 const RealLauncherUI = ({ onStartGame }) => {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
   const config = useConfig();
+
+  // Force network switch check
+  useEffect(() => {
+    if (isConnected && chainId !== bscTestnet.id) {
+      console.log('Wrong network detected. Requesting switch to BSC Testnet...');
+      switchChain({ chainId: bscTestnet.id });
+    }
+  }, [isConnected, chainId, switchChain]);
+
   const { data: balanceData } = useBalance({
     address: address,
-    chainId: 97, // BSC Testnet
+    chainId: bscTestnet.id,
   });
 
   // State Management
@@ -322,6 +334,17 @@ const RealLauncherUI = ({ onStartGame }) => {
               >
                 {!state.selectedPackage ? 'Select a Package to Purchase' : 'Purchase Credits'}
               </button>
+
+              {/* Manual Wallet Trigger (Fallback) */}
+              {state.isProcessing && (
+                <button
+                  onClick={handlePurchaseAndStart}
+                  className="w-full mt-2 py-2 bg-yellow-600/50 hover:bg-yellow-600/80 text-white rounded-lg text-sm font-medium transition-colors border border-yellow-500/30"
+                >
+                  <i className="fas fa-external-link-alt mr-2"></i>
+                  Cüzdan Açılmadı mı? Tekrar Dene
+                </button>
+              )}
             </>
           ) : (
             /* Purchase & Start Button (when user has NO credits) */
