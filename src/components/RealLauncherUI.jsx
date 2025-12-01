@@ -120,11 +120,10 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: true,
-        statusMessage: '⏳ Opening wallet... Please check your app to confirm'
+        statusMessage: '⏳ Sending BNB payment... Please confirm in your wallet'
       }));
 
       // Send BNB payment to our wallet
-      // Note: On mobile, this should trigger the wallet app to open
       const txResult = await sendBNBPayment(config, address, state.selectedPackage);
 
       console.log('✅ Payment sent:', txResult);
@@ -356,16 +355,6 @@ const RealLauncherUI = ({ onStartGame }) => {
                     {!state.selectedPackage ? 'Select a Package to Purchase' : 'Purchase Credits'}
                   </button>
 
-                  {/* Manual Wallet Trigger (Fallback) */}
-                  {state.isProcessing && (
-                    <button
-                      onClick={handlePurchaseAndStart}
-                      className="w-full mt-2 py-2 bg-yellow-600/50 hover:bg-yellow-600/80 text-white rounded-lg text-sm font-medium transition-colors border border-yellow-500/30"
-                    >
-                      <i className="fas fa-external-link-alt mr-2"></i>
-                      Cüzdan Açılmadı mı? Tekrar Dene
-                    </button>
-                  )}
                 </>
               ) : (
                 /* Purchase & Start Button (when user has NO credits) */
