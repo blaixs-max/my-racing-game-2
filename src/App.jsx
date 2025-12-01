@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { create } from 'zustand';
 import coinLogo from './assets/coin_logo.png';
 import RealLauncherUI from './components/RealLauncherUI';
+import GameOverUI from './components/GameOverUI';
 import { useCredit, getUserCredits } from './utils/supabaseClient';
 import PostProcessing from './components/PostProcessing';
 import { NitroBoostParticles, CollisionSparks } from './components/AdvancedParticles';
@@ -233,7 +234,7 @@ class AudioSystem {
 const audioSystem = new AudioSystem();
 
 // ==================== OYUN VERİ MERKEZİ ====================
-const useGameStore = create((set, get) => ({
+export const useGameStore = create((set, get) => ({
   gameState: 'loading', // 'loading' | 'launcher' | 'countdown' | 'playing' | 'gameOver'
   countdown: 3,
   speed: 0,
@@ -2324,244 +2325,26 @@ function Game() {
 
       {
         gameOver && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(135deg, rgba(20, 0, 0, 0.97) 0%, rgba(60, 0, 20, 0.97) 50%, rgba(20, 0, 0, 0.97) 100%)',
-            backdropFilter: 'blur(10px)',
-            zIndex: 100,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontFamily: "'Inter', 'Arial', sans-serif",
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            padding: '20px',
-            overflow: 'auto'
-          }}>
-            {/* Crashed Title with Icon */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: isMobile ? '10px' : '20px',
-              marginBottom: isMobile ? '15px' : '20px'
-            }}>
-              <span style={{ fontSize: isMobile ? '40px' : '60px' }}>💥</span>
-              <h1 style={{
-                fontSize: isMobile ? 'clamp(30px, 8vw, 50px)' : 'clamp(40px, 10vw, 80px)',
-                color: '#ff3333',
-                margin: 0,
-                textShadow: '0 0 30px rgba(255, 0, 0, 0.8), 0 0 60px rgba(255, 0, 0, 0.4)',
-                textTransform: 'uppercase',
-                textAlign: 'center',
-                userSelect: 'none',
-                fontWeight: '900',
-                letterSpacing: '2px'
-              }}>YOU CRASHED</h1>
-              <span style={{ fontSize: isMobile ? '40px' : '60px' }}>💥</span>
-            </div>
-
-            {/* Score Display */}
-            <h2 style={{
-              color: '#FFD700',
-              fontSize: isMobile ? '24px' : '36px',
-              marginBottom: isMobile ? '10px' : '15px',
-              userSelect: 'none',
-              fontWeight: 'bold',
-              textShadow: '0 0 20px rgba(255, 215, 0, 0.5)'
-            }}>FINAL SCORE: {Math.floor(score)}</h2>
-
-            {/* Statistics */}
-            <div style={{
-              color: '#00ffff',
-              fontSize: isMobile ? '16px' : '20px',
-              marginBottom: isMobile ? '15px' : '20px',
-              userSelect: 'none',
-              textAlign: 'center',
-              background: 'rgba(0, 255, 255, 0.1)',
-              padding: isMobile ? '10px 20px' : '15px 30px',
-              borderRadius: '10px',
-              border: '1px solid rgba(0, 255, 255, 0.3)'
-            }}>
-              <div style={{ marginBottom: '5px' }}>🏁 Distance: {Math.floor(totalDistance)}m</div>
-              <div>⚡ Near Misses: {nearMissCount}</div>
-            </div>
-
-            {/* Database Save Confirmation */}
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.2))',
-              border: '2px solid rgba(34, 197, 94, 0.4)',
-              borderRadius: '12px',
-              padding: isMobile ? '12px 20px' : '15px 30px',
-              marginBottom: isMobile ? '15px' : '20px',
-              textAlign: 'center',
-              maxWidth: '500px',
-              width: '90%'
-            }}>
-              <div style={{
-                fontSize: isMobile ? '14px' : '16px',
-                color: '#4ade80',
-                marginBottom: '5px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}>
-                <span>✅</span>
-                <span style={{ fontWeight: 'bold' }}>Score Saved to Database!</span>
-              </div>
-              <div style={{
-                fontSize: isMobile ? '12px' : '14px',
-                color: '#86efac',
-                lineHeight: '1.5'
-              }}>
-                Your performance has been recorded
-              </div>
-            </div>
-
-            {/* Encouraging Message */}
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(126, 34, 206, 0.2))',
-              border: '2px solid rgba(147, 51, 234, 0.4)',
-              borderRadius: '12px',
-              padding: isMobile ? '15px 20px' : '20px 30px',
-              marginBottom: isMobile ? '20px' : '30px',
-              textAlign: 'center',
-              maxWidth: '500px',
-              width: '90%'
-            }}>
-              <div style={{
-                fontSize: isMobile ? '18px' : '24px',
-                color: '#FFD700',
-                marginBottom: '8px',
-                fontWeight: 'bold',
-                textShadow: '0 0 15px rgba(255, 215, 0, 0.4)'
-              }}>
-                🎮 Keep Racing!
-              </div>
-              <div style={{
-                fontSize: isMobile ? '13px' : '16px',
-                color: '#c4b5fd',
-                lineHeight: '1.6'
-              }}>
-                The more you play, the better your chances of earning rewards!
-                Master the track and climb the leaderboard! 🏆
-              </div>
-            </div>
-
-            {/* Credits Display */}
-            <div style={{
-              marginBottom: isMobile ? '20px' : '30px',
-              padding: isMobile ? '12px 20px' : '15px 30px',
-              background: useGameStore.getState().credits > 0 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(220, 38, 38, 0.2)',
-              border: useGameStore.getState().credits > 0 ? '2px solid rgba(99, 102, 241, 0.5)' : '2px solid rgba(220, 38, 38, 0.5)',
-              borderRadius: '10px',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: isMobile ? '14px' : '16px', color: '#aaa', marginBottom: '5px' }}>REMAINING CREDITS</div>
-              <div style={{
-                fontSize: isMobile ? '28px' : '36px',
-                fontWeight: 'bold',
-                color: useGameStore.getState().credits > 0 ? '#fbbf24' : '#ef4444'
-              }}>
-                {useGameStore.getState().credits}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: isMobile ? '15px' : '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {useGameStore.getState().credits > 0 ? (
-                <button
-                  onClick={startGame}
-                  style={{
-                    padding: isMobile ? '15px 30px' : '20px 40px',
-                    fontSize: isMobile ? '18px' : '24px',
-                    cursor: 'pointer',
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    boxShadow: '0 0 20px rgba(99, 102, 241, 0.5)',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    WebkitTouchCallout: 'none',
-                    touchAction: 'manipulation',
-                    transition: 'transform 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                  onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                >
-                  🏁 PLAY AGAIN
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    useGameStore.getState().setGameState('launcher');
-                  }}
-                  style={{
-                    padding: isMobile ? '15px 30px' : '20px 40px',
-                    fontSize: isMobile ? '18px' : '24px',
-                    cursor: 'pointer',
-                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    boxShadow: '0 0 20px rgba(245, 158, 11, 0.5)',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    WebkitTouchCallout: 'none',
-                    touchAction: 'manipulation',
-                    transition: 'transform 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                  onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                >
-                  💎 BUY CREDITS
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  useGameStore.getState().setGameState('launcher');
-                }}
-                style={{
-                  padding: isMobile ? '15px 30px' : '20px 40px',
-                  fontSize: isMobile ? '18px' : '24px',
-                  cursor: 'pointer',
-                  background: '#1f2937',
-                  color: '#fff',
-                  border: '2px solid #374151',
-                  borderRadius: '10px',
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  WebkitTouchCallout: 'none',
-                  touchAction: 'manipulation',
-                  transition: 'transform 0.2s'
-                }}
-                onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-              >
-                🏠 BACK TO MENU
-              </button>
-            </div>
-          </div>
+          <GameOverUI
+            score={score}
+            totalDistance={totalDistance}
+            nearMissCount={nearMissCount}
+            onRestart={startGame}
+            onMainMenu={() => useGameStore.getState().setGameState('launcher')}
+          />
         )
       }
 
-      <Canvas
-        shadows={{ type: THREE.PCFSoftShadowMap, shadowMapSize: [512, 512] }}
-        dpr={[1, 1.5]}
-        gl={{ antialias: false, powerPreference: "high-performance" }}
-        frameloop="always"
-      >
-        <GameContent />
-      </Canvas>
+      {!gameOver && (
+        <Canvas
+          shadows={{ type: THREE.PCFSoftShadowMap, shadowMapSize: [512, 512] }}
+          dpr={[1, 1.5]}
+          gl={{ antialias: false, powerPreference: "high-performance" }}
+          frameloop="always"
+        >
+          <GameContent />
+        </Canvas>
+      )}
     </div >
   );
 }
@@ -2744,6 +2527,7 @@ const LoadingScreen = () => {
     </div>
   );
 };
+
 
 export default function App() {
   const gameState = useGameStore(state => state.gameState);
