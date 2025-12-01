@@ -12,13 +12,15 @@ const RealLauncherUI = ({ onStartGame }) => {
   const { switchChain } = useSwitchChain();
   const config = useConfig();
 
-  // Force network switch check
+  const isWrongNetwork = isConnected && chainId !== bscTestnet.id;
+
+  // Force network switch check (Auto)
   useEffect(() => {
-    if (isConnected && chainId !== bscTestnet.id) {
+    if (isWrongNetwork) {
       console.log('Wrong network detected. Requesting switch to BSC Testnet...');
       switchChain({ chainId: bscTestnet.id });
     }
-  }, [isConnected, chainId, switchChain]);
+  }, [isWrongNetwork, switchChain]);
 
   const { data: balanceData } = useBalance({
     address: address,
@@ -263,113 +265,130 @@ const RealLauncherUI = ({ onStartGame }) => {
             />
           </div>
 
-          {/* Credit Display */}
-          {isConnected && (
-            <div className="mb-6 p-4 bg-gradient-to-r from-purple-500/30 to-indigo-500/30 rounded-xl border border-purple-400/30">
-              <div className="text-center">
-                <p className="text-gray-300 text-sm mb-1">Your Credits</p>
-                <p className="text-4xl font-bold text-white">{state.credits}</p>
-                <p className="text-gray-400 text-xs mt-1">
-                  Balance: {balanceData?.formatted ? `${parseFloat(balanceData.formatted).toFixed(4)} BNB` : '0 BNB'}
-                </p>
-              </div>
+          {/* Wrong Network Warning */}
+          {isWrongNetwork ? (
+            <div className="mb-6 p-6 bg-red-900/50 rounded-xl border border-red-500 text-center animate-pulse">
+              <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
+              <h3 className="text-xl font-bold text-white mb-2">Yanlış Ağ!</h3>
+              <p className="text-gray-300 mb-4">Lütfen oyuna devam etmek için BSC Testnet ağına geçin.</p>
+              <button
+                onClick={() => switchChain({ chainId: bscTestnet.id })}
+                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors shadow-lg"
+              >
+                Ağı Değiştir (BSC Testnet)
+              </button>
             </div>
-          )}
-
-          {/* Ticket Packages */}
-          <div className="mb-6">
-            <h3 className="text-white text-lg font-semibold mb-4 text-center">Select Credit Package</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {[1, 5, 10].map((amount) => (
-                <TicketCard
-                  key={amount}
-                  amount={amount}
-                  bnbPrice={PRICING[amount]}
-                  selected={state.selectedPackage === amount}
-                  onClick={() => handleSelectTicket(amount)}
-                  disabled={!isConnected || state.isProcessing}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          {isConnected && state.credits > 0 ? (
+          ) : (
             <>
-              {/* Start Game Button (when user has credits) */}
-              <button
-                onClick={handleStartGameWithCredits}
-                disabled={state.isProcessing}
-                className={`w-full py-5 rounded-xl font-bold text-xl transition-all duration-300 mb-4 ${
-                  state.isProcessing
-                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 animate-pulse'
-                }`}
-              >
-                {state.isProcessing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <i className="fas fa-spinner fa-spin"></i>
-                    Processing...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <i className="fas fa-play-circle"></i>
-                    START GAME
-                  </span>
-                )}
-              </button>
+              {/* Credit Display */}
+              {isConnected && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-purple-500/30 to-indigo-500/30 rounded-xl border border-purple-400/30">
+                  <div className="text-center">
+                    <p className="text-gray-300 text-sm mb-1">Your Credits</p>
+                    <p className="text-4xl font-bold text-white">{state.credits}</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Balance: {balanceData?.formatted ? `${parseFloat(balanceData.formatted).toFixed(4)} BNB` : '0 BNB'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
-              {/* Purchase More Credits Section */}
-              <div className="text-center mb-3">
-                <p className="text-gray-400 text-sm">Or purchase more credits:</p>
+              {/* Ticket Packages */}
+              <div className="mb-6">
+                <h3 className="text-white text-lg font-semibold mb-4 text-center">Select Credit Package</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 5, 10].map((amount) => (
+                    <TicketCard
+                      key={amount}
+                      amount={amount}
+                      bnbPrice={PRICING[amount]}
+                      selected={state.selectedPackage === amount}
+                      onClick={() => handleSelectTicket(amount)}
+                      disabled={!isConnected || state.isProcessing}
+                    />
+                  ))}
+                </div>
               </div>
-              <button
-                onClick={handlePurchaseAndStart}
-                disabled={!state.selectedPackage || state.isProcessing}
-                className={`w-full py-3 rounded-xl font-semibold text-base transition-all duration-300 ${
-                  !state.selectedPackage || state.isProcessing
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-                }`}
-              >
-                {!state.selectedPackage ? 'Select a Package to Purchase' : 'Purchase Credits'}
-              </button>
 
-              {/* Manual Wallet Trigger (Fallback) */}
-              {state.isProcessing && (
+              {/* Action Buttons */}
+              {isConnected && state.credits > 0 ? (
+                <>
+                  {/* Start Game Button (when user has credits) */}
+                  <button
+                    onClick={handleStartGameWithCredits}
+                    disabled={state.isProcessing}
+                    className={`w-full py-5 rounded-xl font-bold text-xl transition-all duration-300 mb-4 ${
+                      state.isProcessing
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 animate-pulse'
+                    }`}
+                  >
+                    {state.isProcessing ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <i className="fas fa-spinner fa-spin"></i>
+                        Processing...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <i className="fas fa-play-circle"></i>
+                        START GAME
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Purchase More Credits Section */}
+                  <div className="text-center mb-3">
+                    <p className="text-gray-400 text-sm">Or purchase more credits:</p>
+                  </div>
+                  <button
+                    onClick={handlePurchaseAndStart}
+                    disabled={!state.selectedPackage || state.isProcessing}
+                    className={`w-full py-3 rounded-xl font-semibold text-base transition-all duration-300 ${
+                      !state.selectedPackage || state.isProcessing
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
+                    }`}
+                  >
+                    {!state.selectedPackage ? 'Select a Package to Purchase' : 'Purchase Credits'}
+                  </button>
+
+                  {/* Manual Wallet Trigger (Fallback) */}
+                  {state.isProcessing && (
+                    <button
+                      onClick={handlePurchaseAndStart}
+                      className="w-full mt-2 py-2 bg-yellow-600/50 hover:bg-yellow-600/80 text-white rounded-lg text-sm font-medium transition-colors border border-yellow-500/30"
+                    >
+                      <i className="fas fa-external-link-alt mr-2"></i>
+                      Cüzdan Açılmadı mı? Tekrar Dene
+                    </button>
+                  )}
+                </>
+              ) : (
+                /* Purchase & Start Button (when user has NO credits) */
                 <button
                   onClick={handlePurchaseAndStart}
-                  className="w-full mt-2 py-2 bg-yellow-600/50 hover:bg-yellow-600/80 text-white rounded-lg text-sm font-medium transition-colors border border-yellow-500/30"
+                  disabled={!isConnected || !state.selectedPackage || state.isProcessing}
+                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
+                    !isConnected || !state.selectedPackage || state.isProcessing
+                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
+                  }`}
                 >
-                  <i className="fas fa-external-link-alt mr-2"></i>
-                  Cüzdan Açılmadı mı? Tekrar Dene
+                  {state.isProcessing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <i className="fas fa-spinner fa-spin"></i>
+                      Processing...
+                    </span>
+                  ) : !isConnected ? (
+                    'Connect Wallet First'
+                  ) : !state.selectedPackage ? (
+                    'Select a Package'
+                  ) : (
+                    `Purchase & Start Game`
+                  )}
                 </button>
               )}
             </>
-          ) : (
-            /* Purchase & Start Button (when user has NO credits) */
-            <button
-              onClick={handlePurchaseAndStart}
-              disabled={!isConnected || !state.selectedPackage || state.isProcessing}
-              className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-                !isConnected || !state.selectedPackage || state.isProcessing
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-              }`}
-            >
-              {state.isProcessing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <i className="fas fa-spinner fa-spin"></i>
-                  Processing...
-                </span>
-              ) : !isConnected ? (
-                'Connect Wallet First'
-              ) : !state.selectedPackage ? (
-                'Select a Package'
-              ) : (
-                `Purchase & Start Game`
-              )}
-            </button>
           )}
 
           {/* Status Message */}
