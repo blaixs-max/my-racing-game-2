@@ -102,7 +102,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: true,
-        statusMessage: '⏳ Opening wallet... Please confirm transaction'
+        statusMessage: '⏳ Opening wallet... Please check your app to confirm'
       }));
 
       // Send BNB payment to our wallet
