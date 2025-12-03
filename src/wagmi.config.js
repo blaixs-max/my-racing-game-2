@@ -15,7 +15,9 @@ const appInfo = {
   appName: 'LUMEXIA Racing',
   projectId,
   appDescription: 'Endless Web3 Racing Game',
-  appUrl: 'https://newracing.netlify.app/', // Trailing slash is important for deep linking
+  // Use current window location if available (for deploy previews), otherwise fallback
+  // Trailing slash is important for deep linking
+  appUrl: typeof window !== 'undefined' ? window.location.origin + '/' : 'https://newracing.netlify.app/',
   appIcon: 'https://newracing.netlify.app/icon.png',
 };
 
