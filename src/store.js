@@ -428,7 +428,7 @@ export const useGameStore = create((set, get) => ({
         }
 
         const safeLanes = possibleLanes.filter(l => {
-          const targetX = l * 4.5;
+          const targetX = l * 3.0; // Reduced from 4.5 to 3.0 for better road centering
           const isSafe = !state.enemies.some(other =>
             other.id !== e.id &&
             Math.abs(other.x - targetX) < 3 &&
@@ -450,17 +450,18 @@ export const useGameStore = create((set, get) => ({
 
       if (updated.isChanging) {
         const newProgress = updated.changeProgress + clampedDelta * 2;
-        const startX = updated.lane * 4.5;
-        const endX = updated.targetLane * 4.5;
+        const startX = updated.lane * 3.0; // Reduced from 4.5 to 3.0
+        const endX = updated.targetLane * 3.0; // Reduced from 4.5 to 3.0
         let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
 
-        // SAFETY: Clamp X position to stay within road bounds (-9 to +9)
-        // Road is 20 units wide (-10 to +10), keep 1 unit margin from edges
-        newX = Math.max(-9, Math.min(9, newX));
+        // SAFETY: Clamp X position to stay within safe road bounds (-7 to +7)
+        // Road is 20 units wide (-10 to +10), lanes centered at -3, 0, +3
+        // This ensures even the widest vehicles (3.1 units) stay well within road bounds
+        newX = Math.max(-7, Math.min(7, newX));
 
         if (newProgress >= 1) {
-          // Clamp final position to road bounds
-          const finalX = Math.max(-9, Math.min(9, updated.targetLane * 4.5));
+          // Clamp final position to safe road bounds
+          const finalX = Math.max(-7, Math.min(7, updated.targetLane * 3.0));
 
           updated = {
             ...updated,
@@ -519,8 +520,8 @@ export const useGameStore = create((set, get) => ({
           else if (type === 'sedan' || type === 'suv') ownSpeed = 50 + Math.random() * 15; // 50-65 (Medium)
           else if (type === 'sport') ownSpeed = 65 + Math.random() * 10; // 65-75 (Fast)
 
-          // Clamp spawn X position to road bounds
-          const spawnX = Math.max(-9, Math.min(9, lane * 4.5));
+          // Spawn X position with new lane spacing (3.0 instead of 4.5)
+          const spawnX = Math.max(-7, Math.min(7, lane * 3.0));
 
           newEnemies.push({
             id: Date.now(),
@@ -542,7 +543,7 @@ export const useGameStore = create((set, get) => ({
     // FIX 7: Coin spawn zamana dayalı (4.5x increased total)
     if (Math.random() < 0.09 * (clampedDelta * 60) && newCoins.length < 15) {
       const coinLane = Math.floor(Math.random() * 3) - 1;
-      const coinX = coinLane * 4.5;
+      const coinX = coinLane * 3.0; // Updated from 4.5 to 3.0 for new lane spacing
       const isSafeCar = !newEnemies.some(e => Math.abs(e.x - coinX) < 2 && Math.abs(e.z - -400) < 40);
       const isSafeCoin = !newCoins.some(c => Math.abs(c.x - coinX) < 2 && Math.abs(c.z - -400) < 40);
 

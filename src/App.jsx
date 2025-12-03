@@ -1232,7 +1232,7 @@ function RoadEnvironment() {
         <primitive object={roadMaterials.road} attach="material" />
       </mesh>
       <group ref={stripesRef}>
-        {[-2.25, 2.25].map((x) => Array.from({ length: 30 }).map((_, j) => (
+        {[-1.5, 1.5].map((x) => Array.from({ length: 30 }).map((_, j) => (
           <mesh key={`${x}-${j}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.02, -j * 20]}>
             <planeGeometry args={[0.25, 6]} />
             <primitive object={roadMaterials.stripe} attach="material" />
