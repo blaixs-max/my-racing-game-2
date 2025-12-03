@@ -927,6 +927,114 @@ const Barrier = memo(({ x }) => {
 
 Barrier.displayName = 'Barrier';
 
+// ==================== STREET LIGHTS ====================
+const StreetLights = memo(() => {
+  const { speed, totalDistance } = useGameStore();
+  const lightsRef = useRef();
+
+  // Initialize lights array - every 100 meters on both sides
+  const lights = useMemo(() => {
+    const result = [];
+    // Create lights from -500m to +500m initially
+    for (let i = -5; i <= 5; i++) {
+      result.push({
+        id: `left-${i}`,
+        side: -1,
+        initialZ: i * 100
+      });
+      result.push({
+        id: `right-${i}`,
+        side: 1,
+        initialZ: i * 100
+      });
+    }
+    return result;
+  }, []);
+
+  useFrame((state, delta) => {
+    const clampedDelta = Math.min(delta, 0.1);
+
+    if (lightsRef.current) {
+      lightsRef.current.children.forEach((lightGroup, i) => {
+        const lightData = lights[i];
+
+        // Move lights based on speed (same as road movement)
+        lightGroup.position.z += speed * clampedDelta * 0.5;
+
+        // Respawn lights when they pass the camera
+        if (lightGroup.position.z > 50) {
+          lightGroup.position.z = -500;
+        }
+      });
+    }
+  });
+
+  const lightMaterials = useMemo(() => ({
+    pole: new THREE.MeshStandardMaterial({
+      color: '#333',
+      roughness: 0.7,
+      metalness: 0.3
+    }),
+    lampHead: new THREE.MeshStandardMaterial({
+      color: '#FFA500',
+      emissive: '#FF8C00',
+      emissiveIntensity: 0.5,
+      roughness: 0.3
+    })
+  }), []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(lightMaterials).forEach(mat => mat.dispose());
+    };
+  }, [lightMaterials]);
+
+  return (
+    <group ref={lightsRef}>
+      {lights.map((light) => {
+        const x = light.side === 1 ? 10.7 : -10.7; // 20cm behind barriers (±10.5)
+
+        return (
+          <group key={light.id} position={[x, 0, light.initialZ]}>
+            {/* Street Light Pole */}
+            <mesh position={[0, 2.5, 0]} material={lightMaterials.pole}>
+              <cylinderGeometry args={[0.08, 0.08, 5, 8]} />
+            </mesh>
+
+            {/* Lamp Head (curved top) */}
+            <mesh position={[0, 5.2, 0]} material={lightMaterials.lampHead}>
+              <sphereGeometry args={[0.3, 16, 16]} />
+            </mesh>
+
+            {/* Point Light (glowing effect) */}
+            <pointLight
+              position={[0, 5, 0]}
+              color="#FFB347"
+              intensity={15}
+              distance={25}
+              decay={2}
+            />
+
+            {/* Spot Light (downward illumination) */}
+            <spotLight
+              position={[0, 5, 0]}
+              target-position={[0, 0, 0]}
+              angle={Math.PI / 3}
+              penumbra={0.5}
+              intensity={8}
+              color="#FFA500"
+              distance={20}
+              castShadow={false}
+            />
+          </group>
+        );
+      })}
+    </group>
+  );
+});
+
+StreetLights.displayName = 'StreetLights';
+
 // ==================== YOL VE ZEMİN ====================
 function RoadEnvironment() {
   const { updateGame, speed } = useGameStore();
@@ -975,6 +1083,10 @@ function RoadEnvironment() {
       {/* FIX 2: Barrier artık dışarıda tanımlı */}
       <Barrier x={-10.5} />
       <Barrier x={10.5} />
+
+      {/* Street Lights - Every 100m */}
+      <StreetLights />
+
       <SideObjects side={1} />
       <SideObjects side={-1} />
 
