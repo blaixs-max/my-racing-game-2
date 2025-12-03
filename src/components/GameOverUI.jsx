@@ -144,7 +144,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
               {credits}
             </p>
             {credits <= 0 && (
-               <div className="mt-2 flex items-center justify-center gap-2 text-orange-300 text-xs">
+               <div className="mt-2 flex items-center justify-center gap-2 text-orange-300 text-xl">
                  <i className="fas fa-info-circle"></i>
                  <span>To Purchase Credits Go Back to Main Menu</span>
                </div>
@@ -153,7 +153,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
 
           {/* Anti-Cheat Message */}
           <div className="mb-6 text-center">
-             <p className="text-[10px] text-red-500/70 font-mono">
+             <p className="text-[20px] text-red-500/70 font-mono">
                ⚠ Please don't try to cheat, you'll get caught 99.9% of the time. :) ⚠
              </p>
           </div>
