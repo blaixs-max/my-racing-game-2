@@ -773,12 +773,28 @@ Traffic.displayName = 'Traffic';
 // ==================== ÇEVRE ====================
 const Building = memo(({ width, height, side, type }) => {
   const isApartment = type === 'apartment';
+  const isVilla = type === 'villa';
+  const isModernHouse = type === 'modern_house';
+  const isShop = type === 'shop';
+  const isTownhouse = type === 'townhouse';
+
+  // Different colors for different building types
+  const buildingColor = useMemo(() => {
+    if (isApartment) return '#555';
+    if (isVilla) return '#8B7355';
+    if (isModernHouse) return '#778899';
+    if (isShop) return '#A0522D';
+    if (isTownhouse) return '#6B6B6B';
+    return '#666';
+  }, [isApartment, isVilla, isModernHouse, isShop, isTownhouse]);
 
   const materials = useMemo(() => ({
-    building: new THREE.MeshStandardMaterial({ color: '#666', roughness: 0.9 }),
+    building: new THREE.MeshStandardMaterial({ color: buildingColor, roughness: 0.9 }),
     window: new THREE.MeshStandardMaterial({ color: '#ffaa44', emissive: '#ffaa44', emissiveIntensity: 3 }),
-    roof: new THREE.MeshStandardMaterial({ color: '#444' })
-  }), []);
+    roof: new THREE.MeshStandardMaterial({ color: '#444' }),
+    modernRoof: new THREE.MeshStandardMaterial({ color: '#333', roughness: 0.5 }),
+    villaRoof: new THREE.MeshStandardMaterial({ color: '#8B4513', roughness: 0.8 })
+  }), [buildingColor]);
 
   useEffect(() => {
     return () => {
@@ -786,13 +802,11 @@ const Building = memo(({ width, height, side, type }) => {
     };
   }, [materials]);
 
+  // Windows for apartments and townhouses
   const wins = useMemo(() => {
-    if (!isApartment) return [];
+    if (!isApartment && !isTownhouse) return [];
     const w = [];
     const floors = Math.floor(height / 3);
-    // Use a seeded random or deterministic pattern based on position/index if possible, 
-    // but for now just move random to useMemo dependency or accept it runs once per mount.
-    // Since this is inside useMemo, it's fine.
     for (let i = 1; i < floors; i++) {
       if (Math.random() > 0.75) {
         const offsetDirection = side > 0 ? -1 : 1;
@@ -800,21 +814,83 @@ const Building = memo(({ width, height, side, type }) => {
       }
     }
     return w;
-  }, [height, isApartment, side, width]);
+  }, [height, isApartment, isTownhouse, side, width]);
+
+  // Small windows for other building types
+  const smallWins = useMemo(() => {
+    if (isApartment || isTownhouse || type === 'small_house') return [];
+    const w = [];
+    const numWindows = isShop ? 2 : Math.floor(height / 4);
+    for (let i = 0; i < numWindows; i++) {
+      const offsetDirection = side > 0 ? -1 : 1;
+      w.push([0, 2 + i * 3, offsetDirection * (width / 2 + 0.05)]);
+    }
+    return w;
+  }, [height, isApartment, isTownhouse, isShop, side, width, type]);
 
   return (
     <group>
+      {/* Main building body */}
       <mesh position={[0, height / 2, 0]} material={materials.building}>
         <boxGeometry args={[width, height, width]} />
       </mesh>
+
+      {/* Apartment/Townhouse large windows */}
       {wins.map((pos, i) => (
         <mesh key={i} position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
           <planeGeometry args={[width * 0.6, 1.5]} />
         </mesh>
       ))}
+
+      {/* Villa/Modern House/Shop small windows */}
+      {smallWins.map((pos, i) => (
+        <mesh key={`sw-${i}`} position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+          <planeGeometry args={[width * 0.4, 1.2]} />
+        </mesh>
+      ))}
+
+      {/* Small House - Pyramid roof */}
       {type === 'small_house' && (
         <mesh position={[0, height + 1, 0]} rotation={[0, Math.PI / 4, 0]}>
           <coneGeometry args={[width * 0.8, 3, 4]} />
+          <primitive object={materials.roof} attach="material" />
+        </mesh>
+      )}
+
+      {/* Villa - Flat roof with chimney */}
+      {isVilla && (
+        <>
+          <mesh position={[0, height + 0.2, 0]}>
+            <boxGeometry args={[width, 0.4, width]} />
+            <primitive object={materials.villaRoof} attach="material" />
+          </mesh>
+          <mesh position={[width * 0.3, height + 1.5, 0]}>
+            <boxGeometry args={[0.8, 3, 0.8]} />
+            <primitive object={materials.villaRoof} attach="material" />
+          </mesh>
+        </>
+      )}
+
+      {/* Modern House - Flat modern roof */}
+      {isModernHouse && (
+        <mesh position={[0, height + 0.15, 0]}>
+          <boxGeometry args={[width * 1.05, 0.3, width * 1.05]} />
+          <primitive object={materials.modernRoof} attach="material" />
+        </mesh>
+      )}
+
+      {/* Shop - Awning */}
+      {isShop && (
+        <mesh position={[0, 2.5, side > 0 ? -width / 2 : width / 2]} rotation={[Math.PI / 6, 0, 0]}>
+          <boxGeometry args={[width * 0.9, 0.1, 1.5]} />
+          <meshStandardMaterial color="#CC5500" roughness={0.8} />
+        </mesh>
+      )}
+
+      {/* Townhouse - Gabled roof */}
+      {isTownhouse && (
+        <mesh position={[0, height + 1.5, 0]} rotation={[0, 0, 0]}>
+          <coneGeometry args={[width * 0.7, 3, 4]} />
           <primitive object={materials.roof} attach="material" />
         </mesh>
       )}
@@ -826,26 +902,52 @@ Building.displayName = 'Building';
 
 const SideObjects = memo(({ side }) => {
   const { speed } = useGameStore();
-  const objects = useMemo(() => new Array(20).fill(0).map((_, i) => {
+  const objects = useMemo(() => new Array(30).fill(0).map((_, i) => { // Increased from 20 to 30 objects
     // eslint-disable-next-line
     const rand = Math.random();
     let type = 'empty', height = 0, width = 0;
 
-    if (rand > 0.7) {
+    // Increased building density: ~65% buildings, ~25% trees, ~10% empty
+    if (rand > 0.75) {
       type = 'tree';
       width = 2 + rand * 2;
       height = 5 + rand * 5;
-    } else if (rand > 0.4) {
-      type = 'building';
-      width = 5 + rand * 5;
-      height = 10 + rand * 20;
+    } else if (rand > 0.1) {
+      // Assign varied building types
+      const buildingRand = Math.random();
+      if (buildingRand > 0.85) {
+        type = 'apartment';
+        width = 12;
+        height = 30 + Math.random() * 40;
+      } else if (buildingRand > 0.7) {
+        type = 'villa';
+        width = 10 + Math.random() * 3;
+        height = 8 + Math.random() * 4;
+      } else if (buildingRand > 0.5) {
+        type = 'modern_house';
+        width = 8 + Math.random() * 2;
+        height = 10 + Math.random() * 5;
+      } else if (buildingRand > 0.3) {
+        type = 'shop';
+        width = 7 + Math.random() * 3;
+        height = 5 + Math.random() * 3;
+      } else if (buildingRand > 0.15) {
+        type = 'townhouse';
+        width = 6 + Math.random() * 2;
+        height = 12 + Math.random() * 6;
+      } else {
+        type = 'small_house';
+        width = 8;
+        height = 6;
+      }
     }
 
-    return { z: -i * 50, type, height, width, offset: (Math.random() - 0.5) * 20 };
+    return { z: -i * 40, type, height, width, offset: (Math.random() - 0.5) * 20 }; // Reduced spacing from 50 to 40
   }), []);
 
   const groupRef = useRef();
   const itemsRef = useRef(objects);
+  const fogRef = useRef();
 
   const treeMaterials = useMemo(() => ({
     leaves: new THREE.MeshStandardMaterial({ color: '#224422', roughness: 1 }),
@@ -869,23 +971,80 @@ const SideObjects = memo(({ side }) => {
         if (item.z > 20) {
           item.z = -1500;
           const rand = Math.random();
-          if (rand > 0.8) { item.type = 'apartment'; item.height = 30 + Math.random() * 40; item.width = 12; }
-          else if (rand > 0.5) { item.type = 'small_house'; item.height = 6; item.width = 8; }
-          else if (rand > 0.2) { item.type = 'tree'; }
-          else { item.type = 'empty'; }
+          // Respawn with increased building variety and density
+          if (rand > 0.92) {
+            item.type = 'apartment';
+            item.height = 30 + Math.random() * 40;
+            item.width = 12;
+          }
+          else if (rand > 0.82) {
+            item.type = 'villa';
+            item.height = 8 + Math.random() * 4;
+            item.width = 10 + Math.random() * 3;
+          }
+          else if (rand > 0.68) {
+            item.type = 'modern_house';
+            item.height = 10 + Math.random() * 5;
+            item.width = 8 + Math.random() * 2;
+          }
+          else if (rand > 0.52) {
+            item.type = 'shop';
+            item.height = 5 + Math.random() * 3;
+            item.width = 7 + Math.random() * 3;
+          }
+          else if (rand > 0.38) {
+            item.type = 'townhouse';
+            item.height = 12 + Math.random() * 6;
+            item.width = 6 + Math.random() * 2;
+          }
+          else if (rand > 0.25) {
+            item.type = 'small_house';
+            item.height = 6;
+            item.width = 8;
+          }
+          else if (rand > 0.15) {
+            item.type = 'tree';
+          }
+          else {
+            item.type = 'empty';
+          }
         }
         mesh.position.z = item.z;
         mesh.visible = item.type !== 'empty';
       });
     }
+
+    // Animate fog movement
+    if (fogRef.current) {
+      fogRef.current.position.z += speed * clampedDelta * 0.5;
+      if (fogRef.current.position.z > 100) {
+        fogRef.current.position.z = -1500;
+      }
+    }
   });
 
   return (
     <group ref={groupRef}>
+      {/* Fog effect for building areas - subtle mist */}
+      <group ref={fogRef} position={[side * 45, 0, 0]}>
+        {Array.from({ length: 15 }).map((_, i) => (
+          <mesh key={`fog-${i}`} position={[(Math.random() - 0.5) * 30, 3 + Math.random() * 8, -i * 100]}>
+            <sphereGeometry args={[12 + Math.random() * 8, 8, 8]} />
+            <meshBasicMaterial
+              color="#888888"
+              transparent
+              opacity={0.08 + Math.random() * 0.04}
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
+      </group>
+
       {objects.map((obj, i) => {
+        const isBuildingType = ['apartment', 'small_house', 'villa', 'modern_house', 'shop', 'townhouse'].includes(obj.type);
         return (
           <group key={i} position={[side * (45 + obj.offset), 0, obj.z]}>
-            {(obj.type === 'apartment' || obj.type === 'small_house') && <Building width={obj.width} height={obj.height} side={side} type={obj.type} />}
+            {isBuildingType && <Building width={obj.width} height={obj.height} side={side} type={obj.type} />}
             {obj.type === 'tree' && (
               <TreeModel scale={2.5} />
             )}
