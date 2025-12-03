@@ -1790,6 +1790,7 @@ export default function App() {
   const gameState = useGameStore(state => state.gameState);
   const setGameState = useGameStore(state => state.setGameState);
   const setWalletData = useGameStore(state => state.setWalletData);
+  const setTeamData = useGameStore(state => state.setTeamData);
   const startGame = useGameStore(state => state.startGame);
 
   // Restore viewport settings on mount
@@ -1849,6 +1850,12 @@ export default function App() {
   const handleLauncherStart = (data) => {
     // Launcher'dan gelen wallet ve credit bilgilerini kaydet
     setWalletData(data.walletAddress, data.credits);
+
+    // Team bilgisini kaydet
+    if (data.selectedTeam) {
+      setTeamData(data.selectedTeam, null, false);
+    }
+
     // Oyunu başlat (countdown timer'ı başlatır)
     startGame();
   };

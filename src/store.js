@@ -131,6 +131,11 @@ export const useGameStore = create((set, get) => ({
   walletAddress: null,
   credits: 0,
 
+  // Team System
+  selectedTeam: null, // 'blue' | 'red' | null
+  teamSelectionDate: null,
+  canChangeTeam: true,
+
   updateCounter: 0,
   lastSpawnZ: -400,
 
@@ -143,6 +148,13 @@ export const useGameStore = create((set, get) => ({
   setWalletData: (address, credits) => set({
     walletAddress: address,
     credits: credits
+  }),
+
+  // Set team data
+  setTeamData: (team, selectionDate, canChange) => set({
+    selectedTeam: team,
+    teamSelectionDate: selectionDate,
+    canChangeTeam: canChange
   }),
 
   // FIX 1: Enemy passed flag güncellemesi için yeni action

@@ -6,6 +6,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
   const credits = useGameStore(state => state.credits);
   const walletAddress = useGameStore(state => state.walletAddress);
   const startTime = useGameStore(state => state.startTime);
+  const selectedTeam = useGameStore(state => state.selectedTeam);
 
   const [saveStatus, setSaveStatus] = useState('saving'); // 'saving', 'saved', 'error'
   const [errorMessage, setErrorMessage] = useState('');
@@ -35,7 +36,8 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             p_wallet: walletAddress,
             p_score: Math.floor(score),
             p_duration: duration,
-            p_distance: Math.floor(totalDistance)
+            p_distance: Math.floor(totalDistance),
+            p_team: selectedTeam || 'none' // Add team parameter
         });
 
         if (!error) {
