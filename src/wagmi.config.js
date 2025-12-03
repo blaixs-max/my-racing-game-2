@@ -16,6 +16,7 @@ const appInfo = {
   projectId,
   appDescription: 'Endless Web3 Racing Game',
   // Use current window location if available (for deploy previews), otherwise fallback
+  // Trailing slash is important for deep linking
   appUrl: typeof window !== 'undefined' ? window.location.origin + '/' : 'https://newracing.netlify.app/',
   appIcon: 'https://newracing.netlify.app/icon.png',
 };
