@@ -146,7 +146,7 @@ export const useGameStore = create((set, get) => ({
   // Boss Police System
   bossActive: false,
   bossX: 0,
-  bossZ: -500,
+  bossZ: -80,
   bossTargetX: 0, // Delayed tracking target (0.3s delay)
   bossTimer: 0, // 15 second timer
   bossHitCount: 0,
@@ -232,7 +232,7 @@ export const useGameStore = create((set, get) => ({
       // Reset Boss System
       bossActive: false,
       bossX: 0,
-      bossZ: -500,
+      bossZ: -80,
       bossTargetX: 0,
       bossTimer: 0,
       bossHitCount: 0,
@@ -642,13 +642,15 @@ export const useGameStore = create((set, get) => ({
       // Spawn boss at each level milestone (1000m intervals)
       newBossActive = true;
       newBossX = 0; // Spawn in center lane
-      newBossZ = -500; // Spawn far behind player
+      newBossZ = -80; // Spawn closer for visibility (was -500)
       newBossTargetX = state.currentX; // Initial target
       newBossTimer = 0; // Reset timer
       newBossHitCount = 0;
       newBossRetreating = false;
       newBossSpawning = true; // Trigger UI warning
       newLastBossLevel = newLevel;
+
+      console.log('🚔 Boss Police spawned at Z:', newBossZ);
 
       // Clear boss spawning warning after 2 seconds
       setTimeout(() => set({ bossSpawning: false }), 2000);
@@ -707,9 +709,10 @@ export const useGameStore = create((set, get) => ({
         }
       }
 
-      // Deactivate if boss is too far behind (z < -600)
-      if (newBossZ < -600) {
+      // Deactivate if boss is too far behind (z < -200)
+      if (newBossZ < -200) {
         newBossActive = false;
+        console.log('🚔 Boss deactivated - too far behind');
       }
     }
 

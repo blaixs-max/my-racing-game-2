@@ -789,9 +789,12 @@ const BossPoliceCar = memo(() => {
 
   if (!bossActive) return null;
 
+  console.log('🚔 Boss rendering at:', { x: bossX, z: bossZ, active: bossActive });
+
   // Geometrik Polis Arabası (SUV Style)
+  // Rotation [0, Math.PI, 0] = Boss faces player (180 degrees)
   return (
-    <group position={[bossX, 0, bossZ]} ref={carRef}>
+    <group position={[bossX, 0, bossZ]} rotation={[0, Math.PI, 0]} ref={carRef}>
       {/* Car Body */}
       <mesh position={[0, 1.5, 0]} castShadow>
         <boxGeometry args={[2.9, 1.8, 7.6]} />
