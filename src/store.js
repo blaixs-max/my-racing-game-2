@@ -191,7 +191,7 @@ export const useGameStore = create((set, get) => ({
 
     set({
       gameState: 'countdown',
-      countdown: 3,
+      countdown: 5, // Changed from 3 to 5 for longer warmup
       speed: 0,
       targetSpeed: 0,
       score: 0,
@@ -218,7 +218,7 @@ export const useGameStore = create((set, get) => ({
       lastSpawnZ: -400
     });
 
-    let count = 3;
+    let count = 5; // Changed from 3 to 5
     const timer = setInterval(() => {
       count--;
       if (count > 0) {
@@ -227,8 +227,8 @@ export const useGameStore = create((set, get) => ({
         set({ countdown: "GO!" });
       } else {
         clearInterval(timer);
-        // Show "GO!" for longer to prevent black flash (especially on mobile)
-        // This gives GPU time to compile shaders and warm up rendering pipeline
+        // Show "GO!" for 2.5 seconds to allow shader compilation
+        // This prevents the black screen/freeze when game starts
         setTimeout(async () => {
           // Oyun başlarken credit düş (1 credit = 1 race)
           const currentState = get();
@@ -259,7 +259,7 @@ export const useGameStore = create((set, get) => ({
             });
             alert('Failed to start game. Please check your credits and try again.');
           }
-        }, 1300); // Increased from 300ms to 1300ms for smoother transition
+        }, 2500); // Increased from 1300ms to 2500ms for shader compilation
       }
     }, 1000);
 
