@@ -417,7 +417,8 @@ export const useGameStore = create((set, get) => ({
 
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
 
-    let newParticles = state.particles.map(p => ({
+    // Safety: Filter out any undefined/null particles first
+    let newParticles = state.particles.filter(p => p && typeof p === 'object' && typeof p.life !== 'undefined').map(p => ({
       ...p,
       x: p.x + p.vx * clampedDelta,
       y: p.y + p.vy * clampedDelta - 9.8 * clampedDelta,
@@ -427,7 +428,8 @@ export const useGameStore = create((set, get) => ({
     })).filter(p => p.life > 0);
 
     // FIX 7: Frame-rate bağımsız enemy update - zamana dayalı
-    let newEnemies = state.enemies.map(e => {
+    // Safety: Filter out any undefined/null enemies first
+    let newEnemies = state.enemies.filter(e => e && typeof e === 'object' && typeof e.z !== 'undefined').map(e => {
       let updated = { ...e };
 
       // Şerit değiştirme mantığı - zamana dayalı olasılık
@@ -446,7 +448,9 @@ export const useGameStore = create((set, get) => ({
         const safeLanes = possibleLanes.filter(l => {
           const targetX = l * 3.0; // Reduced from 4.5 to 3.0 for better road centering
           const isSafe = !state.enemies.some(other =>
-            other.id !== e.id &&
+            other && other.id !== e.id &&
+            typeof other.x !== 'undefined' &&
+            typeof other.z !== 'undefined' &&
             Math.abs(other.x - targetX) < 3 &&
             Math.abs(other.z - e.z) < 25
           );
@@ -502,7 +506,8 @@ export const useGameStore = create((set, get) => ({
       return updated;
     }).filter(e => e.z < 50);
 
-    let newCoins = state.coins.map(c => ({
+    // Safety: Filter out any undefined/null coins first
+    let newCoins = state.coins.filter(c => c && typeof c === 'object' && typeof c.z !== 'undefined').map(c => ({
       ...c,
       z: c.z + newSpeed * clampedDelta * 0.5
     })).filter(c => c.z < 50);
@@ -519,6 +524,7 @@ export const useGameStore = create((set, get) => ({
       const availableLanes = lanes.filter(lane => {
         const laneX = lane * 3.0; // Fixed: Use 3.0 to match new lane spacing
         return !newEnemies.some(e =>
+          e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' &&
           Math.abs(e.lane - lane) < 0.5 && Math.abs(e.z - -400) < 80
         );
       });
@@ -528,7 +534,7 @@ export const useGameStore = create((set, get) => ({
       if (availableLanes.length === 0 && newEnemies.length >= 2) {
         // If all lanes are blocked, force at least one lane to be available
         const occupiedLanes = newEnemies
-          .filter(e => Math.abs(e.z - -400) < 80)
+          .filter(e => e && typeof e.z !== 'undefined' && typeof e.lane !== 'undefined' && Math.abs(e.z - -400) < 80)
           .map(e => e.lane);
         const allLanes = [-1, 0, 1];
         const freeLanes = allLanes.filter(l => !occupiedLanes.includes(l));
@@ -537,7 +543,7 @@ export const useGameStore = create((set, get) => ({
         } else {
           // All lanes occupied, pick the one with furthest vehicle
           const laneDistances = allLanes.map(l => {
-            const enemiesInLane = newEnemies.filter(e => e.lane === l && Math.abs(e.z - -400) < 80);
+            const enemiesInLane = newEnemies.filter(e => e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' && e.lane === l && Math.abs(e.z - -400) < 80);
             // Safety check for empty array
             const minZ = enemiesInLane.length > 0 ? Math.min(...enemiesInLane.map(e => e.z)) : -400;
             return { lane: l, minZ: minZ };
@@ -587,8 +593,8 @@ export const useGameStore = create((set, get) => ({
     if (Math.random() < 0.09 * (clampedDelta * 60) && newCoins.length < 15) {
       const coinLane = Math.floor(Math.random() * 3) - 1;
       const coinX = coinLane * 3.0; // Updated from 4.5 to 3.0 for new lane spacing
-      const isSafeCar = !newEnemies.some(e => Math.abs(e.x - coinX) < 2 && Math.abs(e.z - -400) < 40);
-      const isSafeCoin = !newCoins.some(c => Math.abs(c.x - coinX) < 2 && Math.abs(c.z - -400) < 40);
+      const isSafeCar = !newEnemies.some(e => e && typeof e.x !== 'undefined' && typeof e.z !== 'undefined' && Math.abs(e.x - coinX) < 2 && Math.abs(e.z - -400) < 40);
+      const isSafeCoin = !newCoins.some(c => c && typeof c.x !== 'undefined' && typeof c.z !== 'undefined' && Math.abs(c.x - coinX) < 2 && Math.abs(c.z - -400) < 40);
 
       if (isSafeCar && isSafeCoin) {
         newCoins.push({ id: Math.random(), x: coinX, z: -400 - Math.random() * 50 });
