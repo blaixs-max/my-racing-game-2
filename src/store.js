@@ -522,7 +522,6 @@ export const useGameStore = create((set, get) => ({
 
       const lanes = [-1, 0, 1];
       const availableLanes = lanes.filter(lane => {
-        const laneX = lane * 3.0; // Fixed: Use 3.0 to match new lane spacing
         return !newEnemies.some(e =>
           e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' &&
           Math.abs(e.lane - lane) < 0.5 && Math.abs(e.z - -400) < 80

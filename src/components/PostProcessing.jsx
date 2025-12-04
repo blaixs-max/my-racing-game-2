@@ -1,6 +1,5 @@
-import React, { useMemo } from 'react';
-import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
+import React from 'react';
+import { EffectComposer } from '@react-three/postprocessing';
 
 /**
  * PostProcessing - ALL EFFECTS DISABLED
@@ -16,31 +15,8 @@ import { BlendFunction } from 'postprocessing';
  * Performance: ~0% overhead (no active effects)
  *
  * @param {boolean} enabled - Toggle all effects (default: true)
- * @param {number} speed - Current game speed for dynamic effects
- * @param {boolean} isNitroActive - Nitro boost state for enhanced effects
- * @param {Object} settings - Effect intensity settings
  */
-export default function PostProcessing({ enabled = true, speed = 0, isNitroActive = false, settings = {} }) {
-
-  // Default settings with overrides
-  const config = useMemo(() => ({
-    bloom: {
-      intensity: 1.5,
-      luminanceThreshold: 0.8, // Only bright objects bloom
-      luminanceSmoothing: 0.3,
-      ...settings.bloom
-    },
-    vignette: {
-      offset: 0.3,
-      darkness: 0.5,
-      ...settings.vignette
-    }
-  }), [speed, settings]);
-
-  // Nitro boost effect - increase bloom
-  const nitroBoost = useMemo(() => ({
-    bloomIntensity: isNitroActive ? config.bloom.intensity * 1.8 : config.bloom.intensity
-  }), [isNitroActive, config.bloom.intensity]);
+export default function PostProcessing({ enabled = true }) {
 
   if (!enabled) return null;
 
