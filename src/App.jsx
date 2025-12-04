@@ -1485,7 +1485,7 @@ function Game() {
     speed, score, message, gameOver, gameState, countdown,
     startGame, steer, cleanupTimer,
     totalDistance, nearMissCount, nitro, maxNitro, isNitroActive,
-    activateNitro, deactivateNitro
+    activateNitro, deactivateNitro, currentLevel
   } = useGameStore();
 
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
@@ -1565,8 +1565,9 @@ function Game() {
   }, [gameState, steer, activateNitro, deactivateNitro]);
 
   const isGoldMessage = message.includes("GOLD");
-  const messageColor = isGoldMessage ? '#00ffff' : '#ff0000';
-  const messageShadow = isGoldMessage ? '0 0 20px #00ffff' : '0 0 30px red';
+  const isLevelMessage = message.includes("LEVEL");
+  const messageColor = isLevelMessage ? '#ffd700' : (isGoldMessage ? '#00ffff' : '#ff0000');
+  const messageShadow = isLevelMessage ? '0 0 40px #ffd700, 0 0 80px #ffa500' : (isGoldMessage ? '0 0 20px #00ffff' : '0 0 30px red');
 
   const scoreStyle = useMemo(() => ({
     color: '#00ffff',
@@ -1830,6 +1831,28 @@ function Game() {
                 <div style={{ transform: 'skewX(15deg)', textAlign: 'center' }}>
                   <div style={{ fontSize: isLandscape ? '5px' : (isMobile ? '7px' : '10px'), color: '#ff00ff', fontWeight: 'bold' }}>NEAR MISS</div>
                   <div style={{ fontSize: isLandscape ? '9px' : (isMobile ? '12px' : '24px'), color: '#fff', fontWeight: 'bold', textShadow: '0 0 10px #ff00ff' }}>{nearMissCount}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Level */}
+            <div style={{
+              position: 'fixed',
+              top: isLandscape ? '76px' : (isMobile ? '140px' : '260px'),
+              right: isLandscape ? '3px' : (isMobile ? '5px' : '20px'),
+              zIndex: 10
+            }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #2e1a2e 0%, #1a0f1a 100%)',
+                border: isLandscape ? '1px solid #ffd700' : '2px solid #ffd700',
+                borderRadius: isLandscape ? '3px' : (isMobile ? '4px' : '10px'),
+                padding: isLandscape ? '2px 5px' : (isMobile ? '3px 8px' : '8px 20px'),
+                transform: 'skewX(-15deg)',
+                boxShadow: '0 5px 15px rgba(255,215,0,0.3)'
+              }}>
+                <div style={{ transform: 'skewX(15deg)', textAlign: 'center' }}>
+                  <div style={{ fontSize: isLandscape ? '5px' : (isMobile ? '7px' : '10px'), color: '#ffd700', fontWeight: 'bold' }}>LEVEL</div>
+                  <div style={{ fontSize: isLandscape ? '9px' : (isMobile ? '12px' : '24px'), color: '#fff', fontWeight: 'bold', textShadow: '0 0 10px #ffd700' }}>{currentLevel}</div>
                 </div>
               </div>
             </div>

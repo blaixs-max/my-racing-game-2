@@ -119,6 +119,8 @@ export const useGameStore = create((set, get) => ({
   totalDistance: 0,
   nearMissCount: 0,
   startTime: 0, // Oyun süresi için
+  currentLevel: 1,
+  lastLevelUpDistance: 0,
 
   nitro: 100,
   maxNitro: 100,
@@ -203,6 +205,8 @@ export const useGameStore = create((set, get) => ({
       gameOver: false,
       totalDistance: 0,
       nearMissCount: 0,
+      currentLevel: 1,
+      lastLevelUpDistance: 0,
       roadSegments: [],
       currentRoadType: 'straight',
       nitro: 100,
@@ -399,6 +403,18 @@ export const useGameStore = create((set, get) => ({
     const newScore = state.score + (newSpeed * clampedDelta * 0.2);
     const newDistance = state.totalDistance + (newSpeed * clampedDelta * 0.1);
 
+    // Level System - Level up every 1000 meters
+    const newLevel = Math.floor(newDistance / 1000) + 1;
+    let newLastLevelUpDistance = state.lastLevelUpDistance;
+    let levelUpMessage = '';
+
+    if (newLevel > state.currentLevel) {
+      levelUpMessage = `LEVEL ${newLevel}!`;
+      newLastLevelUpDistance = newDistance;
+      // Show level up message
+      setTimeout(() => set({ message: '' }), 1500);
+    }
+
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
 
     let newParticles = state.particles.map(p => ({
@@ -507,24 +523,49 @@ export const useGameStore = create((set, get) => ({
         );
       });
 
-      if (availableLanes.length > 0) {
-        const lane = availableLanes[Math.floor(Math.random() * availableLanes.length)];
+      // Ensure at least 1 lane is always available (never block all 3 lanes)
+      let finalAvailableLanes = availableLanes;
+      if (availableLanes.length === 0 && newEnemies.length >= 2) {
+        // If all lanes are blocked, force at least one lane to be available
+        const occupiedLanes = newEnemies
+          .filter(e => Math.abs(e.z - -400) < 80)
+          .map(e => e.lane);
+        const allLanes = [-1, 0, 1];
+        const freeLanes = allLanes.filter(l => !occupiedLanes.includes(l));
+        if (freeLanes.length > 0) {
+          finalAvailableLanes = freeLanes;
+        } else {
+          // All lanes occupied, pick the one with furthest vehicle
+          const laneDistances = allLanes.map(l => {
+            const enemiesInLane = newEnemies.filter(e => e.lane === l && Math.abs(e.z - -400) < 80);
+            return { lane: l, minZ: Math.min(...enemiesInLane.map(e => e.z)) };
+          });
+          const bestLane = laneDistances.reduce((a, b) => a.minZ < b.minZ ? a : b);
+          finalAvailableLanes = [bestLane.lane];
+        }
+      }
+
+      if (finalAvailableLanes.length > 0) {
+        const lane = finalAvailableLanes[Math.floor(Math.random() * finalAvailableLanes.length)];
         // SYSTEMATIC DEBUGGING: Final - All Safe Vehicles (No Police)
         const allowedTypes = ['truck', 'sedan', 'suv', 'sport'];
 
         if (allowedTypes.length > 0) {
           const type = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
 
+          // Level-based difficulty: +10% speed per level
+          const levelSpeedMultiplier = 1 + ((newLevel - 1) * 0.1);
+
           let ownSpeed = 50; // Default slow speed
-          if (type === 'truck') ownSpeed = 40 + Math.random() * 10; // 40-50 (Very Slow)
-          else if (type === 'sedan' || type === 'suv') ownSpeed = 50 + Math.random() * 15; // 50-65 (Medium)
-          else if (type === 'sport') ownSpeed = 65 + Math.random() * 10; // 65-75 (Fast)
+          if (type === 'truck') ownSpeed = (40 + Math.random() * 10) * levelSpeedMultiplier;
+          else if (type === 'sedan' || type === 'suv') ownSpeed = (50 + Math.random() * 15) * levelSpeedMultiplier;
+          else if (type === 'sport') ownSpeed = (65 + Math.random() * 10) * levelSpeedMultiplier;
 
           // Spawn X position with new lane spacing (3.0 instead of 4.5)
           const spawnX = Math.max(-7, Math.min(7, lane * 3.0));
 
           newEnemies.push({
-            id: Date.now(),
+            id: Date.now() + Math.random(), // Add random to prevent ID collisions
             x: spawnX,
             z: -400, // Spawn further away
             lane,
@@ -564,7 +605,10 @@ export const useGameStore = create((set, get) => ({
       isNitroActive: newIsNitroActive,
       targetSpeed: newTargetSpeed,
       lastSpawnZ: newLastSpawnZ,
-      updateCounter: newUpdateCounter
+      updateCounter: newUpdateCounter,
+      currentLevel: newLevel,
+      lastLevelUpDistance: newLastLevelUpDistance,
+      message: levelUpMessage || state.message
     };
   }),
 
