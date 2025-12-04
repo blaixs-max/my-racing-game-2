@@ -1176,38 +1176,57 @@ const StreetLights = memo(() => {
   return (
     <group ref={lightsRef}>
       {lights.map((light) => {
-        const x = light.side === 1 ? 10.7 : -10.7; // 20cm behind barriers (±10.5)
+        const x = light.side === 1 ? 10.7 : -10.7;
+        const armDirection = light.side === 1 ? -1 : 1; // Arm extends toward road
 
         return (
           <group key={light.id} position={[x, 0, light.initialZ]}>
-            {/* Street Light Pole */}
-            <mesh position={[0, 2.5, 0]} material={lightMaterials.pole}>
-              <cylinderGeometry args={[0.08, 0.08, 5, 8]} />
+            {/* Main Pole - Taller and more realistic */}
+            <mesh position={[0, 3.5, 0]} material={lightMaterials.pole}>
+              <cylinderGeometry args={[0.12, 0.15, 7, 12]} />
             </mesh>
 
-            {/* Lamp Head (curved top) */}
-            <mesh position={[0, 5.2, 0]} material={lightMaterials.lampHead}>
-              <sphereGeometry args={[0.3, 16, 16]} />
+            {/* Pole Base */}
+            <mesh position={[0, 0.15, 0]} material={lightMaterials.pole}>
+              <cylinderGeometry args={[0.25, 0.3, 0.3, 12]} />
             </mesh>
 
-            {/* Point Light (glowing effect) */}
+            {/* Horizontal Arm extending toward road */}
+            <mesh position={[armDirection * 0.6, 7, 0]} rotation={[0, 0, Math.PI / 2]} material={lightMaterials.pole}>
+              <cylinderGeometry args={[0.06, 0.08, 1.2, 8]} />
+            </mesh>
+
+            {/* Lamp Fixture - Realistic curved lamp */}
+            <group position={[armDirection * 1.2, 6.8, 0]}>
+              {/* Lamp Cover (cone shape) */}
+              <mesh position={[0, 0.2, 0]} rotation={[0, 0, 0]} material={lightMaterials.lampHead}>
+                <coneGeometry args={[0.35, 0.8, 12]} />
+              </mesh>
+
+              {/* Lamp Bulb Glow */}
+              <mesh position={[0, -0.1, 0]} material={lightMaterials.lampHead}>
+                <sphereGeometry args={[0.25, 12, 12]} />
+              </mesh>
+            </group>
+
+            {/* Point Light (glowing effect) - Higher intensity */}
             <pointLight
-              position={[0, 5, 0]}
+              position={[armDirection * 1.2, 6.8, 0]}
               color="#FFB347"
-              intensity={15}
-              distance={25}
-              decay={2}
+              intensity={25}
+              distance={35}
+              decay={1.5}
             />
 
-            {/* Spot Light (downward illumination) */}
+            {/* Spot Light (downward illumination) - More focused */}
             <spotLight
-              position={[0, 5, 0]}
-              target-position={[0, 0, 0]}
-              angle={Math.PI / 3}
-              penumbra={0.5}
-              intensity={8}
+              position={[armDirection * 1.2, 6.8, 0]}
+              target-position={[armDirection * 1.2, 0, 0]}
+              angle={Math.PI / 4}
+              penumbra={0.6}
+              intensity={12}
               color="#FFA500"
-              distance={20}
+              distance={25}
               castShadow={false}
             />
           </group>
