@@ -836,10 +836,13 @@ const Building = memo(({ width, height, side, type }) => {
 
   const materials = useMemo(() => ({
     building: new THREE.MeshStandardMaterial({ color: buildingColor, roughness: 0.9 }),
-    window: new THREE.MeshStandardMaterial({ color: '#ffaa44', emissive: '#ffaa44', emissiveIntensity: 3 }),
-    roof: new THREE.MeshStandardMaterial({ color: '#444' }),
-    modernRoof: new THREE.MeshStandardMaterial({ color: '#333', roughness: 0.5 }),
-    villaRoof: new THREE.MeshStandardMaterial({ color: '#8B4513', roughness: 0.8 })
+    window: new THREE.MeshStandardMaterial({ color: '#88ccff', emissive: '#4488ff', emissiveIntensity: 2 }),
+    windowFrame: new THREE.MeshStandardMaterial({ color: '#ddd', roughness: 0.6 }),
+    roof: new THREE.MeshStandardMaterial({ color: '#3a3a3a', roughness: 0.7 }),
+    modernRoof: new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.4, metalness: 0.3 }),
+    villaRoof: new THREE.MeshStandardMaterial({ color: '#8B4513', roughness: 0.8 }),
+    balcony: new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.5, metalness: 0.2 }),
+    door: new THREE.MeshStandardMaterial({ color: '#4a3520', roughness: 0.8 })
   }), [buildingColor]);
 
   useEffect(() => {
@@ -848,15 +851,19 @@ const Building = memo(({ width, height, side, type }) => {
     };
   }, [materials]);
 
-  // Windows for apartments and townhouses
+  // Windows for apartments and townhouses - More consistent
   const wins = useMemo(() => {
     if (!isApartment && !isTownhouse) return [];
     const w = [];
     const floors = Math.floor(height / 3);
+    const offsetDirection = side > 0 ? -1 : 1;
+
     for (let i = 1; i < floors; i++) {
-      if (Math.random() > 0.75) {
-        const offsetDirection = side > 0 ? -1 : 1;
-        w.push([0, i * 3, offsetDirection * (width / 2 + 0.1)]);
+      // Add 2-3 windows per floor
+      const numWindows = Math.min(Math.floor(width / 4), 3);
+      for (let j = 0; j < numWindows; j++) {
+        const xOffset = (j - (numWindows - 1) / 2) * 2.5;
+        w.push([xOffset, i * 3, offsetDirection * (width / 2 + 0.05)]);
       }
     }
     return w;
@@ -881,26 +888,56 @@ const Building = memo(({ width, height, side, type }) => {
         <boxGeometry args={[width, height, width]} />
       </mesh>
 
-      {/* Apartment/Townhouse large windows */}
+      {/* Apartment/Townhouse windows with frames */}
       {wins.map((pos, i) => (
-        <mesh key={i} position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-          <planeGeometry args={[width * 0.6, 1.5]} />
-        </mesh>
+        <group key={i}>
+          {/* Window glass */}
+          <mesh position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[1.8, 1.5]} />
+          </mesh>
+          {/* Window frame */}
+          <mesh position={[pos[0], pos[1], pos[2]]} material={materials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[2.0, 1.7]} />
+          </mesh>
+          {/* Balcony for apartments */}
+          {isApartment && i % 3 === 0 && (
+            <mesh position={[pos[0], pos[1] - 1, pos[2] + (side > 0 ? -0.3 : 0.3)]} material={materials.balcony}>
+              <boxGeometry args={[2.2, 0.1, 0.6]} />
+            </mesh>
+          )}
+        </group>
       ))}
 
-      {/* Villa/Modern House/Shop small windows */}
+      {/* Villa/Modern House/Shop windows with frames */}
       {smallWins.map((pos, i) => (
-        <mesh key={`sw-${i}`} position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-          <planeGeometry args={[width * 0.4, 1.2]} />
-        </mesh>
+        <group key={`sw-${i}`}>
+          {/* Window glass */}
+          <mesh position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[1.2, 1.0]} />
+          </mesh>
+          {/* Window frame */}
+          <mesh position={[pos[0], pos[1], pos[2]]} material={materials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[1.4, 1.2]} />
+          </mesh>
+        </group>
       ))}
 
-      {/* Small House - Pyramid roof */}
+      {/* Small House - Pyramid roof and door */}
       {type === 'small_house' && (
-        <mesh position={[0, height + 1, 0]} rotation={[0, Math.PI / 4, 0]}>
-          <coneGeometry args={[width * 0.8, 3, 4]} />
-          <primitive object={materials.roof} attach="material" />
-        </mesh>
+        <>
+          <mesh position={[0, height + 1, 0]} rotation={[0, Math.PI / 4, 0]}>
+            <coneGeometry args={[width * 0.8, 3, 4]} />
+            <primitive object={materials.roof} attach="material" />
+          </mesh>
+          {/* Door */}
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.door}>
+            <planeGeometry args={[1.2, 2.5]} />
+          </mesh>
+          {/* Door frame */}
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.04)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.windowFrame}>
+            <planeGeometry args={[1.3, 2.6]} />
+          </mesh>
+        </>
       )}
 
       {/* Villa - Flat roof with chimney */}
@@ -925,12 +962,19 @@ const Building = memo(({ width, height, side, type }) => {
         </mesh>
       )}
 
-      {/* Shop - Awning */}
+      {/* Shop - Awning and door */}
       {isShop && (
-        <mesh position={[0, 2.5, side > 0 ? -width / 2 : width / 2]} rotation={[Math.PI / 6, 0, 0]}>
-          <boxGeometry args={[width * 0.9, 0.1, 1.5]} />
-          <meshStandardMaterial color="#CC5500" roughness={0.8} />
-        </mesh>
+        <>
+          {/* Awning */}
+          <mesh position={[0, 2.5, side > 0 ? -width / 2 : width / 2]} rotation={[Math.PI / 6, 0, 0]}>
+            <boxGeometry args={[width * 0.9, 0.1, 1.5]} />
+            <meshStandardMaterial color="#CC5500" roughness={0.8} />
+          </mesh>
+          {/* Door */}
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.door}>
+            <planeGeometry args={[1.2, 2.5]} />
+          </mesh>
+        </>
       )}
 
       {/* Townhouse - Gabled roof */}
