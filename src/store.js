@@ -517,7 +517,7 @@ export const useGameStore = create((set, get) => ({
 
       const lanes = [-1, 0, 1];
       const availableLanes = lanes.filter(lane => {
-        const laneX = lane * 4.5;
+        const laneX = lane * 3.0; // Fixed: Use 3.0 to match new lane spacing
         return !newEnemies.some(e =>
           Math.abs(e.lane - lane) < 0.5 && Math.abs(e.z - -400) < 80
         );
@@ -538,7 +538,9 @@ export const useGameStore = create((set, get) => ({
           // All lanes occupied, pick the one with furthest vehicle
           const laneDistances = allLanes.map(l => {
             const enemiesInLane = newEnemies.filter(e => e.lane === l && Math.abs(e.z - -400) < 80);
-            return { lane: l, minZ: Math.min(...enemiesInLane.map(e => e.z)) };
+            // Safety check for empty array
+            const minZ = enemiesInLane.length > 0 ? Math.min(...enemiesInLane.map(e => e.z)) : -400;
+            return { lane: l, minZ: minZ };
           });
           const bestLane = laneDistances.reduce((a, b) => a.minZ < b.minZ ? a : b);
           finalAvailableLanes = [bestLane.lane];
