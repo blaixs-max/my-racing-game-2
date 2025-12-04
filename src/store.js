@@ -650,7 +650,7 @@ export const useGameStore = create((set, get) => ({
       newBossSpawning = true; // Trigger UI warning
       newLastBossLevel = newLevel;
 
-      console.log('🚔 Boss Police spawned at Z:', newBossZ);
+      console.log('🚔 Boss Police spawned! Position:', { x: newBossX, z: newBossZ }, 'Timer: 15s');
 
       // Clear boss spawning warning after 2 seconds
       setTimeout(() => set({ bossSpawning: false }), 2000);
@@ -680,9 +680,9 @@ export const useGameStore = create((set, get) => ({
         }
       } else {
         // Normal chase: Boss speed 150 km/h
+        // Movement logic same as enemies: (playerSpeed - bossSpeed)
         const bossSpeed = 150;
-        const relativeSpeed = bossSpeed - newSpeed; // Relative to player
-        newBossZ += relativeSpeed * clampedDelta * 0.5;
+        newBossZ += (newSpeed - bossSpeed) * clampedDelta * 0.5;
 
         // Update X position (lane tracking with delay)
         newBossX = THREE.MathUtils.lerp(newBossX, newBossTargetX, clampedDelta * 3);
@@ -698,6 +698,7 @@ export const useGameStore = create((set, get) => ({
         // Bonus if boss never hit player (hitCount = 0)
         if (newBossHitCount === 0) {
           bossBonus = 500;
+          console.log('🎉 Player escaped! +500 bonus. Hits:', newBossHitCount);
           // Show bonus message
           setTimeout(() => {
             set({
@@ -706,6 +707,8 @@ export const useGameStore = create((set, get) => ({
             });
             setTimeout(() => set({ message: '' }), 1500);
           }, 100);
+        } else {
+          console.log('⏱️ Boss timer expired. Hits:', newBossHitCount);
         }
       }
 
