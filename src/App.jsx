@@ -993,7 +993,6 @@ const SideObjects = memo(({ side }) => {
 
   const groupRef = useRef();
   const itemsRef = useRef(objects);
-  const fogRef = useRef();
 
   const treeMaterials = useMemo(() => ({
     leaves: new THREE.MeshStandardMaterial({ color: '#224422', roughness: 1 }),
@@ -1062,33 +1061,10 @@ const SideObjects = memo(({ side }) => {
         mesh.visible = item.type !== 'empty';
       });
     }
-
-    // Animate fog movement
-    if (fogRef.current) {
-      fogRef.current.position.z += speed * clampedDelta * 0.5;
-      if (fogRef.current.position.z > 100) {
-        fogRef.current.position.z = -1500;
-      }
-    }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Fog effect for building areas - subtle mist */}
-      <group ref={fogRef} position={[side * 45, 0, 0]}>
-        {Array.from({ length: 15 }).map((_, i) => (
-          <mesh key={`fog-${i}`} position={[(Math.random() - 0.5) * 30, 3 + Math.random() * 8, -i * 100]}>
-            <sphereGeometry args={[12 + Math.random() * 8, 8, 8]} />
-            <meshBasicMaterial
-              color="#888888"
-              transparent
-              opacity={0.08 + Math.random() * 0.04}
-              depthWrite={false}
-            />
-          </mesh>
-        ))}
-      </group>
-
       {objects.map((obj, i) => {
         const isBuildingType = ['apartment', 'small_house', 'villa', 'modern_house', 'shop', 'townhouse'].includes(obj.type);
         return (
@@ -1281,7 +1257,7 @@ function RoadEnvironment() {
         <primitive object={roadMaterials.road} attach="material" />
       </mesh>
       <group ref={stripesRef}>
-        {[-1.5, 1.5].map((x) => Array.from({ length: 30 }).map((_, j) => (
+        {[-2.25, 2.25].map((x) => Array.from({ length: 30 }).map((_, j) => (
           <mesh key={`${x}-${j}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.02, -j * 20]}>
             <planeGeometry args={[0.25, 6]} />
             <primitive object={roadMaterials.stripe} attach="material" />
