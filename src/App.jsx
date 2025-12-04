@@ -2213,6 +2213,12 @@ export default function App() {
     }
 
     const preventScroll = (e) => {
+      // Allow scrolling in launcher and gameover screens
+      const currentState = useGameStore.getState().gameState;
+      if (currentState === 'launcher' || currentState === 'gameover') {
+        return;
+      }
+
       e.preventDefault();
       window.scrollTo(0, 0);
     };
