@@ -1013,6 +1013,9 @@ const SideObjects = memo(({ side }) => {
     if (groupRef.current) {
       groupRef.current.children.forEach((mesh, i) => {
         const item = itemsRef.current[i];
+        // SAFETY: Check if item exists before accessing properties
+        if (!item || typeof item.z === 'undefined') return;
+
         item.z += speed * clampedDelta * 0.5;
         if (item.z > 20) {
           item.z = -1500;
