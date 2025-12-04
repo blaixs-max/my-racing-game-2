@@ -12,7 +12,7 @@ const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} reconnectOnMount={true}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           initialChain={bscTestnet}
@@ -22,6 +22,7 @@ createRoot(document.getElementById('root')).render(
             borderRadius: 'medium',
           })}
           showRecentTransactions={true}
+          modalSize="compact" // Better for mobile
         >
           <App />
         </RainbowKitProvider>
