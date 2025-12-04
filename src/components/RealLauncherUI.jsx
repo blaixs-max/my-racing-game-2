@@ -7,7 +7,7 @@ import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../u
 import { PRICING } from '../wagmi.config';
 
 const RealLauncherUI = ({ onStartGame }) => {
-  const { address, isConnected, status } = useAccount();
+  const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const config = useConfig();

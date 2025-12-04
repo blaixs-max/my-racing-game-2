@@ -7,7 +7,7 @@ import RealLauncherUI from './components/RealLauncherUI';
 import GameOverUI from './components/GameOverUI';
 import PostProcessing from './components/PostProcessing';
 import { NitroBoostParticles } from './components/AdvancedParticles';
-import { useGameStore, audioSystem } from './store'; // Imported from store
+import { useGameStore } from './store'; // Imported from store
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
 // Note: Supabase logic moved to store/utils, but components might still use global supabase for now if needed.
@@ -992,8 +992,7 @@ Building.displayName = 'Building';
 
 const SideObjects = memo(({ side }) => {
   const { speed } = useGameStore();
-  const objects = useMemo(() => new Array(30).fill(0).map((_, i) => { // Increased from 20 to 30 objects
-    // eslint-disable-next-line
+  const [objects] = useState(() => new Array(30).fill(0).map((_, i) => { // Increased from 20 to 30 objects
     const rand = Math.random();
     let type = 'empty', height = 0, width = 0;
 
@@ -1033,7 +1032,7 @@ const SideObjects = memo(({ side }) => {
     }
 
     return { z: -i * 40, type, height, width, offset: (Math.random() - 0.5) * 20 }; // Reduced spacing from 50 to 40
-  }), []);
+  }));
 
   const groupRef = useRef();
   const itemsRef = useRef(objects);
@@ -1157,7 +1156,7 @@ Barrier.displayName = 'Barrier';
 
 // ==================== STREET LIGHTS ====================
 const StreetLights = memo(() => {
-  const { speed, totalDistance } = useGameStore();
+  const { speed } = useGameStore();
   const lightsRef = useRef();
 
   // Initialize lights array - every 100 meters on both sides
@@ -1183,9 +1182,7 @@ const StreetLights = memo(() => {
     const clampedDelta = Math.min(delta, 0.1);
 
     if (lightsRef.current) {
-      lightsRef.current.children.forEach((lightGroup, i) => {
-        const lightData = lights[i];
-
+      lightsRef.current.children.forEach((lightGroup) => {
         // Move lights based on speed (same as road movement)
         lightGroup.position.z += speed * clampedDelta * 0.5;
 
@@ -1376,13 +1373,17 @@ const CameraShake = memo(() => {
     originalPosition.current.x = THREE.MathUtils.lerp(originalPosition.current.x, targetCameraX, clampedDelta * 3);
 
     if (cameraShake > 0 && gameState === 'gameover') {
-      // eslint-disable-next-line react-hooks/immutability
-      camera.position.x = originalPosition.current.x + (Math.random() - 0.5) * cameraShake * 0.5;
-      // eslint-disable-next-line react-hooks/immutability
-      camera.position.y = originalPosition.current.y + (Math.random() - 0.5) * cameraShake * 0.5;
+      camera.position.set(
+        originalPosition.current.x + (Math.random() - 0.5) * cameraShake * 0.5,
+        originalPosition.current.y + (Math.random() - 0.5) * cameraShake * 0.5,
+        camera.position.z
+      );
     } else {
-      camera.position.x = originalPosition.current.x;
-      camera.position.y = originalPosition.current.y;
+      camera.position.set(
+        originalPosition.current.x,
+        originalPosition.current.y,
+        camera.position.z
+      );
     }
   });
 
@@ -1422,8 +1423,8 @@ const SpeedLines = memo(() => {
   const { speed } = useGameStore();
   const linesRef = useRef();
 
-  // Create 50 lines
-  const lines = useMemo(() => {
+  // Create 50 lines (only once on mount)
+  const [lines] = useState(() => {
     return new Array(50).fill(0).map(() => ({
       x: (Math.random() - 0.5) * 30,
       y: (Math.random() - 0.5) * 20 + 5, // Above ground
@@ -1431,7 +1432,7 @@ const SpeedLines = memo(() => {
       len: Math.random() * 10 + 5,
       speed: Math.random() * 2 + 1
     }));
-  }, []);
+  });
 
   useFrame((state, delta) => {
     if (!linesRef.current) return;
@@ -1444,8 +1445,7 @@ const SpeedLines = memo(() => {
 
     const clampedDelta = Math.min(delta, 0.1);
 
-    linesRef.current.children.forEach((line, i) => {
-      const data = lines[i];
+    linesRef.current.children.forEach((line) => {
       line.position.z += speed * clampedDelta * 2; // Move fast towards camera
 
       if (line.position.z > 20) {
@@ -1571,7 +1571,7 @@ const GameContent = () => {
 function Game() {
   const {
     speed, score, message, gameOver, gameState, countdown,
-    startGame, steer, cleanupTimer,
+    steer, cleanupTimer,
     totalDistance, nearMissCount, nitro, maxNitro, isNitroActive,
     activateNitro, deactivateNitro, currentLevel
   } = useGameStore();
@@ -1999,16 +1999,16 @@ const LoadingScreen = () => {
   const [shouldRender, setShouldRender] = useState(true);
 
   useEffect(() => {
-    if (!active && progress === 100) {
-      setFinished(true);
+    if (!active && progress === 100 && !finished) {
       // Wait for transition to finish before removing from DOM
       setTimeout(() => {
+        setFinished(true);
         setShouldRender(false);
         // Go to launcher after loading
         setGameState('launcher');
       }, 1000); // 1s buffer to ensure smooth transition
     }
-  }, [active, progress, setGameState]);
+  }, [active, progress, setGameState, finished]);
 
   if (!shouldRender) return null;
 

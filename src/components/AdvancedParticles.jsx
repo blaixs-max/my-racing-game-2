@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -9,24 +9,25 @@ import * as THREE from 'three';
  *
  * @param {boolean} isActive - Whether nitro is currently active
  * @param {Array} position - Player car position [x, y, z]
- * @param {number} speed - Current speed for particle velocity
  */
-export function NitroBoostParticles({ isActive = false, position = [0, 0, 0], speed = 0 }) {
+export function NitroBoostParticles({ isActive = false, position = [0, 0, 0] }) {
   const particlesRef = useRef();
   const particles = useRef([]);
   const maxParticles = 50;
 
-  // Initialize particle pool
-  useMemo(() => {
-    particles.current = Array.from({ length: maxParticles }, (_, i) => ({
-      position: new THREE.Vector3(),
-      velocity: new THREE.Vector3(),
-      life: 0,
-      maxLife: 0.5 + Math.random() * 0.5,
-      size: 0.2 + Math.random() * 0.3,
-      opacity: 1.0
-    }));
-  }, []);
+  // Initialize particle pool (only once on mount)
+  useEffect(() => {
+    if (particles.current.length === 0) {
+      particles.current = Array.from({ length: maxParticles }, () => ({
+        position: new THREE.Vector3(),
+        velocity: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0.5 + Math.random() * 0.5,
+        size: 0.2 + Math.random() * 0.3,
+        opacity: 1.0
+      }));
+    }
+  }, [maxParticles]);
 
   useFrame((state, delta) => {
     if (!particlesRef.current) return;
@@ -127,15 +128,18 @@ export function CollisionSparks({ triggerPosition = null, triggerTime = 0 }) {
   const lastTrigger = useRef(0);
   const maxParticles = 20;
 
-  useMemo(() => {
-    particles.current = Array.from({ length: maxParticles }, () => ({
-      position: new THREE.Vector3(),
-      velocity: new THREE.Vector3(),
-      life: 0,
-      maxLife: 0.5,
-      size: 0.1
-    }));
-  }, []);
+  // Initialize particle pool (only once on mount)
+  useEffect(() => {
+    if (particles.current.length === 0) {
+      particles.current = Array.from({ length: maxParticles }, () => ({
+        position: new THREE.Vector3(),
+        velocity: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0.5,
+        size: 0.1
+      }));
+    }
+  }, [maxParticles]);
 
   useFrame((state, delta) => {
     if (!particlesRef.current) return;

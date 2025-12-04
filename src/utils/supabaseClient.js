@@ -15,7 +15,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 export const getOrCreateUser = async (walletAddress) => {
   try {
     // Önce kullanıcıyı ara
-    const { data: existingUser, error: fetchError } = await supabase
+    const { data: existingUser } = await supabase
       .from('users')
       .select('*')
       .eq('wallet_address', walletAddress)
