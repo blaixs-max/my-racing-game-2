@@ -554,7 +554,16 @@ function PlayerCar() {
     let hasCollision = false;
 
     // FIX 1: Near miss kontrolü ve enemy passed güncellemesi
-    enemies.forEach(enemy => {
+    // SAFETY: Filter valid enemies before collision check
+    const validEnemies = enemies.filter(enemy =>
+      enemy &&
+      typeof enemy === 'object' &&
+      typeof enemy.x !== 'undefined' &&
+      typeof enemy.z !== 'undefined' &&
+      typeof enemy.type !== 'undefined'
+    );
+
+    validEnemies.forEach(enemy => {
       const dx = Math.abs(group.current.position.x - enemy.x);
       const dz = Math.abs(enemy.z - (-2));
 
@@ -590,7 +599,15 @@ function PlayerCar() {
       setGameOver();
     }
 
-    coins.forEach(coin => {
+    // SAFETY: Filter valid coins before collection check
+    const validCoins = coins.filter(coin =>
+      coin &&
+      typeof coin === 'object' &&
+      typeof coin.x !== 'undefined' &&
+      typeof coin.z !== 'undefined'
+    );
+
+    validCoins.forEach(coin => {
       const dx = Math.abs(group.current.position.x - coin.x);
       const dz = Math.abs(coin.z - (-2));
       if (dz < 2.5 && dx < 2.0) collectCoin(coin.id);
