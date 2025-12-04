@@ -158,9 +158,18 @@ const ParticleSystem = memo(() => {
 const Coins = memo(() => {
   const coins = useGameStore(state => state.coins);
 
+  // Safety: Filter out invalid coins before rendering
+  const validCoins = coins.filter(c =>
+    c &&
+    typeof c === 'object' &&
+    typeof c.x !== 'undefined' &&
+    typeof c.z !== 'undefined' &&
+    typeof c.id !== 'undefined'
+  );
+
   return (
     <group>
-      {coins.map(c => (
+      {validCoins.map(c => (
         <group key={c.id} position={[c.x, 1, c.z]}>
           <SpinningCoin />
         </group>
@@ -729,9 +738,19 @@ const Traffic = memo(() => {
     };
   }, [materials]);
 
+  // Safety: Filter out invalid enemies before rendering
+  const validEnemies = enemies.filter(enemy =>
+    enemy &&
+    typeof enemy === 'object' &&
+    typeof enemy.id !== 'undefined' &&
+    typeof enemy.x !== 'undefined' &&
+    typeof enemy.z !== 'undefined' &&
+    typeof enemy.type !== 'undefined'
+  );
+
   return (
     <>
-      {enemies.map(enemy => {
+      {validEnemies.map(enemy => {
         const x = enemy.x;
         const tilt = enemy.isChanging ? (enemy.targetLane > enemy.lane ? -0.1 : 0.1) : 0;
 
