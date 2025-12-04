@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount, useBalance, useConfig, useSwitchChain, useChainId } from 'wagmi';
 import { bscTestnet } from 'wagmi/chains';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { sendBNBPayment, hasEnoughBalance, getBSCScanLink } from '../utils/realWallet';
+import { initiateBNBPayment, waitForPaymentConfirmation, hasEnoughBalance, getBSCScanLink } from '../utils/realWallet';
 import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../utils/supabaseClient';
 import { PRICING } from '../wagmi.config';
 
@@ -12,36 +12,32 @@ const RealLauncherUI = ({ onStartGame }) => {
   const { switchChain } = useSwitchChain();
   const config = useConfig();
 
-  const isWrongNetwork = isConnected && chainId !== bscTestnet.id;
+  // Track mounting to prevent strict mode double-firing issues
+  const isMounted = useRef(false);
 
-  // Re-check connection when app comes to foreground (Mobile fix)
+  // Debounced Network Check
+  const [showWrongNetwork, setShowWrongNetwork] = useState(false);
+
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('App returned to foreground, checking connection...');
-        // This simple check triggers a re-render/re-evaluation of hooks
-        if (address) {
-          console.log('Address found on return:', address);
+    let timeoutId;
+    if (isConnected && chainId && chainId !== bscTestnet.id) {
+      // Delay showing wrong network to allow mobile wallet to settle connection
+      timeoutId = setTimeout(() => {
+        setShowWrongNetwork(true);
+        console.log('⚠️ Network check: Wrong network detected (after delay)');
+        // Auto-request switch after delay
+        try {
+          switchChain({ chainId: bscTestnet.id });
+        } catch (e) {
+          console.error("Auto-switch failed:", e);
         }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [address]);
-
-  // Force network switch check (Auto)
-  useEffect(() => {
-    if (isWrongNetwork) {
-      console.log('Wrong network detected. Requesting switch to BSC Testnet...');
-      switchChain({ chainId: bscTestnet.id });
+      }, 1500); // 1.5s delay
+    } else {
+      setShowWrongNetwork(false);
     }
-  }, [isWrongNetwork, switchChain]);
+    return () => clearTimeout(timeoutId);
+  }, [isConnected, chainId, switchChain]);
 
-  const { data: balanceData } = useBalance({
-    address: address,
-    chainId: bscTestnet.id,
-  });
 
   // State Management
   const [state, setState] = useState({
@@ -50,14 +46,40 @@ const RealLauncherUI = ({ onStartGame }) => {
     isProcessing: false,
     statusMessage: 'Connect your wallet to get started',
     lastTransaction: null,
+    pendingTxHash: null, // New: track pending hash for mobile backgrounding
     // Team System
     selectedTeam: null, // 'blue' | 'red' | null
     canChangeTeam: true,
     teamSelectionDate: null,
   });
 
+  // Re-check connection and pending transactions when app comes to foreground
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('📱 App returned to foreground');
+
+        // Resume Pending Transaction Check
+        if (state.pendingTxHash && state.isProcessing) {
+          console.log('⏳ Resuming check for pending TX:', state.pendingTxHash);
+          await checkPendingTransaction(state.pendingTxHash);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.pendingTxHash, state.isProcessing]);
+
+  const { data: balanceData } = useBalance({
+    address: address,
+    chainId: bscTestnet.id,
+  });
+
   // Load user credits and team when wallet connects
   useEffect(() => {
+    isMounted.current = true;
     if (isConnected && address) {
       loadUserData(address);
     } else {
@@ -70,6 +92,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         statusMessage: 'Connect your wallet to get started'
       }));
     }
+    return () => { isMounted.current = false; };
   }, [isConnected, address]);
 
   // Load user credits and team from database
@@ -83,25 +106,29 @@ const RealLauncherUI = ({ onStartGame }) => {
       // Load team selection
       const teamData = await getUserTeamSelection(walletAddress);
 
-      setState(prev => ({
-        ...prev,
-        credits: user.credits || 0,
-        selectedTeam: teamData.team,
-        canChangeTeam: teamData.canChange,
-        teamSelectionDate: teamData.selectionDate,
-        isProcessing: false,
-        statusMessage: `Connected! You have ${user.credits || 0} credits`
-      }));
+      if (isMounted.current) {
+        setState(prev => ({
+          ...prev,
+          credits: user.credits || 0,
+          selectedTeam: teamData.team,
+          canChangeTeam: teamData.canChange,
+          teamSelectionDate: teamData.selectionDate,
+          isProcessing: false,
+          statusMessage: `Connected! You have ${user.credits || 0} credits`
+        }));
+      }
 
       console.log('✅ User loaded:', user);
       console.log('✅ Team data:', teamData);
     } catch (error) {
       console.error('Failed to load user data:', error);
-      setState(prev => ({
-        ...prev,
-        isProcessing: false,
-        statusMessage: 'Failed to load data. Please refresh.'
-      }));
+      if (isMounted.current) {
+        setState(prev => ({
+          ...prev,
+          isProcessing: false,
+          statusMessage: 'Failed to load data. Please refresh.'
+        }));
+      }
     }
   };
 
@@ -120,7 +147,69 @@ const RealLauncherUI = ({ onStartGame }) => {
     }));
   };
 
-  // Purchase & Start Game Handler
+  // Helper to process transaction result
+  const processTransactionResult = async (hash, address, packageAmount) => {
+    try {
+      setState(prev => ({
+        ...prev,
+        statusMessage: '⏳ Verifying payment on blockchain...',
+        lastTransaction: hash,
+        pendingTxHash: hash // Mark as pending so we can resume if backgrounded
+      }));
+
+      // Wait for confirmation (Robust method)
+      await waitForPaymentConfirmation(config, hash);
+
+      // Verify payment via Supabase Edge Function
+      const verifyResult = await verifyPaymentOnChain(hash, address, packageAmount);
+
+      if (!verifyResult.success) {
+        throw new Error(verifyResult.error || 'Payment verification failed');
+      }
+
+      console.log('✅ Payment verified:', verifyResult);
+
+      // Update credits in state
+      setState(prev => ({
+        ...prev,
+        credits: verifyResult.credits,
+        isProcessing: false,
+        selectedPackage: null,
+        pendingTxHash: null, // Clear pending flag
+        statusMessage: `✅ Payment successful! +${packageAmount} credits`
+      }));
+
+      // Show success message with transaction link
+      alert(
+        `✅ Payment Successful!\n\n` +
+        `Credits added: ${packageAmount}\n` +
+        `New balance: ${verifyResult.credits} credits\n\n` +
+        `View transaction:\n${getBSCScanLink(hash)}\n\n` +
+        `Click "START GAME" to begin racing!`
+      );
+
+    } catch (error) {
+      console.error('❌ Processing failed:', error);
+      setState(prev => ({
+        ...prev,
+        isProcessing: false, // Stop spinner
+        // We do NOT clear pendingTxHash here immediately if it was a timeout,
+        // allowing user to retry check. But for general errors we clear it.
+        statusMessage: `❌ ${error.message}`
+      }));
+      alert(`❌ Payment Processing Failed\n\n${error.message}\n\nIf you paid, use the 'Check Status' button.`);
+    }
+  };
+
+  // New: Check specific pending transaction (Resumed from background)
+  const checkPendingTransaction = async (hash) => {
+    if (!hash || !state.selectedPackage) return;
+
+    console.log("Checking pending transaction...", hash);
+    await processTransactionResult(hash, address, state.selectedPackage);
+  };
+
+  // Purchase & Start Game Handler (Optimized)
   const handlePurchaseAndStart = async () => {
     if (!state.selectedPackage) {
       alert('Please select a ticket first');
@@ -149,52 +238,21 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: true,
-        statusMessage: '⏳ Opening wallet... Please check your app to confirm'
+        statusMessage: '⏳ Opening wallet... Please confirm in your wallet app'
       }));
 
-      // Send BNB payment to our wallet
-      const txResult = await sendBNBPayment(config, address, state.selectedPackage);
+      // Step 1: Initiate Transaction (Send only)
+      const hash = await initiateBNBPayment(config, address, state.selectedPackage);
 
-      console.log('✅ Payment sent:', txResult);
+      console.log('✅ Payment initiated, hash:', hash);
 
-      setState(prev => ({
-        ...prev,
-        statusMessage: '⏳ Verifying payment on blockchain...',
-        lastTransaction: txResult.hash
-      }));
-
-      // Verify payment via Supabase Edge Function
-      const verifyResult = await verifyPaymentOnChain(txResult.hash, address, state.selectedPackage);
-
-      if (!verifyResult.success) {
-        throw new Error(verifyResult.error || 'Payment verification failed');
-      }
-
-      console.log('✅ Payment verified:', verifyResult);
-
-      // Update credits in state
-      setState(prev => ({
-        ...prev,
-        credits: verifyResult.credits,
-        isProcessing: false,
-        selectedPackage: null,
-        statusMessage: `✅ Payment successful! +${state.selectedPackage} credits`
-      }));
-
-      // Show success message with transaction link
-      alert(
-        `✅ Payment Successful!\n\n` +
-        `Credits added: ${state.selectedPackage}\n` +
-        `New balance: ${verifyResult.credits} credits\n\n` +
-        `View transaction:\n${getBSCScanLink(txResult.hash)}\n\n` +
-        `Click "START GAME" to begin racing!`
-      );
+      // Step 2: Process Confirmation (Separate step)
+      await processTransactionResult(hash, address, state.selectedPackage);
 
     } catch (error) {
-      console.error('❌ Payment failed:', error);
+      console.error('❌ Payment initiation failed:', error);
 
       let errorMessage = 'Payment failed';
-
       if (error.message.includes('rejected')) {
         errorMessage = 'Transaction rejected by user';
       } else if (error.message.includes('insufficient')) {
@@ -318,7 +376,14 @@ const RealLauncherUI = ({ onStartGame }) => {
 
   // Render
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto" style={{ zIndex: 9999 }}>
+    <div
+      className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto"
+      style={{
+        zIndex: 9999,
+        touchAction: 'pan-y',
+        WebkitOverflowScrolling: 'touch'
+      }}
+    >
       {/* Animated Background Orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
@@ -351,7 +416,7 @@ const RealLauncherUI = ({ onStartGame }) => {
           </div>
 
           {/* Wrong Network Warning */}
-          {isWrongNetwork ? (
+          {showWrongNetwork ? (
             <div className="mb-6 p-6 bg-red-900/50 rounded-xl border border-red-500 text-center animate-pulse">
               <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
               <h3 className="text-xl font-bold text-white mb-2">Yanlış Ağ!</h3>
@@ -473,6 +538,24 @@ const RealLauncherUI = ({ onStartGame }) => {
                   ))}
                 </div>
               </div>
+
+              {/* MANUAL CHECK BUTTON - Visible only when pending and processing */}
+              {state.pendingTxHash && state.isProcessing && (
+                <div className="mb-6 p-4 bg-orange-500/20 border border-orange-500/50 rounded-xl text-center animate-pulse">
+                  <p className="text-orange-200 text-sm mb-2">
+                    Waiting for confirmation...
+                  </p>
+                  <p className="text-xs text-gray-400 mb-3">
+                    If you already paid in your wallet, click below to check status manually.
+                  </p>
+                  <button
+                     onClick={() => checkPendingTransaction(state.pendingTxHash)}
+                     className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg shadow-lg"
+                  >
+                    Check Status Now
+                  </button>
+                </div>
+              )}
 
               {/* Action Buttons */}
               {isConnected && state.credits > 0 ? (
