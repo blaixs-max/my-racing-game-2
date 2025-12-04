@@ -134,9 +134,19 @@ class ErrorBoundary extends React.Component {
 const ParticleSystem = memo(() => {
   const particles = useGameStore(state => state.particles);
 
+  // Safety: Filter out invalid particles before rendering
+  const validParticles = particles.filter(p =>
+    p &&
+    typeof p === 'object' &&
+    typeof p.x !== 'undefined' &&
+    typeof p.y !== 'undefined' &&
+    typeof p.z !== 'undefined' &&
+    typeof p.life !== 'undefined'
+  );
+
   return (
     <group>
-      {particles.map(p => {
+      {validParticles.map(p => {
         const color = p.type === 'spark' ? '#ffff00' : (p.life > 0.5 ? '#ff4500' : '#333');
         const size = p.type === 'spark' ? 0.1 : (p.size || 0.3);
 
