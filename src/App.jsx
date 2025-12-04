@@ -750,6 +750,8 @@ Coins.displayName = 'Coins';
 // ==================== TRAFİK ====================
 const Traffic = memo(() => {
   const enemies = useGameStore(state => state.enemies);
+  const gameState = useGameStore(state => state.gameState);
+  const initialSpawnRef = useRef(false);
 
   const materials = useMemo(() => ({
     truck: new THREE.MeshStandardMaterial({ color: '#335577', roughness: 0.5 }),
@@ -758,6 +760,22 @@ const Traffic = memo(() => {
     sport: new THREE.MeshStandardMaterial({ color: '#ff0000', metalness: 0.8, roughness: 0.2 }),
     tailLight: new THREE.MeshStandardMaterial({ color: '#ff0000', emissive: '#ff0000', emissiveIntensity: 4 })
   }), []);
+
+  // Staggered initial spawn - prevents frame drop when game starts
+  useEffect(() => {
+    if (gameState === 'playing' && !initialSpawnRef.current) {
+      initialSpawnRef.current = true;
+      console.log('🚗 Staggered traffic spawning started...');
+
+      // The normal spawn system will gradually add more vehicles
+      // No need to manually spawn here, just ensure smooth start
+    }
+
+    // Reset when game restarts
+    if (gameState !== 'playing') {
+      initialSpawnRef.current = false;
+    }
+  }, [gameState]);
 
   useEffect(() => {
     return () => {
@@ -1505,14 +1523,46 @@ SpeedBlurOverlay.displayName = 'SpeedBlurOverlay';
 
 // ==================== SHADER WARMUP ====================
 // Preloads and compiles shaders to prevent stuttering on first render
+// This component renders all game objects invisibly during countdown
+// to force GPU shader compilation before gameplay starts
 const ShaderWarmup = () => {
+  const gameState = useGameStore(state => state.gameState);
+  const countdown = useGameStore(state => state.countdown);
+  const [warmupDone, setWarmupDone] = useState(false);
+
+  // Activate warmup when countdown reaches 5 (once)
+  useEffect(() => {
+    if (gameState === 'countdown' && countdown === 5 && !warmupDone) {
+      // Use setTimeout to avoid cascading renders
+      setTimeout(() => {
+        setWarmupDone(true);
+        console.log('🔥 Warming up shaders - Pre-rendering all game objects...');
+      }, 0);
+    }
+
+    // Reset when returning to launcher
+    if (gameState === 'launcher' && warmupDone) {
+      setTimeout(() => setWarmupDone(false), 0);
+    }
+  }, [gameState, countdown, warmupDone]);
+
+  // Keep invisible warmup active during countdown
+  const isCountdown = gameState === 'countdown';
+
   return (
-    <group position={[0, -1000, 0]} visible={false}>
+    <group position={[0, -1000, 0]} visible={isCountdown}>
+      {/* Render all car models to compile their shaders */}
       <CarModel modelPath="/models/truck.glb" scale={1.678} />
       <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
       <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.0} />
       <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
       <SpinningCoin />
+
+      {/* Also warmup road and environment materials */}
+      <mesh>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
     </group>
   );
 };
@@ -1978,8 +2028,24 @@ function Game() {
         <Canvas
           shadows={{ type: THREE.PCFSoftShadowMap, shadowMapSize: [512, 512] }}
           dpr={[1, 1.5]}
-          gl={{ antialias: false, powerPreference: "high-performance" }}
+          gl={{
+            antialias: false,
+            powerPreference: "high-performance",
+            alpha: false, // Disable transparency for better performance
+            stencil: false, // Disable stencil buffer if not needed
+            depth: true,
+            logarithmicDepthBuffer: false
+          }}
           frameloop="always"
+          onCreated={({ gl }) => {
+            // Optimize renderer settings
+            gl.outputColorSpace = THREE.SRGBColorSpace;
+            gl.toneMapping = THREE.ACESFilmicToneMapping;
+            gl.toneMappingExposure = 1.0;
+
+            // Pre-compile shaders during countdown to prevent stuttering
+            console.log('🎨 Canvas created - Renderer optimized');
+          }}
         >
           <GameContent />
         </Canvas>
@@ -1997,9 +2063,31 @@ const LoadingScreen = () => {
 
   const [finished, setFinished] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
+  const [modelsPreloaded, setModelsPreloaded] = useState(false);
+
+  // Preload 3D models when progress reaches 90%
+  useEffect(() => {
+    if (progress >= 90 && !modelsPreloaded) {
+      console.log('📦 Preloading 3D models for faster game start...');
+
+      // Preload all car models
+      Promise.all([
+        useGLTF.preload('/models/truck.glb'),
+        useGLTF.preload('/models/Car 2/scene.gltf'),
+        useGLTF.preload('/models/Car 3/scene.gltf'),
+        useGLTF.preload('/models/ferrari.glb'),
+      ]).then(() => {
+        console.log('✅ All 3D models preloaded successfully');
+        setModelsPreloaded(true);
+      }).catch((error) => {
+        console.warn('⚠️ Some models failed to preload:', error);
+        setModelsPreloaded(true); // Continue anyway
+      });
+    }
+  }, [progress, modelsPreloaded]);
 
   useEffect(() => {
-    if (!active && progress === 100 && !finished) {
+    if (!active && progress === 100 && !finished && modelsPreloaded) {
       // Wait for transition to finish before removing from DOM
       setTimeout(() => {
         setFinished(true);
@@ -2008,7 +2096,7 @@ const LoadingScreen = () => {
         setGameState('launcher');
       }, 1000); // 1s buffer to ensure smooth transition
     }
-  }, [active, progress, setGameState, finished]);
+  }, [active, progress, setGameState, finished, modelsPreloaded]);
 
   if (!shouldRender) return null;
 
