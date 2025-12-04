@@ -119,6 +119,8 @@ export const useGameStore = create((set, get) => ({
   totalDistance: 0,
   nearMissCount: 0,
   startTime: 0, // Oyun süresi için
+  currentLevel: 1,
+  lastLevelUpDistance: 0,
 
   nitro: 100,
   maxNitro: 100,
@@ -130,6 +132,11 @@ export const useGameStore = create((set, get) => ({
   // Wallet & Credit System
   walletAddress: null,
   credits: 0,
+
+  // Team System
+  selectedTeam: null, // 'blue' | 'red' | null
+  teamSelectionDate: null,
+  canChangeTeam: true,
 
   updateCounter: 0,
   lastSpawnZ: -400,
@@ -143,6 +150,13 @@ export const useGameStore = create((set, get) => ({
   setWalletData: (address, credits) => set({
     walletAddress: address,
     credits: credits
+  }),
+
+  // Set team data
+  setTeamData: (team, selectionDate, canChange) => set({
+    selectedTeam: team,
+    teamSelectionDate: selectionDate,
+    canChangeTeam: canChange
   }),
 
   // FIX 1: Enemy passed flag güncellemesi için yeni action
@@ -191,6 +205,8 @@ export const useGameStore = create((set, get) => ({
       gameOver: false,
       totalDistance: 0,
       nearMissCount: 0,
+      currentLevel: 1,
+      lastLevelUpDistance: 0,
       roadSegments: [],
       currentRoadType: 'straight',
       nitro: 100,
@@ -387,9 +403,22 @@ export const useGameStore = create((set, get) => ({
     const newScore = state.score + (newSpeed * clampedDelta * 0.2);
     const newDistance = state.totalDistance + (newSpeed * clampedDelta * 0.1);
 
+    // Level System - Level up every 1000 meters
+    const newLevel = Math.floor(newDistance / 1000) + 1;
+    let newLastLevelUpDistance = state.lastLevelUpDistance;
+    let levelUpMessage = '';
+
+    if (newLevel > state.currentLevel) {
+      levelUpMessage = `LEVEL ${newLevel}!`;
+      newLastLevelUpDistance = newDistance;
+      // Show level up message
+      setTimeout(() => set({ message: '' }), 1500);
+    }
+
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
 
-    let newParticles = state.particles.map(p => ({
+    // Safety: Filter out any undefined/null particles first
+    let newParticles = state.particles.filter(p => p && typeof p === 'object' && typeof p.life !== 'undefined').map(p => ({
       ...p,
       x: p.x + p.vx * clampedDelta,
       y: p.y + p.vy * clampedDelta - 9.8 * clampedDelta,
@@ -399,7 +428,8 @@ export const useGameStore = create((set, get) => ({
     })).filter(p => p.life > 0);
 
     // FIX 7: Frame-rate bağımsız enemy update - zamana dayalı
-    let newEnemies = state.enemies.map(e => {
+    // Safety: Filter out any undefined/null enemies first
+    let newEnemies = state.enemies.filter(e => e && typeof e === 'object' && typeof e.z !== 'undefined').map(e => {
       let updated = { ...e };
 
       // Şerit değiştirme mantığı - zamana dayalı olasılık
@@ -416,9 +446,11 @@ export const useGameStore = create((set, get) => ({
         }
 
         const safeLanes = possibleLanes.filter(l => {
-          const targetX = l * 4.5;
+          const targetX = l * 3.0; // Reduced from 4.5 to 3.0 for better road centering
           const isSafe = !state.enemies.some(other =>
-            other.id !== e.id &&
+            other && other.id !== e.id &&
+            typeof other.x !== 'undefined' &&
+            typeof other.z !== 'undefined' &&
             Math.abs(other.x - targetX) < 3 &&
             Math.abs(other.z - e.z) < 25
           );
@@ -438,17 +470,18 @@ export const useGameStore = create((set, get) => ({
 
       if (updated.isChanging) {
         const newProgress = updated.changeProgress + clampedDelta * 2;
-        const startX = updated.lane * 4.5;
-        const endX = updated.targetLane * 4.5;
+        const startX = updated.lane * 3.0; // Reduced from 4.5 to 3.0
+        const endX = updated.targetLane * 3.0; // Reduced from 4.5 to 3.0
         let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
 
-        // SAFETY: Clamp X position to stay within road bounds (-9 to +9)
-        // Road is 20 units wide (-10 to +10), keep 1 unit margin from edges
-        newX = Math.max(-9, Math.min(9, newX));
+        // SAFETY: Clamp X position to stay within safe road bounds (-7 to +7)
+        // Road is 20 units wide (-10 to +10), lanes centered at -3, 0, +3
+        // This ensures even the widest vehicles (3.1 units) stay well within road bounds
+        newX = Math.max(-7, Math.min(7, newX));
 
         if (newProgress >= 1) {
-          // Clamp final position to road bounds
-          const finalX = Math.max(-9, Math.min(9, updated.targetLane * 4.5));
+          // Clamp final position to safe road bounds
+          const finalX = Math.max(-7, Math.min(7, updated.targetLane * 3.0));
 
           updated = {
             ...updated,
@@ -473,7 +506,8 @@ export const useGameStore = create((set, get) => ({
       return updated;
     }).filter(e => e.z < 50);
 
-    let newCoins = state.coins.map(c => ({
+    // Safety: Filter out any undefined/null coins first
+    let newCoins = state.coins.filter(c => c && typeof c === 'object' && typeof c.z !== 'undefined').map(c => ({
       ...c,
       z: c.z + newSpeed * clampedDelta * 0.5
     })).filter(c => c.z < 50);
@@ -488,30 +522,58 @@ export const useGameStore = create((set, get) => ({
 
       const lanes = [-1, 0, 1];
       const availableLanes = lanes.filter(lane => {
-        const laneX = lane * 4.5;
+        const laneX = lane * 3.0; // Fixed: Use 3.0 to match new lane spacing
         return !newEnemies.some(e =>
+          e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' &&
           Math.abs(e.lane - lane) < 0.5 && Math.abs(e.z - -400) < 80
         );
       });
 
-      if (availableLanes.length > 0) {
-        const lane = availableLanes[Math.floor(Math.random() * availableLanes.length)];
+      // Ensure at least 1 lane is always available (never block all 3 lanes)
+      let finalAvailableLanes = availableLanes;
+      if (availableLanes.length === 0 && newEnemies.length >= 2) {
+        // If all lanes are blocked, force at least one lane to be available
+        const occupiedLanes = newEnemies
+          .filter(e => e && typeof e.z !== 'undefined' && typeof e.lane !== 'undefined' && Math.abs(e.z - -400) < 80)
+          .map(e => e.lane);
+        const allLanes = [-1, 0, 1];
+        const freeLanes = allLanes.filter(l => !occupiedLanes.includes(l));
+        if (freeLanes.length > 0) {
+          finalAvailableLanes = freeLanes;
+        } else {
+          // All lanes occupied, pick the one with furthest vehicle
+          const laneDistances = allLanes.map(l => {
+            const enemiesInLane = newEnemies.filter(e => e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' && e.lane === l && Math.abs(e.z - -400) < 80);
+            // Safety check for empty array
+            const minZ = enemiesInLane.length > 0 ? Math.min(...enemiesInLane.map(e => e.z)) : -400;
+            return { lane: l, minZ: minZ };
+          });
+          const bestLane = laneDistances.reduce((a, b) => a.minZ < b.minZ ? a : b);
+          finalAvailableLanes = [bestLane.lane];
+        }
+      }
+
+      if (finalAvailableLanes.length > 0) {
+        const lane = finalAvailableLanes[Math.floor(Math.random() * finalAvailableLanes.length)];
         // SYSTEMATIC DEBUGGING: Final - All Safe Vehicles (No Police)
         const allowedTypes = ['truck', 'sedan', 'suv', 'sport'];
 
         if (allowedTypes.length > 0) {
           const type = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
 
-          let ownSpeed = 50; // Default slow speed
-          if (type === 'truck') ownSpeed = 40 + Math.random() * 10; // 40-50 (Very Slow)
-          else if (type === 'sedan' || type === 'suv') ownSpeed = 50 + Math.random() * 15; // 50-65 (Medium)
-          else if (type === 'sport') ownSpeed = 65 + Math.random() * 10; // 65-75 (Fast)
+          // Level-based difficulty: +10% speed per level
+          const levelSpeedMultiplier = 1 + ((newLevel - 1) * 0.1);
 
-          // Clamp spawn X position to road bounds
-          const spawnX = Math.max(-9, Math.min(9, lane * 4.5));
+          let ownSpeed = 50; // Default slow speed
+          if (type === 'truck') ownSpeed = (40 + Math.random() * 10) * levelSpeedMultiplier;
+          else if (type === 'sedan' || type === 'suv') ownSpeed = (50 + Math.random() * 15) * levelSpeedMultiplier;
+          else if (type === 'sport') ownSpeed = (65 + Math.random() * 10) * levelSpeedMultiplier;
+
+          // Spawn X position with new lane spacing (3.0 instead of 4.5)
+          const spawnX = Math.max(-7, Math.min(7, lane * 3.0));
 
           newEnemies.push({
-            id: Date.now(),
+            id: Date.now() + Math.random(), // Add random to prevent ID collisions
             x: spawnX,
             z: -400, // Spawn further away
             lane,
@@ -530,9 +592,9 @@ export const useGameStore = create((set, get) => ({
     // FIX 7: Coin spawn zamana dayalı (4.5x increased total)
     if (Math.random() < 0.09 * (clampedDelta * 60) && newCoins.length < 15) {
       const coinLane = Math.floor(Math.random() * 3) - 1;
-      const coinX = coinLane * 4.5;
-      const isSafeCar = !newEnemies.some(e => Math.abs(e.x - coinX) < 2 && Math.abs(e.z - -400) < 40);
-      const isSafeCoin = !newCoins.some(c => Math.abs(c.x - coinX) < 2 && Math.abs(c.z - -400) < 40);
+      const coinX = coinLane * 3.0; // Updated from 4.5 to 3.0 for new lane spacing
+      const isSafeCar = !newEnemies.some(e => e && typeof e.x !== 'undefined' && typeof e.z !== 'undefined' && Math.abs(e.x - coinX) < 2 && Math.abs(e.z - -400) < 40);
+      const isSafeCoin = !newCoins.some(c => c && typeof c.x !== 'undefined' && typeof c.z !== 'undefined' && Math.abs(c.x - coinX) < 2 && Math.abs(c.z - -400) < 40);
 
       if (isSafeCar && isSafeCoin) {
         newCoins.push({ id: Math.random(), x: coinX, z: -400 - Math.random() * 50 });
@@ -551,7 +613,10 @@ export const useGameStore = create((set, get) => ({
       isNitroActive: newIsNitroActive,
       targetSpeed: newTargetSpeed,
       lastSpawnZ: newLastSpawnZ,
-      updateCounter: newUpdateCounter
+      updateCounter: newUpdateCounter,
+      currentLevel: newLevel,
+      lastLevelUpDistance: newLastLevelUpDistance,
+      message: levelUpMessage || state.message
     };
   }),
 

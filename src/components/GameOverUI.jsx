@@ -6,6 +6,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
   const credits = useGameStore(state => state.credits);
   const walletAddress = useGameStore(state => state.walletAddress);
   const startTime = useGameStore(state => state.startTime);
+  const selectedTeam = useGameStore(state => state.selectedTeam);
 
   const [saveStatus, setSaveStatus] = useState('saving'); // 'saving', 'saved', 'error'
   const [errorMessage, setErrorMessage] = useState('');
@@ -35,7 +36,8 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             p_wallet: walletAddress,
             p_score: Math.floor(score),
             p_duration: duration,
-            p_distance: Math.floor(totalDistance)
+            p_distance: Math.floor(totalDistance),
+            p_team: selectedTeam || 'none' // Add team parameter
         });
 
         if (!error) {
@@ -144,7 +146,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
               {credits}
             </p>
             {credits <= 0 && (
-               <div className="mt-2 flex items-center justify-center gap-2 text-orange-300 text-xs">
+               <div className="mt-2 flex items-center justify-center gap-2 text-orange-300 text-xl">
                  <i className="fas fa-info-circle"></i>
                  <span>To Purchase Credits Go Back to Main Menu</span>
                </div>
@@ -153,7 +155,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
 
           {/* Anti-Cheat Message */}
           <div className="mb-6 text-center">
-             <p className="text-[10px] text-red-500/70 font-mono">
+             <p className="text-[20px] text-red-500/70 font-mono">
                ⚠ Please don't try to cheat, you'll get caught 99.9% of the time. :) ⚠
              </p>
           </div>

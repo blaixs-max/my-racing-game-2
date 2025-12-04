@@ -134,9 +134,19 @@ class ErrorBoundary extends React.Component {
 const ParticleSystem = memo(() => {
   const particles = useGameStore(state => state.particles);
 
+  // Safety: Filter out invalid particles before rendering
+  const validParticles = particles.filter(p =>
+    p &&
+    typeof p === 'object' &&
+    typeof p.x !== 'undefined' &&
+    typeof p.y !== 'undefined' &&
+    typeof p.z !== 'undefined' &&
+    typeof p.life !== 'undefined'
+  );
+
   return (
     <group>
-      {particles.map(p => {
+      {validParticles.map(p => {
         const color = p.type === 'spark' ? '#ffff00' : (p.life > 0.5 ? '#ff4500' : '#333');
         const size = p.type === 'spark' ? 0.1 : (p.size || 0.3);
 
@@ -158,9 +168,18 @@ const ParticleSystem = memo(() => {
 const Coins = memo(() => {
   const coins = useGameStore(state => state.coins);
 
+  // Safety: Filter out invalid coins before rendering
+  const validCoins = coins.filter(c =>
+    c &&
+    typeof c === 'object' &&
+    typeof c.x !== 'undefined' &&
+    typeof c.z !== 'undefined' &&
+    typeof c.id !== 'undefined'
+  );
+
   return (
     <group>
-      {coins.map(c => (
+      {validCoins.map(c => (
         <group key={c.id} position={[c.x, 1, c.z]}>
           <SpinningCoin />
         </group>
@@ -545,7 +564,16 @@ function PlayerCar() {
     let hasCollision = false;
 
     // FIX 1: Near miss kontrolü ve enemy passed güncellemesi
-    enemies.forEach(enemy => {
+    // SAFETY: Filter valid enemies before collision check
+    const validEnemies = enemies.filter(enemy =>
+      enemy &&
+      typeof enemy === 'object' &&
+      typeof enemy.x !== 'undefined' &&
+      typeof enemy.z !== 'undefined' &&
+      typeof enemy.type !== 'undefined'
+    );
+
+    validEnemies.forEach(enemy => {
       const dx = Math.abs(group.current.position.x - enemy.x);
       const dz = Math.abs(enemy.z - (-2));
 
@@ -581,7 +609,15 @@ function PlayerCar() {
       setGameOver();
     }
 
-    coins.forEach(coin => {
+    // SAFETY: Filter valid coins before collection check
+    const validCoins = coins.filter(coin =>
+      coin &&
+      typeof coin === 'object' &&
+      typeof coin.x !== 'undefined' &&
+      typeof coin.z !== 'undefined'
+    );
+
+    validCoins.forEach(coin => {
       const dx = Math.abs(group.current.position.x - coin.x);
       const dz = Math.abs(coin.z - (-2));
       if (dz < 2.5 && dx < 2.0) collectCoin(coin.id);
@@ -729,9 +765,19 @@ const Traffic = memo(() => {
     };
   }, [materials]);
 
+  // Safety: Filter out invalid enemies before rendering
+  const validEnemies = enemies.filter(enemy =>
+    enemy &&
+    typeof enemy === 'object' &&
+    typeof enemy.id !== 'undefined' &&
+    typeof enemy.x !== 'undefined' &&
+    typeof enemy.z !== 'undefined' &&
+    typeof enemy.type !== 'undefined'
+  );
+
   return (
     <>
-      {enemies.map(enemy => {
+      {validEnemies.map(enemy => {
         const x = enemy.x;
         const tilt = enemy.isChanging ? (enemy.targetLane > enemy.lane ? -0.1 : 0.1) : 0;
 
@@ -773,12 +819,31 @@ Traffic.displayName = 'Traffic';
 // ==================== ÇEVRE ====================
 const Building = memo(({ width, height, side, type }) => {
   const isApartment = type === 'apartment';
+  const isVilla = type === 'villa';
+  const isModernHouse = type === 'modern_house';
+  const isShop = type === 'shop';
+  const isTownhouse = type === 'townhouse';
+
+  // Different colors for different building types
+  const buildingColor = useMemo(() => {
+    if (isApartment) return '#555';
+    if (isVilla) return '#8B7355';
+    if (isModernHouse) return '#778899';
+    if (isShop) return '#A0522D';
+    if (isTownhouse) return '#6B6B6B';
+    return '#666';
+  }, [isApartment, isVilla, isModernHouse, isShop, isTownhouse]);
 
   const materials = useMemo(() => ({
-    building: new THREE.MeshStandardMaterial({ color: '#666', roughness: 0.9 }),
-    window: new THREE.MeshStandardMaterial({ color: '#ffaa44', emissive: '#ffaa44', emissiveIntensity: 3 }),
-    roof: new THREE.MeshStandardMaterial({ color: '#444' })
-  }), []);
+    building: new THREE.MeshStandardMaterial({ color: buildingColor, roughness: 0.9 }),
+    window: new THREE.MeshStandardMaterial({ color: '#88ccff', emissive: '#4488ff', emissiveIntensity: 2 }),
+    windowFrame: new THREE.MeshStandardMaterial({ color: '#ddd', roughness: 0.6 }),
+    roof: new THREE.MeshStandardMaterial({ color: '#3a3a3a', roughness: 0.7 }),
+    modernRoof: new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.4, metalness: 0.3 }),
+    villaRoof: new THREE.MeshStandardMaterial({ color: '#8B4513', roughness: 0.8 }),
+    balcony: new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.5, metalness: 0.2 }),
+    door: new THREE.MeshStandardMaterial({ color: '#4a3520', roughness: 0.8 })
+  }), [buildingColor]);
 
   useEffect(() => {
     return () => {
@@ -786,35 +851,136 @@ const Building = memo(({ width, height, side, type }) => {
     };
   }, [materials]);
 
+  // Windows for apartments and townhouses - More consistent
   const wins = useMemo(() => {
-    if (!isApartment) return [];
+    if (!isApartment && !isTownhouse) return [];
     const w = [];
     const floors = Math.floor(height / 3);
-    // Use a seeded random or deterministic pattern based on position/index if possible, 
-    // but for now just move random to useMemo dependency or accept it runs once per mount.
-    // Since this is inside useMemo, it's fine.
+    const offsetDirection = side > 0 ? -1 : 1;
+
     for (let i = 1; i < floors; i++) {
-      if (Math.random() > 0.75) {
-        const offsetDirection = side > 0 ? -1 : 1;
-        w.push([0, i * 3, offsetDirection * (width / 2 + 0.1)]);
+      // Add 2-3 windows per floor
+      const numWindows = Math.min(Math.floor(width / 4), 3);
+      for (let j = 0; j < numWindows; j++) {
+        const xOffset = (j - (numWindows - 1) / 2) * 2.5;
+        w.push([xOffset, i * 3, offsetDirection * (width / 2 + 0.05)]);
       }
     }
     return w;
-  }, [height, isApartment, side, width]);
+  }, [height, isApartment, isTownhouse, side, width]);
+
+  // Small windows for other building types
+  const smallWins = useMemo(() => {
+    if (isApartment || isTownhouse || type === 'small_house') return [];
+    const w = [];
+    const numWindows = isShop ? 2 : Math.floor(height / 4);
+    for (let i = 0; i < numWindows; i++) {
+      const offsetDirection = side > 0 ? -1 : 1;
+      w.push([0, 2 + i * 3, offsetDirection * (width / 2 + 0.05)]);
+    }
+    return w;
+  }, [height, isApartment, isTownhouse, isShop, side, width, type]);
 
   return (
     <group>
+      {/* Main building body */}
       <mesh position={[0, height / 2, 0]} material={materials.building}>
         <boxGeometry args={[width, height, width]} />
       </mesh>
+
+      {/* Apartment/Townhouse windows with frames */}
       {wins.map((pos, i) => (
-        <mesh key={i} position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-          <planeGeometry args={[width * 0.6, 1.5]} />
-        </mesh>
+        <group key={i}>
+          {/* Window glass */}
+          <mesh position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[1.8, 1.5]} />
+          </mesh>
+          {/* Window frame */}
+          <mesh position={[pos[0], pos[1], pos[2]]} material={materials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[2.0, 1.7]} />
+          </mesh>
+          {/* Balcony for apartments */}
+          {isApartment && i % 3 === 0 && (
+            <mesh position={[pos[0], pos[1] - 1, pos[2] + (side > 0 ? -0.3 : 0.3)]} material={materials.balcony}>
+              <boxGeometry args={[2.2, 0.1, 0.6]} />
+            </mesh>
+          )}
+        </group>
       ))}
+
+      {/* Villa/Modern House/Shop windows with frames */}
+      {smallWins.map((pos, i) => (
+        <group key={`sw-${i}`}>
+          {/* Window glass */}
+          <mesh position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[1.2, 1.0]} />
+          </mesh>
+          {/* Window frame */}
+          <mesh position={[pos[0], pos[1], pos[2]]} material={materials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <planeGeometry args={[1.4, 1.2]} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Small House - Pyramid roof and door */}
       {type === 'small_house' && (
-        <mesh position={[0, height + 1, 0]} rotation={[0, Math.PI / 4, 0]}>
-          <coneGeometry args={[width * 0.8, 3, 4]} />
+        <>
+          <mesh position={[0, height + 1, 0]} rotation={[0, Math.PI / 4, 0]}>
+            <coneGeometry args={[width * 0.8, 3, 4]} />
+            <primitive object={materials.roof} attach="material" />
+          </mesh>
+          {/* Door */}
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.door}>
+            <planeGeometry args={[1.2, 2.5]} />
+          </mesh>
+          {/* Door frame */}
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.04)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.windowFrame}>
+            <planeGeometry args={[1.3, 2.6]} />
+          </mesh>
+        </>
+      )}
+
+      {/* Villa - Flat roof with chimney */}
+      {isVilla && (
+        <>
+          <mesh position={[0, height + 0.2, 0]}>
+            <boxGeometry args={[width, 0.4, width]} />
+            <primitive object={materials.villaRoof} attach="material" />
+          </mesh>
+          <mesh position={[width * 0.3, height + 1.5, 0]}>
+            <boxGeometry args={[0.8, 3, 0.8]} />
+            <primitive object={materials.villaRoof} attach="material" />
+          </mesh>
+        </>
+      )}
+
+      {/* Modern House - Flat modern roof */}
+      {isModernHouse && (
+        <mesh position={[0, height + 0.15, 0]}>
+          <boxGeometry args={[width * 1.05, 0.3, width * 1.05]} />
+          <primitive object={materials.modernRoof} attach="material" />
+        </mesh>
+      )}
+
+      {/* Shop - Awning and door */}
+      {isShop && (
+        <>
+          {/* Awning */}
+          <mesh position={[0, 2.5, side > 0 ? -width / 2 : width / 2]} rotation={[Math.PI / 6, 0, 0]}>
+            <boxGeometry args={[width * 0.9, 0.1, 1.5]} />
+            <meshStandardMaterial color="#CC5500" roughness={0.8} />
+          </mesh>
+          {/* Door */}
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.door}>
+            <planeGeometry args={[1.2, 2.5]} />
+          </mesh>
+        </>
+      )}
+
+      {/* Townhouse - Gabled roof */}
+      {isTownhouse && (
+        <mesh position={[0, height + 1.5, 0]} rotation={[0, 0, 0]}>
+          <coneGeometry args={[width * 0.7, 3, 4]} />
           <primitive object={materials.roof} attach="material" />
         </mesh>
       )}
@@ -826,22 +992,47 @@ Building.displayName = 'Building';
 
 const SideObjects = memo(({ side }) => {
   const { speed } = useGameStore();
-  const objects = useMemo(() => new Array(20).fill(0).map((_, i) => {
+  const objects = useMemo(() => new Array(30).fill(0).map((_, i) => { // Increased from 20 to 30 objects
     // eslint-disable-next-line
     const rand = Math.random();
     let type = 'empty', height = 0, width = 0;
 
-    if (rand > 0.7) {
+    // Increased building density: ~65% buildings, ~25% trees, ~10% empty
+    if (rand > 0.75) {
       type = 'tree';
       width = 2 + rand * 2;
       height = 5 + rand * 5;
-    } else if (rand > 0.4) {
-      type = 'building';
-      width = 5 + rand * 5;
-      height = 10 + rand * 20;
+    } else if (rand > 0.1) {
+      // Assign varied building types
+      const buildingRand = Math.random();
+      if (buildingRand > 0.85) {
+        type = 'apartment';
+        width = 12;
+        height = 30 + Math.random() * 40;
+      } else if (buildingRand > 0.7) {
+        type = 'villa';
+        width = 10 + Math.random() * 3;
+        height = 8 + Math.random() * 4;
+      } else if (buildingRand > 0.5) {
+        type = 'modern_house';
+        width = 8 + Math.random() * 2;
+        height = 10 + Math.random() * 5;
+      } else if (buildingRand > 0.3) {
+        type = 'shop';
+        width = 7 + Math.random() * 3;
+        height = 5 + Math.random() * 3;
+      } else if (buildingRand > 0.15) {
+        type = 'townhouse';
+        width = 6 + Math.random() * 2;
+        height = 12 + Math.random() * 6;
+      } else {
+        type = 'small_house';
+        width = 8;
+        height = 6;
+      }
     }
 
-    return { z: -i * 50, type, height, width, offset: (Math.random() - 0.5) * 20 };
+    return { z: -i * 40, type, height, width, offset: (Math.random() - 0.5) * 20 }; // Reduced spacing from 50 to 40
   }), []);
 
   const groupRef = useRef();
@@ -865,14 +1056,50 @@ const SideObjects = memo(({ side }) => {
     if (groupRef.current) {
       groupRef.current.children.forEach((mesh, i) => {
         const item = itemsRef.current[i];
+        // SAFETY: Check if item exists before accessing properties
+        if (!item || typeof item.z === 'undefined') return;
+
         item.z += speed * clampedDelta * 0.5;
         if (item.z > 20) {
           item.z = -1500;
           const rand = Math.random();
-          if (rand > 0.8) { item.type = 'apartment'; item.height = 30 + Math.random() * 40; item.width = 12; }
-          else if (rand > 0.5) { item.type = 'small_house'; item.height = 6; item.width = 8; }
-          else if (rand > 0.2) { item.type = 'tree'; }
-          else { item.type = 'empty'; }
+          // Respawn with increased building variety and density
+          if (rand > 0.92) {
+            item.type = 'apartment';
+            item.height = 30 + Math.random() * 40;
+            item.width = 12;
+          }
+          else if (rand > 0.82) {
+            item.type = 'villa';
+            item.height = 8 + Math.random() * 4;
+            item.width = 10 + Math.random() * 3;
+          }
+          else if (rand > 0.68) {
+            item.type = 'modern_house';
+            item.height = 10 + Math.random() * 5;
+            item.width = 8 + Math.random() * 2;
+          }
+          else if (rand > 0.52) {
+            item.type = 'shop';
+            item.height = 5 + Math.random() * 3;
+            item.width = 7 + Math.random() * 3;
+          }
+          else if (rand > 0.38) {
+            item.type = 'townhouse';
+            item.height = 12 + Math.random() * 6;
+            item.width = 6 + Math.random() * 2;
+          }
+          else if (rand > 0.25) {
+            item.type = 'small_house';
+            item.height = 6;
+            item.width = 8;
+          }
+          else if (rand > 0.15) {
+            item.type = 'tree';
+          }
+          else {
+            item.type = 'empty';
+          }
         }
         mesh.position.z = item.z;
         mesh.visible = item.type !== 'empty';
@@ -883,9 +1110,10 @@ const SideObjects = memo(({ side }) => {
   return (
     <group ref={groupRef}>
       {objects.map((obj, i) => {
+        const isBuildingType = ['apartment', 'small_house', 'villa', 'modern_house', 'shop', 'townhouse'].includes(obj.type);
         return (
           <group key={i} position={[side * (45 + obj.offset), 0, obj.z]}>
-            {(obj.type === 'apartment' || obj.type === 'small_house') && <Building width={obj.width} height={obj.height} side={side} type={obj.type} />}
+            {isBuildingType && <Building width={obj.width} height={obj.height} side={side} type={obj.type} />}
             {obj.type === 'tree' && (
               <TreeModel scale={2.5} />
             )}
@@ -926,6 +1154,133 @@ const Barrier = memo(({ x }) => {
 });
 
 Barrier.displayName = 'Barrier';
+
+// ==================== STREET LIGHTS ====================
+const StreetLights = memo(() => {
+  const { speed, totalDistance } = useGameStore();
+  const lightsRef = useRef();
+
+  // Initialize lights array - every 100 meters on both sides
+  const lights = useMemo(() => {
+    const result = [];
+    // Create lights from -500m to +500m initially
+    for (let i = -5; i <= 5; i++) {
+      result.push({
+        id: `left-${i}`,
+        side: -1,
+        initialZ: i * 100
+      });
+      result.push({
+        id: `right-${i}`,
+        side: 1,
+        initialZ: i * 100
+      });
+    }
+    return result;
+  }, []);
+
+  useFrame((state, delta) => {
+    const clampedDelta = Math.min(delta, 0.1);
+
+    if (lightsRef.current) {
+      lightsRef.current.children.forEach((lightGroup, i) => {
+        const lightData = lights[i];
+
+        // Move lights based on speed (same as road movement)
+        lightGroup.position.z += speed * clampedDelta * 0.5;
+
+        // Respawn lights when they pass the camera
+        if (lightGroup.position.z > 50) {
+          lightGroup.position.z = -500;
+        }
+      });
+    }
+  });
+
+  const lightMaterials = useMemo(() => ({
+    pole: new THREE.MeshStandardMaterial({
+      color: '#333',
+      roughness: 0.7,
+      metalness: 0.3
+    }),
+    lampHead: new THREE.MeshStandardMaterial({
+      color: '#FFA500',
+      emissive: '#FF8C00',
+      emissiveIntensity: 0.5,
+      roughness: 0.3
+    })
+  }), []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(lightMaterials).forEach(mat => mat.dispose());
+    };
+  }, [lightMaterials]);
+
+  return (
+    <group ref={lightsRef}>
+      {lights.map((light) => {
+        const x = light.side === 1 ? 10.7 : -10.7;
+        const armDirection = light.side === 1 ? -1 : 1; // Arm extends toward road
+
+        return (
+          <group key={light.id} position={[x, 0, light.initialZ]}>
+            {/* Main Pole - Taller and more realistic */}
+            <mesh position={[0, 3.5, 0]} material={lightMaterials.pole}>
+              <cylinderGeometry args={[0.12, 0.15, 7, 12]} />
+            </mesh>
+
+            {/* Pole Base */}
+            <mesh position={[0, 0.15, 0]} material={lightMaterials.pole}>
+              <cylinderGeometry args={[0.25, 0.3, 0.3, 12]} />
+            </mesh>
+
+            {/* Horizontal Arm extending toward road */}
+            <mesh position={[armDirection * 0.6, 7, 0]} rotation={[0, 0, Math.PI / 2]} material={lightMaterials.pole}>
+              <cylinderGeometry args={[0.06, 0.08, 1.2, 8]} />
+            </mesh>
+
+            {/* Lamp Fixture - Realistic curved lamp */}
+            <group position={[armDirection * 1.2, 6.8, 0]}>
+              {/* Lamp Cover (cone shape) */}
+              <mesh position={[0, 0.2, 0]} rotation={[0, 0, 0]} material={lightMaterials.lampHead}>
+                <coneGeometry args={[0.35, 0.8, 12]} />
+              </mesh>
+
+              {/* Lamp Bulb Glow */}
+              <mesh position={[0, -0.1, 0]} material={lightMaterials.lampHead}>
+                <sphereGeometry args={[0.25, 12, 12]} />
+              </mesh>
+            </group>
+
+            {/* Point Light (glowing effect) - Higher intensity */}
+            <pointLight
+              position={[armDirection * 1.2, 6.8, 0]}
+              color="#FFB347"
+              intensity={25}
+              distance={35}
+              decay={1.5}
+            />
+
+            {/* Spot Light (downward illumination) - More focused */}
+            <spotLight
+              position={[armDirection * 1.2, 6.8, 0]}
+              target-position={[armDirection * 1.2, 0, 0]}
+              angle={Math.PI / 4}
+              penumbra={0.6}
+              intensity={12}
+              color="#FFA500"
+              distance={25}
+              castShadow={false}
+            />
+          </group>
+        );
+      })}
+    </group>
+  );
+});
+
+StreetLights.displayName = 'StreetLights';
 
 // ==================== YOL VE ZEMİN ====================
 function RoadEnvironment() {
@@ -975,6 +1330,10 @@ function RoadEnvironment() {
       {/* FIX 2: Barrier artık dışarıda tanımlı */}
       <Barrier x={-10.5} />
       <Barrier x={10.5} />
+
+      {/* Street Lights - Every 100m */}
+      <StreetLights />
+
       <SideObjects side={1} />
       <SideObjects side={-1} />
 
@@ -1214,7 +1573,7 @@ function Game() {
     speed, score, message, gameOver, gameState, countdown,
     startGame, steer, cleanupTimer,
     totalDistance, nearMissCount, nitro, maxNitro, isNitroActive,
-    activateNitro, deactivateNitro
+    activateNitro, deactivateNitro, currentLevel
   } = useGameStore();
 
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
@@ -1294,8 +1653,9 @@ function Game() {
   }, [gameState, steer, activateNitro, deactivateNitro]);
 
   const isGoldMessage = message.includes("GOLD");
-  const messageColor = isGoldMessage ? '#00ffff' : '#ff0000';
-  const messageShadow = isGoldMessage ? '0 0 20px #00ffff' : '0 0 30px red';
+  const isLevelMessage = message.includes("LEVEL");
+  const messageColor = isLevelMessage ? '#ffd700' : (isGoldMessage ? '#00ffff' : '#ff0000');
+  const messageShadow = isLevelMessage ? '0 0 40px #ffd700, 0 0 80px #ffa500' : (isGoldMessage ? '0 0 20px #00ffff' : '0 0 30px red');
 
   const scoreStyle = useMemo(() => ({
     color: '#00ffff',
@@ -1562,6 +1922,28 @@ function Game() {
                 </div>
               </div>
             </div>
+
+            {/* Level */}
+            <div style={{
+              position: 'fixed',
+              top: isLandscape ? '76px' : (isMobile ? '140px' : '260px'),
+              right: isLandscape ? '3px' : (isMobile ? '5px' : '20px'),
+              zIndex: 10
+            }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #2e1a2e 0%, #1a0f1a 100%)',
+                border: isLandscape ? '1px solid #ffd700' : '2px solid #ffd700',
+                borderRadius: isLandscape ? '3px' : (isMobile ? '4px' : '10px'),
+                padding: isLandscape ? '2px 5px' : (isMobile ? '3px 8px' : '8px 20px'),
+                transform: 'skewX(-15deg)',
+                boxShadow: '0 5px 15px rgba(255,215,0,0.3)'
+              }}>
+                <div style={{ transform: 'skewX(15deg)', textAlign: 'center' }}>
+                  <div style={{ fontSize: isLandscape ? '5px' : (isMobile ? '7px' : '10px'), color: '#ffd700', fontWeight: 'bold' }}>LEVEL</div>
+                  <div style={{ fontSize: isLandscape ? '9px' : (isMobile ? '12px' : '24px'), color: '#fff', fontWeight: 'bold', textShadow: '0 0 10px #ffd700' }}>{currentLevel}</div>
+                </div>
+              </div>
+            </div>
           </>
         )
       }
@@ -1790,6 +2172,7 @@ export default function App() {
   const gameState = useGameStore(state => state.gameState);
   const setGameState = useGameStore(state => state.setGameState);
   const setWalletData = useGameStore(state => state.setWalletData);
+  const setTeamData = useGameStore(state => state.setTeamData);
   const startGame = useGameStore(state => state.startGame);
 
   // Restore viewport settings on mount
@@ -1849,6 +2232,12 @@ export default function App() {
   const handleLauncherStart = (data) => {
     // Launcher'dan gelen wallet ve credit bilgilerini kaydet
     setWalletData(data.walletAddress, data.credits);
+
+    // Team bilgisini kaydet
+    if (data.selectedTeam) {
+      setTeamData(data.selectedTeam, null, false);
+    }
+
     // Oyunu başlat (countdown timer'ı başlatır)
     startGame();
   };

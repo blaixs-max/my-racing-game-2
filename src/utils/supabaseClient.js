@@ -179,6 +179,104 @@ export const logTransaction = async (walletAddress, transaction) => {
   }
 };
 
+// ==================== TEAM OPERATIONS ====================
+
+/**
+ * Kullanıcının mevcut team seçimini getir
+ * @param {string} walletAddress
+ * @returns {object} { team: 'blue'|'red'|null, selectionDate: Date|null, canChange: boolean }
+ */
+export const getUserTeamSelection = async (walletAddress) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('selected_team, team_selection_date')
+      .eq('wallet_address', walletAddress)
+      .single();
+
+    if (error) throw error;
+
+    const today = new Date().toISOString().split('T')[0];
+    const selectionDate = data.team_selection_date;
+    const canChange = !selectionDate || selectionDate !== today;
+
+    return {
+      team: data.selected_team,
+      selectionDate: selectionDate,
+      canChange: canChange
+    };
+  } catch (error) {
+    console.error('Error getting team selection:', error);
+    return { team: null, selectionDate: null, canChange: true };
+  }
+};
+
+/**
+ * Team seçimini güncelle (günde bir kez)
+ * @param {string} walletAddress
+ * @param {string} team - 'blue' veya 'red'
+ * @returns {object} { success: boolean, error?: string }
+ */
+export const updateTeamSelection = async (walletAddress, team) => {
+  try {
+    // RPC fonksiyonunu çağır (SQL'de tanımladık)
+    const { data, error } = await supabase
+      .rpc('update_team_selection', {
+        p_wallet_address: walletAddress,
+        p_team: team
+      });
+
+    if (error) throw error;
+
+    // RPC fonksiyonu JSON döndürür
+    return data;
+  } catch (error) {
+    console.error('Error updating team selection:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to update team selection'
+    };
+  }
+};
+
+/**
+ * Günlük team skorlarını getir (bugün)
+ * @returns {object} { blueScore: number, redScore: number, winner: 'blue'|'red'|'tie' }
+ */
+export const getTodayTeamScores = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('daily_team_scores')
+      .select('*')
+      .eq('play_date', today);
+
+    if (error) throw error;
+
+    const blueTeam = data.find(d => d.team === 'blue');
+    const redTeam = data.find(d => d.team === 'red');
+
+    const blueScore = blueTeam?.total_score || 0;
+    const redScore = redTeam?.total_score || 0;
+
+    let winner = 'tie';
+    if (blueScore > redScore) winner = 'blue';
+    else if (redScore > blueScore) winner = 'red';
+
+    return {
+      blueScore,
+      redScore,
+      winner,
+      blueGames: blueTeam?.total_games || 0,
+      redGames: redTeam?.total_games || 0
+    };
+  } catch (error) {
+    console.error('Error fetching team scores:', error);
+    return { blueScore: 0, redScore: 0, winner: 'tie', blueGames: 0, redGames: 0 };
+  }
+};
+
 // ==================== LEADERBOARD (İlerisi için) ====================
 
 /**
