@@ -23,10 +23,26 @@ const appMetadata = {
   icons: [`${APP_URL}icon.png`],
 };
 
-// Shared WalletConnect Parameters
+// Shared WalletConnect Parameters - Enhanced for Mobile
 const sharedWalletConnectParams = {
   projectId: projectId,
   metadata: appMetadata,
+  // Mobile-specific configurations
+  showQrModal: true, // Always show QR modal as fallback
+  qrModalOptions: {
+    themeMode: 'dark',
+    themeVariables: {
+      '--wcm-z-index': '9999'
+    }
+  },
+  // Disable email/SMS login to force wallet-only connection
+  enableExplorer: true,
+  // Mobile deep linking configuration
+  mobileLinks: [
+    'metamask',
+    'trust',
+    'rainbow',
+  ],
 };
 
 // Wallet Configuration
@@ -78,6 +94,12 @@ export const config = createConfig({
   pollingInterval: 1_000,
   transports: {
     [bscTestnet.id]: http(),
+  },
+  // Enable automatic reconnection on page load and visibility change
+  ssr: false,
+  // Batch multiple requests together
+  batch: {
+    multicall: true,
   },
 });
 

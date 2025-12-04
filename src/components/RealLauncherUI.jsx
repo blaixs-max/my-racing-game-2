@@ -7,13 +7,16 @@ import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../u
 import { PRICING } from '../wagmi.config';
 
 const RealLauncherUI = ({ onStartGame }) => {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, status: connectionStatus } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const config = useConfig();
 
   // Track mounting to prevent strict mode double-firing issues
   const isMounted = useRef(false);
+
+  // Track connection attempts for mobile debugging
+  const connectionAttemptRef = useRef(0);
 
   // Debounced Network Check
   const [showWrongNetwork, setShowWrongNetwork] = useState(false);
@@ -59,6 +62,14 @@ const RealLauncherUI = ({ onStartGame }) => {
       if (document.visibilityState === 'visible') {
         console.log('📱 App returned to foreground');
 
+        // Check if wallet connection was established while in background
+        if (isConnected && address) {
+          console.log('✅ Wallet connected:', address);
+
+          // Reload user data to ensure sync
+          await loadUserData(address);
+        }
+
         // Resume Pending Transaction Check
         if (state.pendingTxHash && state.isProcessing) {
           console.log('⏳ Resuming check for pending TX:', state.pendingTxHash);
@@ -70,12 +81,24 @@ const RealLauncherUI = ({ onStartGame }) => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.pendingTxHash, state.isProcessing]);
+  }, [state.pendingTxHash, state.isProcessing, isConnected, address]);
 
   const { data: balanceData } = useBalance({
     address: address,
     chainId: bscTestnet.id,
   });
+
+  // Log connection status changes for debugging
+  useEffect(() => {
+    console.log('🔌 Connection status changed:', connectionStatus);
+    if (connectionStatus === 'connecting') {
+      connectionAttemptRef.current += 1;
+      console.log('📱 Connection attempt #', connectionAttemptRef.current);
+    } else if (connectionStatus === 'connected') {
+      console.log('✅ Successfully connected after', connectionAttemptRef.current, 'attempts');
+      connectionAttemptRef.current = 0;
+    }
+  }, [connectionStatus]);
 
   // Load user credits and team when wallet connects
   useEffect(() => {
@@ -409,10 +432,39 @@ const RealLauncherUI = ({ onStartGame }) => {
           <div className="mb-6">
             <ConnectButton
               label="Connect Wallet"
-              accountStatus="address"
+              accountStatus={{
+                smallScreen: 'avatar',
+                largeScreen: 'full',
+              }}
               chainStatus="icon"
-              showBalance={true}
+              showBalance={{
+                smallScreen: false,
+                largeScreen: true,
+              }}
             />
+
+            {/* Connection Status Indicator */}
+            {connectionStatus === 'connecting' && (
+              <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg animate-pulse">
+                <p className="text-yellow-200 text-xs text-center font-semibold">
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  Cüzdan bağlanıyor...
+                </p>
+                <p className="text-yellow-300 text-xs text-center mt-2">
+                  MetaMask uygulamanızda "Bağlan" butonuna basın
+                </p>
+              </div>
+            )}
+
+            {/* Mobile Connection Helper */}
+            {!isConnected && connectionStatus !== 'connecting' && (
+              <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-200 text-xs text-center">
+                  💡 Mobilde MetaMask uygulamanızı açın ve "Bağlan" butonuna basın. <br />
+                  Ardından bu uygulamaya geri dönün.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Wrong Network Warning */}

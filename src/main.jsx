@@ -23,6 +23,12 @@ createRoot(document.getElementById('root')).render(
           })}
           showRecentTransactions={true}
           modalSize="compact" // Better for mobile
+          appInfo={{
+            appName: 'LUMEXIA Racing',
+            learnMoreUrl: 'https://newracing.netlify.app/',
+          }}
+          // Mobile wallet connection configuration
+          coolMode={false} // Disable confetti to reduce interference
         >
           <App />
         </RainbowKitProvider>
