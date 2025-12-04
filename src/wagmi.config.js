@@ -42,6 +42,7 @@ const connectors = connectorsForWallets(
     appUrl: appInfo.appUrl,
     appIcon: appInfo.appIcon,
     walletConnectParameters: {
+      projectId: appInfo.projectId, // Important: Include project ID here too
       metadata: {
         name: appInfo.appName,
         description: appInfo.appDescription,
@@ -56,8 +57,16 @@ const connectors = connectorsForWallets(
 export const config = createConfig({
   connectors,
   chains: [bscTestnet],
+  // Reduce polling interval for faster updates (default is 4_000ms)
+  pollingInterval: 3_000,
   transports: {
-    [bscTestnet.id]: http(),
+    // Using default HTTP is safer than public WSS for stability
+    // but reduced batch wait time can help responsiveness
+    [bscTestnet.id]: http(undefined, {
+      batch: {
+        wait: 100,
+      }
+    }),
   },
 });
 
