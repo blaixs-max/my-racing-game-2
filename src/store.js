@@ -143,6 +143,18 @@ export const useGameStore = create((set, get) => ({
 
   countdownTimer: null,
 
+  // Boss Police System
+  bossActive: false,
+  bossX: 0,
+  bossZ: -500,
+  bossTargetX: 0, // Delayed tracking target (0.3s delay)
+  bossTimer: 0, // 15 second timer
+  bossHitCount: 0,
+  bossRetreating: false,
+  bossRetreatTarget: 0,
+  lastBossLevel: 0, // Track which level boss last spawned
+  bossSpawning: false, // UI warning flag
+
   // Set game state
   setGameState: (newState) => set({ gameState: newState }),
 
@@ -215,7 +227,19 @@ export const useGameStore = create((set, get) => ({
       startTime: 0, // Reset time
 
       cameraShake: 0,
-      lastSpawnZ: -400
+      lastSpawnZ: -400,
+
+      // Reset Boss System
+      bossActive: false,
+      bossX: 0,
+      bossZ: -500,
+      bossTargetX: 0,
+      bossTimer: 0,
+      bossHitCount: 0,
+      bossRetreating: false,
+      bossRetreatTarget: 0,
+      lastBossLevel: 0,
+      bossSpawning: false
     });
 
     let count = 5; // Changed from 3 to 5
@@ -600,6 +624,95 @@ export const useGameStore = create((set, get) => ({
       }
     }
 
+    // ==================== BOSS POLICE SYSTEM ====================
+    let newBossActive = state.bossActive;
+    let newBossX = state.bossX;
+    let newBossZ = state.bossZ;
+    let newBossTargetX = state.bossTargetX;
+    let newBossTimer = state.bossTimer;
+    let newBossHitCount = state.bossHitCount;
+    let newBossRetreating = state.bossRetreating;
+    let newBossRetreatTarget = state.bossRetreatTarget;
+    let newLastBossLevel = state.lastBossLevel;
+    let newBossSpawning = state.bossSpawning;
+    let bossBonus = 0;
+
+    // Boss Spawn Logic: Every 1000 meters (every level)
+    if (newLevel > state.currentLevel && newLevel > newLastBossLevel) {
+      // Spawn boss at each level milestone (1000m intervals)
+      newBossActive = true;
+      newBossX = 0; // Spawn in center lane
+      newBossZ = -500; // Spawn far behind player
+      newBossTargetX = state.currentX; // Initial target
+      newBossTimer = 0; // Reset timer
+      newBossHitCount = 0;
+      newBossRetreating = false;
+      newBossSpawning = true; // Trigger UI warning
+      newLastBossLevel = newLevel;
+
+      // Clear boss spawning warning after 2 seconds
+      setTimeout(() => set({ bossSpawning: false }), 2000);
+    }
+
+    // Boss Update Logic
+    if (newBossActive) {
+      // Update timer
+      newBossTimer += clampedDelta;
+
+      // Boss AI: Delayed tracking (0.3 second reaction delay)
+      // Smooth lerp towards player X position
+      newBossTargetX = THREE.MathUtils.lerp(
+        newBossTargetX,
+        state.currentX,
+        clampedDelta * (1 / 0.3) // 0.3s delay = slower lerp
+      );
+
+      if (newBossRetreating) {
+        // Retreating: Move back 10 meters
+        const retreatSpeed = 50; // 50 km/h retreat speed
+        newBossZ -= retreatSpeed * clampedDelta * 0.5;
+
+        // Check if retreat is complete (10 meters back from target)
+        if (newBossZ <= newBossRetreatTarget - 10) {
+          newBossRetreating = false;
+        }
+      } else {
+        // Normal chase: Boss speed 150 km/h
+        const bossSpeed = 150;
+        const relativeSpeed = bossSpeed - newSpeed; // Relative to player
+        newBossZ += relativeSpeed * clampedDelta * 0.5;
+
+        // Update X position (lane tracking with delay)
+        newBossX = THREE.MathUtils.lerp(newBossX, newBossTargetX, clampedDelta * 3);
+
+        // Clamp boss X to road bounds
+        newBossX = Math.max(-7, Math.min(7, newBossX));
+      }
+
+      // Check if 15 seconds elapsed
+      if (newBossTimer >= 15) {
+        newBossActive = false;
+
+        // Bonus if boss never hit player (hitCount = 0)
+        if (newBossHitCount === 0) {
+          bossBonus = 500;
+          // Show bonus message
+          setTimeout(() => {
+            set({
+              message: 'POLİSİDEN KAÇTIN! +500',
+              score: get().score + 500
+            });
+            setTimeout(() => set({ message: '' }), 1500);
+          }, 100);
+        }
+      }
+
+      // Deactivate if boss is too far behind (z < -600)
+      if (newBossZ < -600) {
+        newBossActive = false;
+      }
+    }
+
     return {
       speed: newSpeed,
       score: newScore,
@@ -615,7 +728,18 @@ export const useGameStore = create((set, get) => ({
       updateCounter: newUpdateCounter,
       currentLevel: newLevel,
       lastLevelUpDistance: newLastLevelUpDistance,
-      message: levelUpMessage || state.message
+      message: levelUpMessage || state.message,
+      // Boss Police States
+      bossActive: newBossActive,
+      bossX: newBossX,
+      bossZ: newBossZ,
+      bossTargetX: newBossTargetX,
+      bossTimer: newBossTimer,
+      bossHitCount: newBossHitCount,
+      bossRetreating: newBossRetreating,
+      bossRetreatTarget: newBossRetreatTarget,
+      lastBossLevel: newLastBossLevel,
+      bossSpawning: newBossSpawning
     };
   }),
 
@@ -631,6 +755,24 @@ export const useGameStore = create((set, get) => ({
       speed: 0,
       targetSpeed: 0,
       cameraShake: 3.0
+    });
+  },
+
+  handleBossCollision: (currentBossZ) => {
+    const state = get();
+
+    // Deduct 200 points (prevent negative score)
+    const newScore = Math.max(0, state.score - 200);
+
+    // Increment hit count
+    const newHitCount = state.bossHitCount + 1;
+
+    // Set retreating mode - boss moves back 10 meters
+    set({
+      score: newScore,
+      bossHitCount: newHitCount,
+      bossRetreating: true,
+      bossRetreatTarget: currentBossZ
     });
   }
 }));

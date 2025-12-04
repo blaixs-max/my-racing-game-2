@@ -517,7 +517,12 @@ function TreeModel({ scale = 1, rotation = [0, 0, 0] }) {
 
 
 function PlayerCar() {
-  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed, isNitroActive } = useGameStore();
+  const {
+    targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin,
+    speed, selectedCar, gameState, updateEnemyPassed, isNitroActive,
+    // Boss Police System
+    bossActive, bossX, bossZ, bossRetreating
+  } = useGameStore();
   const group = useRef();
 
   // Track player position for particles
@@ -622,6 +627,24 @@ function PlayerCar() {
       const dz = Math.abs(coin.z - (-2));
       if (dz < 2.5 && dx < 2.0) collectCoin(coin.id);
     });
+
+    // ==================== BOSS POLICE COLLISION ====================
+    if (bossActive && !bossRetreating) {
+      const bossDx = Math.abs(group.current.position.x - bossX);
+      const bossDz = Math.abs(bossZ - (-2));
+
+      // Boss dimensions (SUV-sized)
+      const bossDimensions = { width: 2.9, length: 7.6 };
+      const BOSS_COLLISION_PADDING = 0.2;
+      const bossCrashWidthThreshold = (playerWidth + bossDimensions.width) / 2 + BOSS_COLLISION_PADDING;
+      const bossCrashDepthThreshold = (playerLength + bossDimensions.length) / 2 + BOSS_COLLISION_PADDING;
+
+      // Check boss collision
+      if (bossDz < bossCrashDepthThreshold && bossDx < bossCrashWidthThreshold) {
+        // Boss hit! Trigger retreat and score penalty
+        useGameStore.getState().handleBossCollision(bossZ);
+      }
+    }
   });
 
   const carColors = useMemo(() => ({
@@ -746,6 +769,144 @@ SingleCoin.displayName = 'SingleCoin';
 
 
 Coins.displayName = 'Coins';
+
+// ==================== BOSS POLİCE CAR ====================
+const BossPoliceCar = memo(() => {
+  const { bossActive, bossX, bossZ } = useGameStore();
+  const sirenRef = useRef();
+  const carRef = useRef();
+
+  // Çakar ışık animasyonu
+  useFrame((state) => {
+    if (sirenRef.current && bossActive) {
+      const time = state.clock.elapsedTime;
+      // Kırmızı-Mavi çakar alternating effect (0.5 second intervals)
+      const isRed = Math.floor(time * 2) % 2 === 0;
+      sirenRef.current.color.set(isRed ? '#ff0000' : '#0000ff');
+      sirenRef.current.intensity = 20 + Math.sin(time * 10) * 10;
+    }
+  });
+
+  if (!bossActive) return null;
+
+  // Geometrik Polis Arabası (SUV Style)
+  return (
+    <group position={[bossX, 0, bossZ]} ref={carRef}>
+      {/* Car Body */}
+      <mesh position={[0, 1.5, 0]} castShadow>
+        <boxGeometry args={[2.9, 1.8, 7.6]} />
+        <meshStandardMaterial
+          color="#000000"
+          metalness={0.7}
+          roughness={0.3}
+        />
+      </mesh>
+
+      {/* Car Hood */}
+      <mesh position={[0, 2.0, 1.5]} castShadow>
+        <boxGeometry args={[2.8, 0.8, 4.5]} />
+        <meshStandardMaterial
+          color="#111111"
+          metalness={0.8}
+          roughness={0.2}
+        />
+      </mesh>
+
+      {/* Front Bumper */}
+      <mesh position={[0, 0.8, 4.2]} castShadow>
+        <boxGeometry args={[2.9, 0.6, 0.8]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+
+      {/* Back Bumper */}
+      <mesh position={[0, 0.8, -4.2]} castShadow>
+        <boxGeometry args={[2.9, 0.6, 0.8]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+
+      {/* Wheels */}
+      {/* Front Left */}
+      <mesh position={[-1.3, 0.5, 2.5]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.5, 0.5, 0.3, 16]} />
+        <meshStandardMaterial color="#111" roughness={0.9} />
+      </mesh>
+      {/* Front Right */}
+      <mesh position={[1.3, 0.5, 2.5]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.5, 0.5, 0.3, 16]} />
+        <meshStandardMaterial color="#111" roughness={0.9} />
+      </mesh>
+      {/* Back Left */}
+      <mesh position={[-1.3, 0.5, -2.5]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.5, 0.5, 0.3, 16]} />
+        <meshStandardMaterial color="#111" roughness={0.9} />
+      </mesh>
+      {/* Back Right */}
+      <mesh position={[1.3, 0.5, -2.5]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.5, 0.5, 0.3, 16]} />
+        <meshStandardMaterial color="#111" roughness={0.9} />
+      </mesh>
+
+      {/* "POLICE" Text on side (white stripe) */}
+      <mesh position={[-1.5, 1.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[4, 0.4, 0.05]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} />
+      </mesh>
+      <mesh position={[1.5, 1.5, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <boxGeometry args={[4, 0.4, 0.05]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} />
+      </mesh>
+
+      {/* Siren Light Bar on Top (Red-Blue Flashing) */}
+      <mesh position={[0, 3.0, 0]}>
+        <boxGeometry args={[1.5, 0.2, 0.8]} />
+        <meshStandardMaterial color="#333" metalness={0.9} roughness={0.1} />
+      </mesh>
+
+      {/* Animated Siren Lights */}
+      <pointLight ref={sirenRef} position={[0, 3.2, 0]} color="#ff0000" intensity={20} distance={30} />
+
+      {/* Left Siren Bulb */}
+      <mesh position={[-0.5, 3.1, 0]}>
+        <sphereGeometry args={[0.2, 16, 16]} />
+        <meshStandardMaterial
+          color="#ff0000"
+          emissive="#ff0000"
+          emissiveIntensity={5}
+          transparent
+          opacity={0.8}
+        />
+      </mesh>
+
+      {/* Right Siren Bulb */}
+      <mesh position={[0.5, 3.1, 0]}>
+        <sphereGeometry args={[0.2, 16, 16]} />
+        <meshStandardMaterial
+          color="#0000ff"
+          emissive="#0000ff"
+          emissiveIntensity={5}
+          transparent
+          opacity={0.8}
+        />
+      </mesh>
+
+      {/* Headlights */}
+      <pointLight position={[-0.8, 1.2, 4.5]} color="#ffffff" intensity={50} distance={80} />
+      <pointLight position={[0.8, 1.2, 4.5]} color="#ffffff" intensity={50} distance={80} />
+
+      {/* Tail Lights */}
+      <mesh position={[-1.0, 1.2, -4.0]}>
+        <boxGeometry args={[0.3, 0.3, 0.1]} />
+        <meshBasicMaterial color="#ff0000" />
+      </mesh>
+      <mesh position={[1.0, 1.2, -4.0]}>
+        <boxGeometry args={[0.3, 0.3, 0.1]} />
+        <meshBasicMaterial color="#ff0000" />
+      </mesh>
+    </group>
+  );
+});
+
+BossPoliceCar.displayName = 'BossPoliceCar';
 
 // ==================== TRAFİK ====================
 const Traffic = memo(() => {
@@ -1609,6 +1770,7 @@ const GameContent = () => {
         <ParticleSystem />
         <PlayerCar />
         <Traffic />
+        <BossPoliceCar />
         <Coins />
         <SpeedLines />
         <RoadEnvironment />
@@ -1623,7 +1785,9 @@ function Game() {
     speed, score, message, gameOver, gameState, countdown,
     steer, cleanupTimer,
     totalDistance, nearMissCount, nitro, maxNitro, isNitroActive,
-    activateNitro, deactivateNitro, currentLevel
+    activateNitro, deactivateNitro, currentLevel,
+    // Boss Police Warning
+    bossSpawning
   } = useGameStore();
 
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
@@ -2023,6 +2187,55 @@ function Game() {
           </div>
         )
       }
+
+      {/* POLICE BOSS WARNING */}
+      {
+        bossSpawning && (
+          <div style={{
+            position: 'absolute',
+            top: '45%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: '#ff0000',
+            fontSize: isMobile ? 'clamp(24px, 8vw, 60px)' : 'clamp(48px, 12vw, 120px)',
+            fontWeight: 'bold',
+            zIndex: 20,
+            textShadow: '0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 60px #ff0000, 0 0 80px #0000ff',
+            textTransform: 'uppercase',
+            letterSpacing: '8px',
+            whiteSpace: 'nowrap',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            pointerEvents: 'none',
+            animation: 'policeFlash 0.5s ease-in-out infinite',
+            background: 'linear-gradient(90deg, #ff0000 0%, #0000ff 50%, #ff0000 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundSize: '200% 100%',
+            backgroundPosition: '0% 0%',
+            border: '3px solid #ff0000',
+            padding: isMobile ? '10px 20px' : '20px 40px',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            boxShadow: '0 0 30px #ff0000, inset 0 0 20px rgba(255, 0, 0, 0.5)'
+          }}>
+            ⚠️ POLICE ⚠️
+          </div>
+        )
+      }
+
+      <style>{`
+        @keyframes policeFlash {
+          0%, 100% {
+            opacity: 1;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 60px #ff0000;
+          }
+          50% {
+            opacity: 0.7;
+            text-shadow: 0 0 20px #0000ff, 0 0 40px #0000ff, 0 0 60px #0000ff;
+          }
+        }
+      `}</style>
 
       {!gameOver && (
         <Canvas
