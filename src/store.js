@@ -680,9 +680,11 @@ export const useGameStore = create((set, get) => ({
         }
       } else {
         // Normal chase: Boss speed 150 km/h
-        // Movement logic same as enemies: (playerSpeed - bossSpeed)
+        // Boss is FASTER than player, so formula is reversed from enemies
+        // Enemies: (playerSpeed - enemySpeed) because they're slower
+        // Boss: (bossSpeed - playerSpeed) because it's faster
         const bossSpeed = 150;
-        newBossZ += (newSpeed - bossSpeed) * clampedDelta * 0.5;
+        newBossZ += (bossSpeed - newSpeed) * clampedDelta * 0.5;
 
         // Update X position (lane tracking with delay)
         newBossX = THREE.MathUtils.lerp(newBossX, newBossTargetX, clampedDelta * 3);
