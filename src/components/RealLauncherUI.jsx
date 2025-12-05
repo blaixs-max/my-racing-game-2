@@ -261,7 +261,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         pendingTxHash: hash // Mark as pending so we can resume if backgrounded
       }));
 
-      // Wait for confirmation (Robust method)
+      // Wait for confirmation (Robust polling method)
       await waitForPaymentConfirmation(config, hash);
 
       // Verify payment via Supabase Edge Function
@@ -272,6 +272,9 @@ const RealLauncherUI = ({ onStartGame }) => {
       }
 
       console.log('✅ Payment verified:', verifyResult);
+
+      // Clear localStorage on success
+      localStorage.removeItem('lumexia-pending-tx');
 
       // Update credits in state
       setState(prev => ({
@@ -294,14 +297,30 @@ const RealLauncherUI = ({ onStartGame }) => {
 
     } catch (error) {
       console.error('❌ Processing failed:', error);
+
+      // Determine if this is a timeout error (tx might still be pending)
+      const isTimeoutError = error.message?.includes('timed out') ||
+                             error.message?.includes('still be processing');
+
       setState(prev => ({
         ...prev,
-        isProcessing: false, // Stop spinner
-        // We do NOT clear pendingTxHash here immediately if it was a timeout,
-        // allowing user to retry check. But for general errors we clear it.
+        isProcessing: false, // Always stop spinner
+        // Keep pendingTxHash only if it's a timeout (allows manual retry)
+        pendingTxHash: isTimeoutError ? prev.pendingTxHash : null,
         statusMessage: `❌ ${error.message}`
       }));
-      alert(`❌ Payment Processing Failed\n\n${error.message}\n\nIf you paid, use the 'Check Status' button.`);
+
+      // Clear localStorage only if it's not a timeout
+      if (!isTimeoutError) {
+        localStorage.removeItem('lumexia-pending-tx');
+      }
+
+      alert(
+        `❌ Payment Processing Failed\n\n${error.message}\n\n` +
+        (isTimeoutError
+          ? 'Your transaction may still be processing. Use the "Check Status" button to verify.'
+          : 'Please try again.')
+      );
     }
   };
 
@@ -338,6 +357,12 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
+    // Prevent double-click
+    if (state.isProcessing) {
+      console.log('⚠️ Already processing, ignoring click');
+      return;
+    }
+
     try {
       setState(prev => ({
         ...prev,
@@ -345,14 +370,15 @@ const RealLauncherUI = ({ onStartGame }) => {
         statusMessage: '⏳ Opening wallet... Please confirm in your wallet app'
       }));
 
-      console.log('📱 iOS Safari: Preparing to open MetaMask...');
+      console.log('📱 Preparing to open wallet...');
+      console.log('📱 Package:', state.selectedPackage, 'Address:', address);
 
       // Step 1: Initiate Transaction (Send only)
       // IMPORTANT: This will open MetaMask app on mobile
+      // Now with retry logic built-in
       const hash = await initiateBNBPayment(config, address, state.selectedPackage);
 
       console.log('✅ Payment initiated, hash:', hash);
-      console.log('📱 iOS Safari: Transaction hash received, saving to state...');
 
       // CRITICAL: Save hash IMMEDIATELY to state (which triggers localStorage save)
       // This ensures we don't lose the hash when switching to MetaMask app
@@ -360,10 +386,10 @@ const RealLauncherUI = ({ onStartGame }) => {
         ...prev,
         pendingTxHash: hash,
         lastTransaction: hash,
-        statusMessage: '⏳ Waiting for confirmation...'
+        statusMessage: '⏳ Transaction sent! Waiting for blockchain confirmation...'
       }));
 
-      console.log('📱 iOS Safari: Hash saved, now processing confirmation...');
+      console.log('📱 Hash saved, now processing confirmation...');
 
       // Step 2: Process Confirmation (Separate step)
       // This might be interrupted if user switches to MetaMask
@@ -373,12 +399,14 @@ const RealLauncherUI = ({ onStartGame }) => {
       console.error('❌ Payment initiation failed:', error);
 
       let errorMessage = 'Payment failed';
-      if (error.message.includes('rejected')) {
+      if (error.message?.includes('rejected') || error.message?.includes('cancelled')) {
         errorMessage = 'Transaction rejected by user';
-      } else if (error.message.includes('insufficient')) {
+      } else if (error.message?.includes('insufficient')) {
         errorMessage = 'Insufficient BNB balance';
+      } else if (error.message?.includes('multiple attempts')) {
+        errorMessage = 'Network connection failed. Please check your internet and try again.';
       } else {
-        errorMessage = error.message;
+        errorMessage = error.message || 'Unknown error occurred';
       }
 
       setState(prev => ({
@@ -770,12 +798,16 @@ const RealLauncherUI = ({ onStartGame }) => {
               </div>
 
               {/* MANUAL CHECK BUTTON - Visible only when pending and processing */}
-              {state.pendingTxHash && state.isProcessing && (
+              {state.pendingTxHash && (
                 <div className="mb-6 p-4 bg-orange-500/20 border border-orange-500/50 rounded-xl text-center">
                   <div className="flex items-center justify-center mb-2">
-                    <i className="fas fa-spinner fa-spin mr-2 text-orange-400"></i>
+                    {state.isProcessing ? (
+                      <i className="fas fa-spinner fa-spin mr-2 text-orange-400"></i>
+                    ) : (
+                      <i className="fas fa-clock mr-2 text-orange-400"></i>
+                    )}
                     <p className="text-orange-200 text-sm font-semibold">
-                      İşlem onayı bekleniyor...
+                      {state.isProcessing ? 'İşlem onayı bekleniyor...' : 'Bekleyen işlem var'}
                     </p>
                   </div>
                   <p className="text-xs text-gray-300 mb-3">
@@ -784,16 +816,53 @@ const RealLauncherUI = ({ onStartGame }) => {
                   <p className="text-xs text-gray-400 mb-3">
                     TX Hash: {state.pendingTxHash.slice(0, 10)}...{state.pendingTxHash.slice(-8)}
                   </p>
-                  <button
-                     onClick={() => checkPendingTransaction(state.pendingTxHash)}
-                     className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
-                  >
-                    <i className="fas fa-check-circle mr-2"></i>
-                    Durumu Kontrol Et
-                  </button>
+                  <div className="flex gap-2 justify-center">
+                    <button
+                       onClick={() => {
+                         setState(prev => ({ ...prev, isProcessing: true }));
+                         checkPendingTransaction(state.pendingTxHash);
+                       }}
+                       disabled={state.isProcessing}
+                       className={`px-4 py-2 text-white text-sm font-bold rounded-lg shadow-lg transition-colors ${
+                         state.isProcessing
+                           ? 'bg-gray-600 cursor-not-allowed'
+                           : 'bg-orange-600 hover:bg-orange-700'
+                       }`}
+                    >
+                      <i className="fas fa-check-circle mr-2"></i>
+                      Durumu Kontrol Et
+                    </button>
+                    <button
+                       onClick={() => {
+                         if (confirm('İşlemi iptal etmek istediğinize emin misiniz?\n\nNot: Eğer blockchain\'de ödeme zaten yapıldıysa, kredi hesabınıza eklenmeyebilir.')) {
+                           setState(prev => ({
+                             ...prev,
+                             isProcessing: false,
+                             pendingTxHash: null,
+                             selectedPackage: null,
+                             statusMessage: 'İşlem iptal edildi'
+                           }));
+                           localStorage.removeItem('lumexia-pending-tx');
+                         }
+                       }}
+                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
+                    >
+                      <i className="fas fa-times-circle mr-2"></i>
+                      İptal Et
+                    </button>
+                  </div>
                   <p className="text-xs text-gray-500 mt-3">
                     İşlem genellikle 5-30 saniye içinde onaylanır
                   </p>
+                  {/* BSCScan Link */}
+                  <a
+                    href={getBSCScanLink(state.pendingTxHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
+                  >
+                    BSCScan'da Görüntüle →
+                  </a>
                 </div>
               )}
 
