@@ -188,9 +188,11 @@ export const useGameStore = create((set, get) => ({
       return;
     }
 
-    if (state.credits < 1) {
+    const requiredCredits = state.gameMode === 'doubleOrNothing' ? 2 : 1;
+    if (state.credits < requiredCredits) {
       console.error('❌ Insufficient credits');
-      alert('❌ Insufficient credits!\n\nPlease purchase more credits to play.');
+      const modeText = state.gameMode === 'doubleOrNothing' ? 'Double or Nothing requires 2 credits!' : '';
+      alert(`❌ Insufficient credits!\n\n${modeText}\nPlease purchase more credits to play.`);
       set({ gameState: 'launcher' }); // Launcher'a geri dön
       return;
     }
@@ -241,11 +243,12 @@ export const useGameStore = create((set, get) => ({
         // Show "GO!" for 2.5 seconds to allow shader compilation
         // This prevents the black screen/freeze when game starts
         setTimeout(async () => {
-          // Oyun başlarken credit düş (1 credit = 1 race)
+          // Oyun başlarken credit düş (gameMode'a göre 1 veya 2 credit)
           const currentState = get();
+          const creditsToDeduct = currentState.gameMode === 'doubleOrNothing' ? 2 : 1;
           try {
-            console.log('🎮 Starting race - deducting 1 credit...');
-            await useCredit(currentState.walletAddress);
+            console.log(`🎮 Starting race - deducting ${creditsToDeduct} credit(s)...`);
+            await useCredit(currentState.walletAddress, creditsToDeduct);
 
             // Güncel credit sayısını al
             const newCredits = await getUserCredits(currentState.walletAddress);
