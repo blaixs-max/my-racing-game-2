@@ -865,39 +865,53 @@ const Traffic = memo(() => {
 Traffic.displayName = 'Traffic';
 
 // ==================== POLICE BARRICADE ====================
-const PoliceBarricade = memo(() => {
-  const policeBarricade = useGameStore(state => state.policeBarricade);
-  const lightRef1 = useRef();
-  const lightRef2 = useRef();
-  const [flashState, setFlashState] = useState(true);
+// Flashing light component with useRef to avoid re-renders
+const FlashingLight = memo(({ position, isRed }) => {
+  const meshRef = useRef();
+  const lightRef = useRef();
 
-  // Flashing lights effect
-  useFrame((state, delta) => {
-    // Toggle flash every 0.3 seconds using time
+  useFrame((state) => {
+    if (!meshRef.current) return;
     const time = state.clock.getElapsedTime();
-    const shouldFlash = Math.floor(time * 3) % 2 === 0;
-    if (shouldFlash !== flashState) {
-      setFlashState(shouldFlash);
+    const isOn = isRed ? (Math.floor(time * 3) % 2 === 0) : (Math.floor(time * 3) % 2 !== 0);
+
+    // Update material properties directly without causing re-render
+    const mat = meshRef.current.material;
+    if (isOn) {
+      mat.color.setHex(isRed ? 0xff0000 : 0x0066ff);
+      mat.emissive.setHex(isRed ? 0xff0000 : 0x0066ff);
+      mat.emissiveIntensity = 3;
+    } else {
+      mat.color.setHex(isRed ? 0x440000 : 0x001144);
+      mat.emissive.setHex(0x000000);
+      mat.emissiveIntensity = 0;
+    }
+
+    // Toggle light visibility
+    if (lightRef.current) {
+      lightRef.current.visible = isOn;
     }
   });
+
+  return (
+    <group position={position}>
+      <mesh ref={meshRef}>
+        <boxGeometry args={[0.4, 0.3, 0.8]} />
+        <meshStandardMaterial color={isRed ? '#ff0000' : '#0066ff'} emissive={isRed ? '#ff0000' : '#0066ff'} emissiveIntensity={3} />
+      </mesh>
+      <pointLight ref={lightRef} position={[0, 0.3, 0]} color={isRed ? '#ff0000' : '#0066ff'} intensity={50} distance={30} />
+    </group>
+  );
+});
+
+FlashingLight.displayName = 'FlashingLight';
+
+const PoliceBarricade = memo(() => {
+  const policeBarricade = useGameStore(state => state.policeBarricade);
 
   if (!policeBarricade) return null;
 
   const { z, openLane } = policeBarricade;
-
-  // Create barricade materials
-  const barrierMaterial = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#ff0000',
-    emissive: '#ff0000',
-    emissiveIntensity: 0.3,
-    roughness: 0.5
-  }), []);
-
-  const policeCarMaterial = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#1a1a2e',
-    metalness: 0.8,
-    roughness: 0.3
-  }), []);
 
   // Get blocked lanes (2 lanes blocked, 1 open)
   const blockedLanes = [-1, 0, 1].filter(l => l !== openLane);
@@ -910,42 +924,21 @@ const PoliceBarricade = memo(() => {
         return (
           <group key={`police-${index}`} position={[laneX, 0, 0]}>
             {/* Police car body */}
-            <mesh position={[0, 0.8, 0]} material={policeCarMaterial}>
+            <mesh position={[0, 0.8, 0]}>
               <boxGeometry args={[2.5, 1.2, 5]} />
+              <meshStandardMaterial color="#1a1a2e" metalness={0.8} roughness={0.3} />
             </mesh>
 
             {/* Police car roof */}
-            <mesh position={[0, 1.6, 0]} material={policeCarMaterial}>
+            <mesh position={[0, 1.6, 0]}>
               <boxGeometry args={[2.2, 0.6, 3]} />
+              <meshStandardMaterial color="#1a1a2e" metalness={0.8} roughness={0.3} />
             </mesh>
 
             {/* Flashing lights on roof */}
             <group position={[0, 2.1, 0]}>
-              {/* Red light (left) */}
-              <mesh position={[-0.5, 0, 0]}>
-                <boxGeometry args={[0.4, 0.3, 0.8]} />
-                <meshStandardMaterial
-                  color={flashState ? '#ff0000' : '#440000'}
-                  emissive={flashState ? '#ff0000' : '#000000'}
-                  emissiveIntensity={flashState ? 3 : 0}
-                />
-              </mesh>
-              {flashState && (
-                <pointLight position={[-0.5, 0.3, 0]} color="#ff0000" intensity={50} distance={30} />
-              )}
-
-              {/* Blue light (right) */}
-              <mesh position={[0.5, 0, 0]}>
-                <boxGeometry args={[0.4, 0.3, 0.8]} />
-                <meshStandardMaterial
-                  color={!flashState ? '#0066ff' : '#001144'}
-                  emissive={!flashState ? '#0066ff' : '#000000'}
-                  emissiveIntensity={!flashState ? 3 : 0}
-                />
-              </mesh>
-              {!flashState && (
-                <pointLight position={[0.5, 0.3, 0]} color="#0066ff" intensity={50} distance={30} />
-              )}
+              <FlashingLight position={[-0.5, 0, 0]} isRed={true} />
+              <FlashingLight position={[0.5, 0, 0]} isRed={false} />
             </group>
 
             {/* Barrier stripe on car */}
