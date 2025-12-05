@@ -97,36 +97,6 @@ class AudioSystem {
     osc2.stop(now + 0.35);
   }
 
-  playPoliceSiren() {
-    if (!this.context) return;
-    if (this.context.state === 'suspended') this.context.resume();
-
-    const now = this.context.currentTime;
-
-    // Police siren - alternating between two frequencies
-    const osc = this.context.createOscillator();
-    const gain = this.context.createGain();
-
-    osc.type = 'sawtooth';
-    gain.gain.setValueAtTime(0.3, now);
-
-    // Siren sweep: 600Hz -> 1200Hz -> 600Hz
-    osc.frequency.setValueAtTime(600, now);
-    osc.frequency.linearRampToValueAtTime(1200, now + 0.3);
-    osc.frequency.linearRampToValueAtTime(600, now + 0.6);
-    osc.frequency.linearRampToValueAtTime(1200, now + 0.9);
-
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
-
-    osc.connect(gain);
-    gain.connect(this.context.destination);
-    osc.start(now);
-    osc.stop(now + 1.0);
-
-    if (navigator.vibrate) {
-      navigator.vibrate([200, 100, 200, 100, 200]);
-    }
-  }
 }
 
 export const audioSystem = new AudioSystem();
@@ -152,11 +122,6 @@ export const useGameStore = create((set, get) => ({
   startTime: 0, // Oyun süresi için
   currentLevel: 1,
   lastLevelUpDistance: 0,
-
-  // Police Barricade System
-  policeBarricade: null, // { z, openLane, spawned }
-  barricadeWarningShown: false,
-  caughtByPolice: false,
 
   nitro: 100,
   maxNitro: 100,
@@ -262,10 +227,6 @@ export const useGameStore = create((set, get) => ({
       updateCounter: 0,
       startTime: 0, // Reset time
       reachedLevel5: false, // Reset for Double or Nothing mode
-      policeBarricade: null,
-      barricadeWarningShown: false,
-      caughtByPolice: false,
-
       cameraShake: 0,
       lastSpawnZ: -400
     });
@@ -574,64 +535,12 @@ export const useGameStore = create((set, get) => ({
       z: c.z + newSpeed * clampedDelta * 0.5
     })).filter(c => c.z < 50);
 
-    // ==================== POLICE BARRICADE SYSTEM ====================
-    // Calculate level end distance (each level is 1000m)
-    const levelEndDistance = state.currentLevel * 1000;
-    const warningDistance = levelEndDistance - 100; // Warning at 900m, 1900m, etc.
-
-    // Track barricade state
-    let newPoliceBarricade = state.policeBarricade;
-    let newBarricadeWarningShown = state.barricadeWarningShown;
-    let barricadeMessage = '';
-
-    // Show warning at 100m before level end (only once per level)
-    if (newDistance >= warningDistance && newDistance < levelEndDistance && !state.barricadeWarningShown) {
-      barricadeMessage = 'POLICE ROADBLOCK AHEAD! SPEED UP!';
-      newBarricadeWarningShown = true;
-      // No setTimeout - message will be cleared by next message or level change
-    }
-
-    // Clear barricade message after passing the barricade zone
-    if (newDistance >= levelEndDistance + 20 && state.message.includes('POLICE')) {
-      barricadeMessage = ''; // Clear the message
-    }
-
-    // Spawn barricade when approaching level end (spawn at ~300m ahead of player)
-    if (newDistance >= warningDistance && !newPoliceBarricade) {
-      // Open lane is either left (-1) or right (1) - never center (0)
-      const openLane = Math.random() < 0.5 ? -1 : 1;
-      newPoliceBarricade = {
-        id: 'barricade_' + state.currentLevel,
-        z: -350, // Spawn ahead of player
-        openLane: openLane,
-        spawned: true,
-        levelTarget: levelEndDistance
-      };
-    }
-
-    // Update barricade position (move towards player like other objects)
-    if (newPoliceBarricade && newPoliceBarricade.spawned) {
-      newPoliceBarricade = {
-        ...newPoliceBarricade,
-        z: newPoliceBarricade.z + newSpeed * clampedDelta * 0.5
-      };
-
-      // Remove barricade after it passes (player escaped successfully)
-      if (newPoliceBarricade.z > 50) {
-        newPoliceBarricade = null;
-        newBarricadeWarningShown = false; // Reset for next level
-      }
-    }
-
-    // Check if in barricade zone (last 100m of level) - stop normal traffic spawning
-    const inBarricadeZone = newDistance >= warningDistance && newDistance < levelEndDistance + 50;
-
     // FIX 7: Spawn rate zamana dayalı
     let newLastSpawnZ = state.lastSpawnZ;
     const playerZ = state.totalDistance; // Approximate player Z for spawning logic relative to distance
 
-    // Spawn logic based on distance - DISABLED in barricade zone
-    if (Math.abs(newLastSpawnZ - (-playerZ)) > 30 && !inBarricadeZone) {
+    // Spawn logic based on distance
+    if (Math.abs(newLastSpawnZ - (-playerZ)) > 30) {
       newLastSpawnZ = -playerZ;
 
       const lanes = [-1, 0, 1];
@@ -668,7 +577,7 @@ export const useGameStore = create((set, get) => ({
 
       if (finalAvailableLanes.length > 0) {
         const lane = finalAvailableLanes[Math.floor(Math.random() * finalAvailableLanes.length)];
-        // SYSTEMATIC DEBUGGING: Final - All Safe Vehicles (No Police)
+        // Vehicle types for traffic
         const allowedTypes = ['truck', 'sedan', 'suv', 'sport'];
 
         if (allowedTypes.length > 0) {
@@ -730,9 +639,7 @@ export const useGameStore = create((set, get) => ({
       currentLevel: newLevel,
       lastLevelUpDistance: newLastLevelUpDistance,
       reachedLevel5: newReachedLevel5,
-      policeBarricade: newPoliceBarricade,
-      barricadeWarningShown: newBarricadeWarningShown,
-      message: barricadeMessage || levelUpMessage || state.message
+      message: levelUpMessage || state.message
     };
   }),
 
@@ -748,20 +655,6 @@ export const useGameStore = create((set, get) => ({
       speed: 0,
       targetSpeed: 0,
       cameraShake: 3.0
-    });
-  },
-
-  setCaughtByPolice: () => {
-    const state = get();
-    audioSystem.playPoliceSiren();
-
-    set({
-      gameOver: true,
-      gameState: 'gameover',
-      speed: 0,
-      targetSpeed: 0,
-      caughtByPolice: true,
-      message: 'CAUGHT BY POLICE!'
     });
   }
 }));
