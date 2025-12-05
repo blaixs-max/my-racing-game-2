@@ -517,7 +517,7 @@ function TreeModel({ scale = 1, rotation = [0, 0, 0] }) {
 
 
 function PlayerCar() {
-  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed, isNitroActive } = useGameStore();
+  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed, isNitroActive, policeBarricade, setCaughtByPolice } = useGameStore();
   const group = useRef();
 
   // Track player position for particles
@@ -607,6 +607,36 @@ function PlayerCar() {
 
     if (hasCollision) {
       setGameOver();
+    }
+
+    // ==================== POLICE BARRICADE COLLISION CHECK ====================
+    if (policeBarricade && policeBarricade.spawned) {
+      const playerX = group.current.position.x;
+      const barricadeZ = policeBarricade.z;
+      const openLane = policeBarricade.openLane;
+      const openLaneX = openLane * 3.0;
+
+      // Check if player is at barricade Z position (collision zone)
+      const dzBarricade = Math.abs(barricadeZ - (-2)); // Player is at z = -2
+
+      if (dzBarricade < 8) { // Within barricade collision range
+        // Check if player is in the open lane
+        const isInOpenLane = Math.abs(playerX - openLaneX) < 1.8; // Lane width tolerance
+
+        if (isInOpenLane) {
+          // Player is in open lane - check speed requirement (150 km/h minimum)
+          if (speed < 150 && dzBarricade < 3) {
+            // Too slow! Caught by police
+            setCaughtByPolice();
+          }
+          // If speed >= 150, player passes through successfully
+        } else {
+          // Player is NOT in open lane - collision with barricade!
+          if (dzBarricade < 4) {
+            setGameOver();
+          }
+        }
+      }
     }
 
     // SAFETY: Filter valid coins before collection check
@@ -833,6 +863,155 @@ const Traffic = memo(() => {
 });
 
 Traffic.displayName = 'Traffic';
+
+// ==================== POLICE BARRICADE ====================
+const PoliceBarricade = memo(() => {
+  const policeBarricade = useGameStore(state => state.policeBarricade);
+  const lightRef1 = useRef();
+  const lightRef2 = useRef();
+  const [flashState, setFlashState] = useState(true);
+
+  // Flashing lights effect
+  useFrame((state, delta) => {
+    // Toggle flash every 0.3 seconds using time
+    const time = state.clock.getElapsedTime();
+    const shouldFlash = Math.floor(time * 3) % 2 === 0;
+    if (shouldFlash !== flashState) {
+      setFlashState(shouldFlash);
+    }
+  });
+
+  if (!policeBarricade) return null;
+
+  const { z, openLane } = policeBarricade;
+
+  // Create barricade materials
+  const barrierMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#ff0000',
+    emissive: '#ff0000',
+    emissiveIntensity: 0.3,
+    roughness: 0.5
+  }), []);
+
+  const policeCarMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#1a1a2e',
+    metalness: 0.8,
+    roughness: 0.3
+  }), []);
+
+  // Get blocked lanes (2 lanes blocked, 1 open)
+  const blockedLanes = [-1, 0, 1].filter(l => l !== openLane);
+
+  return (
+    <group position={[0, 0, z]}>
+      {/* Police cars blocking 2 lanes */}
+      {blockedLanes.map((lane, index) => {
+        const laneX = lane * 3.0;
+        return (
+          <group key={`police-${index}`} position={[laneX, 0, 0]}>
+            {/* Police car body */}
+            <mesh position={[0, 0.8, 0]} material={policeCarMaterial}>
+              <boxGeometry args={[2.5, 1.2, 5]} />
+            </mesh>
+
+            {/* Police car roof */}
+            <mesh position={[0, 1.6, 0]} material={policeCarMaterial}>
+              <boxGeometry args={[2.2, 0.6, 3]} />
+            </mesh>
+
+            {/* Flashing lights on roof */}
+            <group position={[0, 2.1, 0]}>
+              {/* Red light (left) */}
+              <mesh position={[-0.5, 0, 0]}>
+                <boxGeometry args={[0.4, 0.3, 0.8]} />
+                <meshStandardMaterial
+                  color={flashState ? '#ff0000' : '#440000'}
+                  emissive={flashState ? '#ff0000' : '#000000'}
+                  emissiveIntensity={flashState ? 3 : 0}
+                />
+              </mesh>
+              {flashState && (
+                <pointLight position={[-0.5, 0.3, 0]} color="#ff0000" intensity={50} distance={30} />
+              )}
+
+              {/* Blue light (right) */}
+              <mesh position={[0.5, 0, 0]}>
+                <boxGeometry args={[0.4, 0.3, 0.8]} />
+                <meshStandardMaterial
+                  color={!flashState ? '#0066ff' : '#001144'}
+                  emissive={!flashState ? '#0066ff' : '#000000'}
+                  emissiveIntensity={!flashState ? 3 : 0}
+                />
+              </mesh>
+              {!flashState && (
+                <pointLight position={[0.5, 0.3, 0]} color="#0066ff" intensity={50} distance={30} />
+              )}
+            </group>
+
+            {/* Barrier stripe on car */}
+            <mesh position={[0, 0.8, -2.6]}>
+              <boxGeometry args={[2.6, 0.3, 0.1]} />
+              <meshStandardMaterial color="#ffff00" emissive="#ffff00" emissiveIntensity={0.5} />
+            </mesh>
+
+            {/* Traffic cones beside the car */}
+            <mesh position={[1.5, 0.3, -1]}>
+              <coneGeometry args={[0.2, 0.6, 8]} />
+              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+            </mesh>
+            <mesh position={[-1.5, 0.3, -1]}>
+              <coneGeometry args={[0.2, 0.6, 8]} />
+              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+            </mesh>
+            <mesh position={[1.5, 0.3, 1]}>
+              <coneGeometry args={[0.2, 0.6, 8]} />
+              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+            </mesh>
+            <mesh position={[-1.5, 0.3, 1]}>
+              <coneGeometry args={[0.2, 0.6, 8]} />
+              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+            </mesh>
+          </group>
+        );
+      })}
+
+      {/* Warning tape across the road (behind police cars) */}
+      <mesh position={[0, 1.2, -4]} rotation={[0, 0, 0]}>
+        <boxGeometry args={[20, 0.2, 0.1]} />
+        <meshStandardMaterial
+          color="#ffff00"
+          emissive="#ffaa00"
+          emissiveIntensity={0.5}
+        />
+      </mesh>
+
+      {/* "POLICE" text indicators on road */}
+      <mesh position={[0, 0.02, -8]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[8, 2]} />
+        <meshStandardMaterial
+          color="#ffffff"
+          emissive="#ffffff"
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.9}
+        />
+      </mesh>
+
+      {/* Road spikes/strip across blocked lanes */}
+      {blockedLanes.map((lane, index) => (
+        <mesh key={`spike-${index}`} position={[lane * 3.0, 0.05, -6]}>
+          <boxGeometry args={[3.5, 0.1, 0.5]} />
+          <meshStandardMaterial color="#333333" roughness={0.9} />
+        </mesh>
+      ))}
+
+      {/* Ambient police atmosphere light */}
+      <pointLight position={[0, 5, 0]} color="#ff0044" intensity={20} distance={50} />
+    </group>
+  );
+});
+
+PoliceBarricade.displayName = 'PoliceBarricade';
 
 // ==================== ÇEVRE ====================
 const Building = memo(({ width, height, side, type }) => {
@@ -1609,6 +1788,7 @@ const GameContent = () => {
         <ParticleSystem />
         <PlayerCar />
         <Traffic />
+        <PoliceBarricade />
         <Coins />
         <SpeedLines />
         <RoadEnvironment />
