@@ -2,7 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useAccount, useBalance, useConfig, useSwitchChain, useChainId } from 'wagmi';
 import { bscTestnet } from 'wagmi/chains';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { initiateBNBPayment, waitForPaymentConfirmation, hasEnoughBalance, getBSCScanLink } from '../utils/realWallet';
+import {
+  initiateBNBPayment,
+  waitForPaymentConfirmation,
+  hasEnoughBalance,
+  getBSCScanLink,
+  isMobileDevice,
+  openWalletOnMobile
+} from '../utils/realWallet';
 import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../utils/supabaseClient';
 import { PRICING } from '../wagmi.config';
 
@@ -363,19 +370,23 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
+    const isMobile = isMobileDevice();
+
     try {
       setState(prev => ({
         ...prev,
         isProcessing: true,
-        statusMessage: '⏳ Opening wallet... Please confirm in your wallet app'
+        statusMessage: isMobile
+          ? '⏳ Cüzdan açılıyor... MetaMask\'te işlemi onaylayın'
+          : '⏳ Opening wallet... Please confirm in your wallet app'
       }));
 
-      console.log('📱 Preparing to open wallet...');
+      console.log('📱 Preparing to open wallet...', { isMobile });
       console.log('📱 Package:', state.selectedPackage, 'Address:', address);
 
       // Step 1: Initiate Transaction (Send only)
-      // IMPORTANT: This will open MetaMask app on mobile
-      // Now with retry logic built-in
+      // IMPORTANT: This will open MetaMask app on mobile (with deep link)
+      // Now with retry logic and mobile deep linking built-in
       const hash = await initiateBNBPayment(config, address, state.selectedPackage);
 
       console.log('✅ Payment initiated, hash:', hash);
@@ -386,7 +397,9 @@ const RealLauncherUI = ({ onStartGame }) => {
         ...prev,
         pendingTxHash: hash,
         lastTransaction: hash,
-        statusMessage: '⏳ Transaction sent! Waiting for blockchain confirmation...'
+        statusMessage: isMobile
+          ? '⏳ İşlem gönderildi! Cüzdanı kontrol edin...'
+          : '⏳ Transaction sent! Waiting for blockchain confirmation...'
       }));
 
       console.log('📱 Hash saved, now processing confirmation...');
@@ -399,14 +412,26 @@ const RealLauncherUI = ({ onStartGame }) => {
       console.error('❌ Payment initiation failed:', error);
 
       let errorMessage = 'Payment failed';
+      let showOpenWalletHint = false;
+
       if (error.message?.includes('rejected') || error.message?.includes('cancelled')) {
         errorMessage = 'Transaction rejected by user';
       } else if (error.message?.includes('insufficient')) {
         errorMessage = 'Insufficient BNB balance';
       } else if (error.message?.includes('multiple attempts')) {
         errorMessage = 'Network connection failed. Please check your internet and try again.';
+      } else if (error.message?.includes('disconnected') || error.message?.includes('reconnect')) {
+        errorMessage = 'Wallet disconnected. Please reconnect and try again.';
+      } else if (error.message?.includes('connector')) {
+        errorMessage = isMobile
+          ? 'Cüzdan bağlantısı kesildi. Sayfayı yenileyip tekrar deneyin.'
+          : 'Wallet connection lost. Please refresh and try again.';
       } else {
         errorMessage = error.message || 'Unknown error occurred';
+        // On mobile, if generic error, suggest opening wallet manually
+        if (isMobile) {
+          showOpenWalletHint = true;
+        }
       }
 
       setState(prev => ({
@@ -419,7 +444,14 @@ const RealLauncherUI = ({ onStartGame }) => {
       // Clear localStorage on error
       localStorage.removeItem('lumexia-pending-tx');
 
-      alert(`❌ Payment Failed\n\n${errorMessage}`);
+      if (isMobile && showOpenWalletHint) {
+        alert(
+          `❌ Ödeme Başarısız\n\n${errorMessage}\n\n` +
+          `💡 İpucu: MetaMask uygulamanızı manuel olarak açıp bekleyen işlem olup olmadığını kontrol edin.`
+        );
+      } else {
+        alert(`❌ Payment Failed\n\n${errorMessage}`);
+      }
     }
   };
 
@@ -797,7 +829,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                 </div>
               </div>
 
-              {/* MANUAL CHECK BUTTON - Visible only when pending and processing */}
+              {/* MANUAL CHECK BUTTON - Visible only when pending */}
               {state.pendingTxHash && (
                 <div className="mb-6 p-4 bg-orange-500/20 border border-orange-500/50 rounded-xl text-center">
                   <div className="flex items-center justify-center mb-2">
@@ -816,7 +848,19 @@ const RealLauncherUI = ({ onStartGame }) => {
                   <p className="text-xs text-gray-400 mb-3">
                     TX Hash: {state.pendingTxHash.slice(0, 10)}...{state.pendingTxHash.slice(-8)}
                   </p>
-                  <div className="flex gap-2 justify-center">
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {/* Open Wallet Button - Mobile Only */}
+                    {isMobileDevice() && (
+                      <button
+                         onClick={() => {
+                           openWalletOnMobile();
+                         }}
+                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
+                      >
+                        <i className="fas fa-wallet mr-2"></i>
+                        Cüzdanı Aç
+                      </button>
+                    )}
                     <button
                        onClick={() => {
                          setState(prev => ({ ...prev, isProcessing: true }));
@@ -852,7 +896,9 @@ const RealLauncherUI = ({ onStartGame }) => {
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-3">
-                    İşlem genellikle 5-30 saniye içinde onaylanır
+                    {isMobileDevice()
+                      ? '📱 Cüzdan açılmazsa "Cüzdanı Aç" butonuna basın'
+                      : 'İşlem genellikle 5-30 saniye içinde onaylanır'}
                   </p>
                   {/* BSCScan Link */}
                   <a
