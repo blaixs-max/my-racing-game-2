@@ -7,13 +7,16 @@ import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../u
 import { PRICING } from '../wagmi.config';
 
 const RealLauncherUI = ({ onStartGame }) => {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, status: connectionStatus } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const config = useConfig();
 
   // Track mounting to prevent strict mode double-firing issues
   const isMounted = useRef(false);
+
+  // Track connection attempts for mobile debugging
+  const connectionAttemptRef = useRef(0);
 
   // Debounced Network Check
   const [showWrongNetwork, setShowWrongNetwork] = useState(false);
@@ -39,43 +42,142 @@ const RealLauncherUI = ({ onStartGame }) => {
   }, [isConnected, chainId, switchChain]);
 
 
-  // State Management
-  const [state, setState] = useState({
-    selectedPackage: null, // 1, 5, or 10
-    credits: 0,
-    isProcessing: false,
-    statusMessage: 'Connect your wallet to get started',
-    lastTransaction: null,
-    pendingTxHash: null, // New: track pending hash for mobile backgrounding
-    // Team System
-    selectedTeam: null, // 'blue' | 'red' | null
-    canChangeTeam: true,
-    teamSelectionDate: null,
+  // State Management - with localStorage persistence for iOS Safari
+  const [state, setState] = useState(() => {
+    // Try to restore pending transaction from localStorage (iOS Safari recovery)
+    try {
+      const savedState = localStorage.getItem('lumexia-pending-tx');
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        console.log('📦 Restored pending transaction from localStorage:', parsed);
+        return {
+          selectedPackage: parsed.selectedPackage || null,
+          credits: 0,
+          isProcessing: parsed.isProcessing || false,
+          statusMessage: parsed.statusMessage || 'Connect your wallet to get started',
+          lastTransaction: parsed.lastTransaction || null,
+          pendingTxHash: parsed.pendingTxHash || null,
+          // Team System
+          selectedTeam: null,
+          canChangeTeam: true,
+          teamSelectionDate: null,
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to restore state from localStorage:', e);
+    }
+
+    return {
+      selectedPackage: null, // 1, 5, or 10
+      credits: 0,
+      isProcessing: false,
+      statusMessage: 'Connect your wallet to get started',
+      lastTransaction: null,
+      pendingTxHash: null, // New: track pending hash for mobile backgrounding
+      // Team System
+      selectedTeam: null, // 'blue' | 'red' | null
+      canChangeTeam: true,
+      teamSelectionDate: null,
+    };
   });
 
+  // Save pending transaction state to localStorage for iOS Safari recovery
+  useEffect(() => {
+    if (state.pendingTxHash && state.isProcessing) {
+      const toSave = {
+        pendingTxHash: state.pendingTxHash,
+        selectedPackage: state.selectedPackage,
+        isProcessing: state.isProcessing,
+        statusMessage: state.statusMessage,
+        lastTransaction: state.lastTransaction,
+      };
+      localStorage.setItem('lumexia-pending-tx', JSON.stringify(toSave));
+      console.log('💾 Saved pending transaction to localStorage');
+    } else {
+      // Clear when no longer pending
+      localStorage.removeItem('lumexia-pending-tx');
+    }
+  }, [state.pendingTxHash, state.isProcessing, state.selectedPackage, state.statusMessage, state.lastTransaction]);
+
   // Re-check connection and pending transactions when app comes to foreground
+  // Using multiple events for iOS Safari compatibility
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        console.log('📱 App returned to foreground');
-
-        // Resume Pending Transaction Check
-        if (state.pendingTxHash && state.isProcessing) {
-          console.log('⏳ Resuming check for pending TX:', state.pendingTxHash);
-          await checkPendingTransaction(state.pendingTxHash);
-        }
+        console.log('📱 App returned to foreground (visibilitychange)');
+        await handleAppForeground();
       }
     };
 
+    const handleFocus = async () => {
+      console.log('📱 App gained focus (focus event)');
+      await handleAppForeground();
+    };
+
+    const handlePageShow = async (event) => {
+      // iOS Safari specific: fired when page becomes visible (even from cache)
+      console.log('📱 Page shown (pageshow event), persisted:', event.persisted);
+      await handleAppForeground();
+    };
+
+    const handleAppForeground = async () => {
+      // Check if wallet connection was established while in background
+      if (isConnected && address) {
+        console.log('✅ Wallet connected:', address);
+
+        // Reload user data to ensure sync
+        await loadUserData(address);
+      }
+
+      // Resume Pending Transaction Check
+      if (state.pendingTxHash && state.isProcessing) {
+        console.log('⏳ Resuming check for pending TX:', state.pendingTxHash);
+        await checkPendingTransaction(state.pendingTxHash);
+      }
+    };
+
+    // Use multiple events for maximum iOS Safari compatibility
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.pendingTxHash, state.isProcessing]);
+  }, [state.pendingTxHash, state.isProcessing, isConnected, address]);
 
   const { data: balanceData } = useBalance({
     address: address,
     chainId: bscTestnet.id,
   });
+
+  // Log connection status changes for debugging
+  useEffect(() => {
+    console.log('🔌 Connection status changed:', connectionStatus);
+    if (connectionStatus === 'connecting') {
+      connectionAttemptRef.current += 1;
+      console.log('📱 Connection attempt #', connectionAttemptRef.current);
+    } else if (connectionStatus === 'connected') {
+      console.log('✅ Successfully connected after', connectionAttemptRef.current, 'attempts');
+      connectionAttemptRef.current = 0;
+    }
+  }, [connectionStatus]);
+
+  // Check for pending transaction on mount (iOS Safari recovery)
+  useEffect(() => {
+    if (isConnected && address && state.pendingTxHash && state.isProcessing) {
+      console.log('🔄 Found pending transaction on mount, resuming check...');
+      // Wait a bit for UI to settle, then check
+      const timer = setTimeout(() => {
+        checkPendingTransaction(state.pendingTxHash);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, address]);
 
   // Load user credits and team when wallet connects
   useEffect(() => {
@@ -209,7 +311,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     await processTransactionResult(hash, address, state.selectedPackage);
   };
 
-  // Purchase & Start Game Handler (Optimized)
+  // Purchase & Start Game Handler (Optimized for iOS Safari)
   const handlePurchaseAndStart = async () => {
     if (!state.selectedPackage) {
       alert('Please select a ticket first');
@@ -241,12 +343,28 @@ const RealLauncherUI = ({ onStartGame }) => {
         statusMessage: '⏳ Opening wallet... Please confirm in your wallet app'
       }));
 
+      console.log('📱 iOS Safari: Preparing to open MetaMask...');
+
       // Step 1: Initiate Transaction (Send only)
+      // IMPORTANT: This will open MetaMask app on mobile
       const hash = await initiateBNBPayment(config, address, state.selectedPackage);
 
       console.log('✅ Payment initiated, hash:', hash);
+      console.log('📱 iOS Safari: Transaction hash received, saving to state...');
+
+      // CRITICAL: Save hash IMMEDIATELY to state (which triggers localStorage save)
+      // This ensures we don't lose the hash when switching to MetaMask app
+      setState(prev => ({
+        ...prev,
+        pendingTxHash: hash,
+        lastTransaction: hash,
+        statusMessage: '⏳ Waiting for confirmation...'
+      }));
+
+      console.log('📱 iOS Safari: Hash saved, now processing confirmation...');
 
       // Step 2: Process Confirmation (Separate step)
+      // This might be interrupted if user switches to MetaMask
       await processTransactionResult(hash, address, state.selectedPackage);
 
     } catch (error) {
@@ -264,8 +382,12 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: false,
+        pendingTxHash: null, // Clear pending on error
         statusMessage: `❌ ${errorMessage}`
       }));
+
+      // Clear localStorage on error
+      localStorage.removeItem('lumexia-pending-tx');
 
       alert(`❌ Payment Failed\n\n${errorMessage}`);
     }
@@ -409,10 +531,39 @@ const RealLauncherUI = ({ onStartGame }) => {
           <div className="mb-6">
             <ConnectButton
               label="Connect Wallet"
-              accountStatus="address"
+              accountStatus={{
+                smallScreen: 'avatar',
+                largeScreen: 'full',
+              }}
               chainStatus="icon"
-              showBalance={true}
+              showBalance={{
+                smallScreen: false,
+                largeScreen: true,
+              }}
             />
+
+            {/* Connection Status Indicator */}
+            {connectionStatus === 'connecting' && (
+              <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg animate-pulse">
+                <p className="text-yellow-200 text-xs text-center font-semibold">
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  Cüzdan bağlanıyor...
+                </p>
+                <p className="text-yellow-300 text-xs text-center mt-2">
+                  MetaMask uygulamanızda "Bağlan" butonuna basın
+                </p>
+              </div>
+            )}
+
+            {/* Mobile Connection Helper */}
+            {!isConnected && connectionStatus !== 'connecting' && (
+              <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-200 text-xs text-center">
+                  💡 Mobilde MetaMask uygulamanızı açın ve "Bağlan" butonuna basın. <br />
+                  Ardından bu uygulamaya geri dönün.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Wrong Network Warning */}
@@ -541,19 +692,29 @@ const RealLauncherUI = ({ onStartGame }) => {
 
               {/* MANUAL CHECK BUTTON - Visible only when pending and processing */}
               {state.pendingTxHash && state.isProcessing && (
-                <div className="mb-6 p-4 bg-orange-500/20 border border-orange-500/50 rounded-xl text-center animate-pulse">
-                  <p className="text-orange-200 text-sm mb-2">
-                    Waiting for confirmation...
+                <div className="mb-6 p-4 bg-orange-500/20 border border-orange-500/50 rounded-xl text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <i className="fas fa-spinner fa-spin mr-2 text-orange-400"></i>
+                    <p className="text-orange-200 text-sm font-semibold">
+                      İşlem onayı bekleniyor...
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-300 mb-3">
+                    💡 MetaMask'te ödemeyi onayladıysanız, aşağıdaki butona basarak durumu kontrol edin.
                   </p>
                   <p className="text-xs text-gray-400 mb-3">
-                    If you already paid in your wallet, click below to check status manually.
+                    TX Hash: {state.pendingTxHash.slice(0, 10)}...{state.pendingTxHash.slice(-8)}
                   </p>
                   <button
                      onClick={() => checkPendingTransaction(state.pendingTxHash)}
-                     className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg shadow-lg"
+                     className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
                   >
-                    Check Status Now
+                    <i className="fas fa-check-circle mr-2"></i>
+                    Durumu Kontrol Et
                   </button>
+                  <p className="text-xs text-gray-500 mt-3">
+                    İşlem genellikle 5-30 saniye içinde onaylanır
+                  </p>
                 </div>
               )}
 
