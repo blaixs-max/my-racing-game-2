@@ -586,9 +586,14 @@ export const useGameStore = create((set, get) => ({
 
     // Show warning at 100m before level end (only once per level)
     if (newDistance >= warningDistance && newDistance < levelEndDistance && !state.barricadeWarningShown) {
-      barricadeMessage = 'POLICE ROADBLOCK 100m AHEAD! SPEED UP!';
+      barricadeMessage = 'POLICE ROADBLOCK AHEAD! SPEED UP!';
       newBarricadeWarningShown = true;
-      setTimeout(() => set({ message: '' }), 3000);
+      // No setTimeout - message will be cleared by next message or level change
+    }
+
+    // Clear barricade message after passing the barricade zone
+    if (newDistance >= levelEndDistance + 20 && state.message.includes('POLICE')) {
+      barricadeMessage = ''; // Clear the message
     }
 
     // Spawn barricade when approaching level end (spawn at ~300m ahead of player)

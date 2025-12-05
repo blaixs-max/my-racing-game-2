@@ -614,14 +614,17 @@ function PlayerCar() {
       const playerX = group.current.position.x;
       const barricadeZ = policeBarricade.z;
       const openLane = policeBarricade.openLane;
+
+      // Open lane is at x = openLane * 3.0 (-3 for left, +3 for right)
+      // Police car is at center (x=0), metal barrier at edge (x=5 or x=-5)
       const openLaneX = openLane * 3.0;
 
       // Check if player is at barricade Z position (collision zone)
       const dzBarricade = Math.abs(barricadeZ - (-2)); // Player is at z = -2
 
-      if (dzBarricade < 8) { // Within barricade collision range
-        // Check if player is in the open lane
-        const isInOpenLane = Math.abs(playerX - openLaneX) < 1.8; // Lane width tolerance
+      if (dzBarricade < 6) { // Within barricade collision range
+        // Check if player is in the open lane (wider tolerance for easier passage)
+        const isInOpenLane = Math.abs(playerX - openLaneX) < 2.5; // Wider lane tolerance
 
         if (isInOpenLane) {
           // Player is in open lane - check speed requirement (150 km/h minimum)
@@ -632,7 +635,7 @@ function PlayerCar() {
           // If speed >= 150, player passes through successfully
         } else {
           // Player is NOT in open lane - collision with barricade!
-          if (dzBarricade < 4) {
+          if (dzBarricade < 3) {
             setGameOver();
           }
         }
@@ -906,6 +909,64 @@ const FlashingLight = memo(({ position, isRed }) => {
 
 FlashingLight.displayName = 'FlashingLight';
 
+// Metal Police Barrier Component (Blue barrier with "POLICE" text)
+const MetalBarrier = memo(({ position, width = 6 }) => {
+  const barCount = Math.floor(width / 0.4);
+
+  return (
+    <group position={position}>
+      {/* Horizontal top bar */}
+      <mesh position={[0, 1.1, 0]}>
+        <boxGeometry args={[width, 0.08, 0.08]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.9} roughness={0.3} />
+      </mesh>
+
+      {/* Horizontal bottom bar */}
+      <mesh position={[0, 0.15, 0]}>
+        <boxGeometry args={[width, 0.08, 0.08]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.9} roughness={0.3} />
+      </mesh>
+
+      {/* Vertical bars */}
+      {Array.from({ length: barCount }).map((_, i) => {
+        const xPos = -width / 2 + 0.2 + (i * (width / barCount));
+        return (
+          <mesh key={i} position={[xPos, 0.625, 0]}>
+            <boxGeometry args={[0.05, 0.95, 0.05]} />
+            <meshStandardMaterial color="#1e40af" metalness={0.9} roughness={0.3} />
+          </mesh>
+        );
+      })}
+
+      {/* Center panel with "POLICE" text background */}
+      <mesh position={[0, 0.65, 0.05]}>
+        <boxGeometry args={[width * 0.6, 0.5, 0.02]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.7} roughness={0.4} />
+      </mesh>
+
+      {/* "POLICE" text (white) */}
+      <mesh position={[0, 0.65, 0.08]}>
+        <boxGeometry args={[width * 0.5, 0.25, 0.01]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} />
+      </mesh>
+
+      {/* Left foot */}
+      <mesh position={[-width / 2 + 0.3, 0.05, 0.3]}>
+        <boxGeometry args={[0.1, 0.1, 0.6]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.9} roughness={0.3} />
+      </mesh>
+
+      {/* Right foot */}
+      <mesh position={[width / 2 - 0.3, 0.05, 0.3]}>
+        <boxGeometry args={[0.1, 0.1, 0.6]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.9} roughness={0.3} />
+      </mesh>
+    </group>
+  );
+});
+
+MetalBarrier.displayName = 'MetalBarrier';
+
 const PoliceBarricade = memo(() => {
   const policeBarricade = useGameStore(state => state.policeBarricade);
 
@@ -913,90 +974,75 @@ const PoliceBarricade = memo(() => {
 
   const { z, openLane } = policeBarricade;
 
-  // Get blocked lanes (2 lanes blocked, 1 open)
-  const blockedLanes = [-1, 0, 1].filter(l => l !== openLane);
+  // openLane: -1 = left open (barricade on right), 1 = right open (barricade on left)
+  // Barricade sticks to the opposite edge
+  const isBarricadeOnRight = openLane === -1; // If left is open, barricade is on right
+
+  // Police car position: center-ish, shifted towards blocked side
+  const policeCarX = isBarricadeOnRight ? 0 : 0; // Center lane
+
+  // Metal barrier position: between police car and road edge
+  const barrierX = isBarricadeOnRight ? 5 : -5; // Closer to edge
 
   return (
     <group position={[0, 0, z]}>
-      {/* Police cars blocking 2 lanes */}
-      {blockedLanes.map((lane, index) => {
-        const laneX = lane * 3.0;
-        return (
-          <group key={`police-${index}`} position={[laneX, 0, 0]}>
-            {/* Police car body */}
-            <mesh position={[0, 0.8, 0]}>
-              <boxGeometry args={[2.5, 1.2, 5]} />
-              <meshStandardMaterial color="#1a1a2e" metalness={0.8} roughness={0.3} />
-            </mesh>
-
-            {/* Police car roof */}
-            <mesh position={[0, 1.6, 0]}>
-              <boxGeometry args={[2.2, 0.6, 3]} />
-              <meshStandardMaterial color="#1a1a2e" metalness={0.8} roughness={0.3} />
-            </mesh>
-
-            {/* Flashing lights on roof */}
-            <group position={[0, 2.1, 0]}>
-              <FlashingLight position={[-0.5, 0, 0]} isRed={true} />
-              <FlashingLight position={[0.5, 0, 0]} isRed={false} />
-            </group>
-
-            {/* Barrier stripe on car */}
-            <mesh position={[0, 0.8, -2.6]}>
-              <boxGeometry args={[2.6, 0.3, 0.1]} />
-              <meshStandardMaterial color="#ffff00" emissive="#ffff00" emissiveIntensity={0.5} />
-            </mesh>
-
-            {/* Traffic cones beside the car */}
-            <mesh position={[1.5, 0.3, -1]}>
-              <coneGeometry args={[0.2, 0.6, 8]} />
-              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
-            </mesh>
-            <mesh position={[-1.5, 0.3, -1]}>
-              <coneGeometry args={[0.2, 0.6, 8]} />
-              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
-            </mesh>
-            <mesh position={[1.5, 0.3, 1]}>
-              <coneGeometry args={[0.2, 0.6, 8]} />
-              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
-            </mesh>
-            <mesh position={[-1.5, 0.3, 1]}>
-              <coneGeometry args={[0.2, 0.6, 8]} />
-              <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
-            </mesh>
-          </group>
-        );
-      })}
-
-      {/* Warning tape across the road (behind police cars) */}
-      <mesh position={[0, 1.2, -4]} rotation={[0, 0, 0]}>
-        <boxGeometry args={[20, 0.2, 0.1]} />
-        <meshStandardMaterial
-          color="#ffff00"
-          emissive="#ffaa00"
-          emissiveIntensity={0.5}
-        />
-      </mesh>
-
-      {/* "POLICE" text indicators on road */}
-      <mesh position={[0, 0.02, -8]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[8, 2]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          emissive="#ffffff"
-          emissiveIntensity={0.3}
-          transparent
-          opacity={0.9}
-        />
-      </mesh>
-
-      {/* Road spikes/strip across blocked lanes */}
-      {blockedLanes.map((lane, index) => (
-        <mesh key={`spike-${index}`} position={[lane * 3.0, 0.05, -6]}>
-          <boxGeometry args={[3.5, 0.1, 0.5]} />
-          <meshStandardMaterial color="#333333" roughness={0.9} />
+      {/* Single Police Car - positioned to block center and one side */}
+      <group position={[policeCarX, 0, 0]}>
+        {/* Police car body */}
+        <mesh position={[0, 0.8, 0]}>
+          <boxGeometry args={[2.8, 1.2, 5.5]} />
+          <meshStandardMaterial color="#1a1a2e" metalness={0.8} roughness={0.3} />
         </mesh>
-      ))}
+
+        {/* Police car roof */}
+        <mesh position={[0, 1.6, 0]}>
+          <boxGeometry args={[2.4, 0.6, 3.5]} />
+          <meshStandardMaterial color="#1a1a2e" metalness={0.8} roughness={0.3} />
+        </mesh>
+
+        {/* White stripe on car side */}
+        <mesh position={[1.41, 0.8, 0]}>
+          <boxGeometry args={[0.02, 0.3, 4]} />
+          <meshStandardMaterial color="#ffffff" />
+        </mesh>
+        <mesh position={[-1.41, 0.8, 0]}>
+          <boxGeometry args={[0.02, 0.3, 4]} />
+          <meshStandardMaterial color="#ffffff" />
+        </mesh>
+
+        {/* Flashing lights on roof */}
+        <group position={[0, 2.1, 0]}>
+          <FlashingLight position={[-0.6, 0, 0]} isRed={true} />
+          <FlashingLight position={[0.6, 0, 0]} isRed={false} />
+        </group>
+
+        {/* Traffic cones around car */}
+        <mesh position={[2, 0.3, -2]}>
+          <coneGeometry args={[0.2, 0.6, 8]} />
+          <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+        </mesh>
+        <mesh position={[-2, 0.3, -2]}>
+          <coneGeometry args={[0.2, 0.6, 8]} />
+          <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+        </mesh>
+        <mesh position={[2, 0.3, 2]}>
+          <coneGeometry args={[0.2, 0.6, 8]} />
+          <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+        </mesh>
+        <mesh position={[-2, 0.3, 2]}>
+          <coneGeometry args={[0.2, 0.6, 8]} />
+          <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+        </mesh>
+      </group>
+
+      {/* Metal Barrier - positioned on the blocked side */}
+      <MetalBarrier position={[barrierX, 0, 0]} width={5} />
+
+      {/* Extra traffic cones between car and barrier */}
+      <mesh position={[isBarricadeOnRight ? 2.5 : -2.5, 0.3, 0]}>
+        <coneGeometry args={[0.2, 0.6, 8]} />
+        <meshStandardMaterial color="#ff6600" emissive="#ff3300" emissiveIntensity={0.3} />
+      </mesh>
 
       {/* Ambient police atmosphere light */}
       <pointLight position={[0, 5, 0]} color="#ff0044" intensity={20} distance={50} />
