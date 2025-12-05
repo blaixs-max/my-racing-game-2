@@ -593,8 +593,8 @@ export const useGameStore = create((set, get) => ({
 
     // Spawn barricade when approaching level end (spawn at ~300m ahead of player)
     if (newDistance >= warningDistance && !newPoliceBarricade) {
-      // Randomly choose which lane will be open (-1, 0, or 1)
-      const openLane = Math.floor(Math.random() * 3) - 1;
+      // Open lane is either left (-1) or right (1) - never center (0)
+      const openLane = Math.random() < 0.5 ? -1 : 1;
       newPoliceBarricade = {
         id: 'barricade_' + state.currentLevel,
         z: -350, // Spawn ahead of player
