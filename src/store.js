@@ -176,7 +176,7 @@ export const useGameStore = create((set, get) => ({
 
   // Game Mode System
   gameMode: 'classic', // 'classic' | 'doubleOrNothing'
-  reachedLevel2: false, // Track if player reached level 2 (for Double or Nothing)
+  reachedLevel5: false, // Track if player reached level 5 (for Double or Nothing)
 
   updateCounter: 0,
   lastSpawnZ: -400,
@@ -202,7 +202,7 @@ export const useGameStore = create((set, get) => ({
   // Set game mode
   setGameMode: (mode) => set({
     gameMode: mode,
-    reachedLevel2: false
+    reachedLevel5: false
   }),
 
   // FIX 1: Enemy passed flag güncellemesi için yeni action
@@ -261,7 +261,7 @@ export const useGameStore = create((set, get) => ({
       isNitroActive: false,
       updateCounter: 0,
       startTime: 0, // Reset time
-      reachedLevel2: false, // Reset for Double or Nothing mode
+      reachedLevel5: false, // Reset for Double or Nothing mode
       policeBarricade: null,
       barricadeWarningShown: false,
       caughtByPolice: false,
@@ -460,7 +460,7 @@ export const useGameStore = create((set, get) => ({
     const newLevel = Math.floor(newDistance / 1000) + 1;
     let newLastLevelUpDistance = state.lastLevelUpDistance;
     let levelUpMessage = '';
-    let newReachedLevel2 = state.reachedLevel2;
+    let newReachedLevel5 = state.reachedLevel5;
 
     if (newLevel > state.currentLevel) {
       levelUpMessage = `LEVEL ${newLevel}!`;
@@ -468,11 +468,11 @@ export const useGameStore = create((set, get) => ({
       // Show level up message
       setTimeout(() => set({ message: '' }), 1500);
 
-      // Double or Nothing: Mark if player reached Level 2
-      if (newLevel >= 2 && !state.reachedLevel2) {
-        newReachedLevel2 = true;
+      // Double or Nothing: Mark if player reached Level 5
+      if (newLevel >= 5 && !state.reachedLevel5) {
+        newReachedLevel5 = true;
         if (state.gameMode === 'doubleOrNothing') {
-          levelUpMessage = `LEVEL 2! 2X BONUS UNLOCKED!`;
+          levelUpMessage = `LEVEL 5! 2X BONUS UNLOCKED!`;
         }
       }
     }
@@ -724,7 +724,7 @@ export const useGameStore = create((set, get) => ({
       updateCounter: newUpdateCounter,
       currentLevel: newLevel,
       lastLevelUpDistance: newLastLevelUpDistance,
-      reachedLevel2: newReachedLevel2,
+      reachedLevel5: newReachedLevel5,
       policeBarricade: newPoliceBarricade,
       barricadeWarningShown: newBarricadeWarningShown,
       message: barricadeMessage || levelUpMessage || state.message
