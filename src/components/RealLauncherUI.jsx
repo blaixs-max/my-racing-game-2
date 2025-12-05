@@ -479,8 +479,15 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    if (state.credits < 1) {
-      alert('You need at least 1 credit to start the game. Please purchase credits first.');
+    // Credit requirement based on game mode
+    const requiredCredits = state.gameMode === 'doubleOrNothing' ? 2 : 1;
+
+    if (state.credits < requiredCredits) {
+      if (state.gameMode === 'doubleOrNothing') {
+        alert('⚠️ Double or Nothing requires 2 credits!\n\nYou need at least 2 credits to play this mode. Please purchase more credits or switch to Classic Race mode.');
+      } else {
+        alert('You need at least 1 credit to start the game. Please purchase credits first.');
+      }
       return;
     }
 
@@ -605,6 +612,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                         <div className="text-3xl mb-2">🏎️</div>
                         <p className="text-white font-bold text-sm">CLASSIC RACE</p>
                         <p className="text-gray-300 text-xs mt-1">Normal scoring</p>
+                        <p className="text-green-400 text-xs mt-1 font-semibold">1 Credit</p>
                         {state.gameMode === 'classic' && (
                           <p className="text-green-300 text-xs mt-1">✓ Selected</p>
                         )}
@@ -625,6 +633,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                         <div className="text-3xl mb-2">🎰</div>
                         <p className="text-white font-bold text-sm">DOUBLE OR NOTHING</p>
                         <p className="text-gray-300 text-xs mt-1">2X score or 0!</p>
+                        <p className="text-yellow-400 text-xs mt-1 font-semibold">2 Credits</p>
                         {state.gameMode === 'doubleOrNothing' && (
                           <p className="text-yellow-300 text-xs mt-1">✓ Selected</p>
                         )}

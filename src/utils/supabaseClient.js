@@ -108,18 +108,19 @@ export const addCredits = async (walletAddress, amount, spentAmount) => {
 };
 
 /**
- * Kullanıcıdan 1 credit düş (oyun oynandığında)
+ * Kullanıcıdan credit düş (oyun oynandığında)
  * @param {string} walletAddress
+ * @param {number} amount - Düşülecek kredi miktarı (varsayılan: 1)
  */
-export const useCredit = async (walletAddress) => {
+export const useCredit = async (walletAddress, amount = 1) => {
   try {
     const user = await getOrCreateUser(walletAddress);
 
-    if (user.credits <= 0) {
+    if (user.credits < amount) {
       throw new Error('Insufficient credits');
     }
 
-    const newCredits = user.credits - 1;
+    const newCredits = user.credits - amount;
     const newGamesPlayed = (user.total_games_played || 0) + 1;
 
     const { data, error } = await supabase
@@ -135,7 +136,7 @@ export const useCredit = async (walletAddress) => {
 
     if (error) throw error;
 
-    console.log(`✅ Used 1 credit. Remaining: ${newCredits}`);
+    console.log(`✅ Used ${amount} credit(s). Remaining: ${newCredits}`);
     return data;
   } catch (error) {
     console.error('Error using credit:', error);
