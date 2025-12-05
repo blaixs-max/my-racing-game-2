@@ -8,7 +8,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
   const startTime = useGameStore(state => state.startTime);
   const selectedTeam = useGameStore(state => state.selectedTeam);
   const gameMode = useGameStore(state => state.gameMode);
-  const reachedLevel2 = useGameStore(state => state.reachedLevel2);
+  const reachedLevel5 = useGameStore(state => state.reachedLevel5);
 
   const [saveStatus, setSaveStatus] = useState('saving'); // 'saving', 'saved', 'error'
   const [errorMessage, setErrorMessage] = useState('');
@@ -16,10 +16,10 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
   // Calculate final score based on game mode
   const calculateFinalScore = () => {
     if (gameMode === 'doubleOrNothing') {
-      if (reachedLevel2) {
-        return Math.floor(score * 2); // 2x score if reached Level 2
+      if (reachedLevel5) {
+        return Math.floor(score * 2); // 2x score if reached Level 5
       } else {
-        return 0; // 0 score if didn't reach Level 2
+        return 0; // 0 score if didn't reach Level 5
       }
     }
     return Math.floor(score); // Classic mode - normal score
@@ -111,16 +111,16 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
           {/* Score Display */}
           <div className={`mb-6 p-4 rounded-xl border text-center ${
             gameMode === 'doubleOrNothing'
-              ? reachedLevel2
+              ? reachedLevel5
                 ? 'bg-gradient-to-r from-green-500/30 to-emerald-500/30 border-green-400/30'
                 : 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400/30'
               : 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400/30'
           }`}>
             <p className="text-gray-300 text-sm mb-1">FINAL SCORE</p>
             <p className={`text-5xl font-bold drop-shadow-lg ${
-              gameMode === 'doubleOrNothing' && !reachedLevel2
+              gameMode === 'doubleOrNothing' && !reachedLevel5
                 ? 'text-red-400'
-                : gameMode === 'doubleOrNothing' && reachedLevel2
+                : gameMode === 'doubleOrNothing' && reachedLevel5
                   ? 'text-green-400'
                   : 'text-yellow-400'
             }`}>{finalScore}</p>
@@ -128,22 +128,22 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             {/* Double or Nothing Mode Info */}
             {gameMode === 'doubleOrNothing' && (
               <div className={`mt-3 p-2 rounded-lg ${
-                reachedLevel2
+                reachedLevel5
                   ? 'bg-green-500/20 border border-green-400/30'
                   : 'bg-red-500/20 border border-red-400/30'
               }`}>
-                {reachedLevel2 ? (
+                {reachedLevel5 ? (
                   <>
                     <p className="text-green-300 text-sm font-bold">🎰 DOUBLE OR NOTHING: SUCCESS!</p>
                     <p className="text-green-200 text-xs mt-1">
-                      Level 2 reached! Original: {Math.floor(score)} → 2X = {finalScore}
+                      Level 5 reached! Original: {Math.floor(score)} → 2X = {finalScore}
                     </p>
                   </>
                 ) : (
                   <>
                     <p className="text-red-300 text-sm font-bold">🎰 DOUBLE OR NOTHING: FAILED!</p>
                     <p className="text-red-200 text-xs mt-1">
-                      Did not reach Level 2. Score: 0
+                      Did not reach Level 5. Score: 0
                     </p>
                   </>
                 )}

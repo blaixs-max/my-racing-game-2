@@ -653,7 +653,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                       </p>
                     ) : (
                       <p className="text-yellow-200 text-xs text-center">
-                        🎰 Double or Nothing: Reach Level 2 for 2X score, or score becomes 0!
+                        🎰 Double or Nothing: Reach Level 5 for 2X score, or score becomes 0!
                       </p>
                     )}
                   </div>
