@@ -78,6 +78,8 @@ const RealLauncherUI = ({ onStartGame }) => {
       selectedTeam: null, // 'blue' | 'red' | null
       canChangeTeam: true,
       teamSelectionDate: null,
+      // Game Mode System
+      gameMode: 'classic', // 'classic' | 'doubleOrNothing'
     };
   });
 
@@ -492,7 +494,8 @@ const RealLauncherUI = ({ onStartGame }) => {
     onStartGame({
       walletAddress: address,
       credits: state.credits,
-      selectedTeam: state.selectedTeam // Pass team to game
+      selectedTeam: state.selectedTeam, // Pass team to game
+      gameMode: state.gameMode // Pass game mode to game
     });
   };
 
@@ -581,6 +584,73 @@ const RealLauncherUI = ({ onStartGame }) => {
             </div>
           ) : (
             <>
+              {/* Game Mode Selection */}
+              {isConnected && (
+                <div className="mb-6">
+                  <h3 className="text-white text-lg font-semibold mb-3 text-center">
+                    🎮 Select Game Mode
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Classic Race */}
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, gameMode: 'classic' }))}
+                      disabled={state.isProcessing}
+                      className={`p-4 rounded-xl transition-all duration-300 border-2 ${
+                        state.gameMode === 'classic'
+                          ? 'bg-green-500/30 border-green-400 scale-105'
+                          : 'bg-green-500/10 border-green-400/30 hover:bg-green-500/20 hover:border-green-400/50'
+                      } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🏎️</div>
+                        <p className="text-white font-bold text-sm">CLASSIC RACE</p>
+                        <p className="text-gray-300 text-xs mt-1">Normal scoring</p>
+                        {state.gameMode === 'classic' && (
+                          <p className="text-green-300 text-xs mt-1">✓ Selected</p>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Double or Nothing */}
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, gameMode: 'doubleOrNothing' }))}
+                      disabled={state.isProcessing}
+                      className={`p-4 rounded-xl transition-all duration-300 border-2 ${
+                        state.gameMode === 'doubleOrNothing'
+                          ? 'bg-yellow-500/30 border-yellow-400 scale-105'
+                          : 'bg-yellow-500/10 border-yellow-400/30 hover:bg-yellow-500/20 hover:border-yellow-400/50'
+                      } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🎰</div>
+                        <p className="text-white font-bold text-sm">DOUBLE OR NOTHING</p>
+                        <p className="text-gray-300 text-xs mt-1">2X score or 0!</p>
+                        {state.gameMode === 'doubleOrNothing' && (
+                          <p className="text-yellow-300 text-xs mt-1">✓ Selected</p>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Game Mode Info */}
+                  <div className={`mt-3 p-3 rounded-lg border ${
+                    state.gameMode === 'classic'
+                      ? 'bg-green-500/10 border-green-500/30'
+                      : 'bg-yellow-500/10 border-yellow-500/30'
+                  }`}>
+                    {state.gameMode === 'classic' ? (
+                      <p className="text-green-200 text-xs text-center">
+                        🏎️ Classic Mode: Your score is saved as normal.
+                      </p>
+                    ) : (
+                      <p className="text-yellow-200 text-xs text-center">
+                        🎰 Double or Nothing: Reach Level 2 for 2X score, or score becomes 0!
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Team Selection - MANDATORY */}
               {isConnected && (
                 <div className="mb-6">

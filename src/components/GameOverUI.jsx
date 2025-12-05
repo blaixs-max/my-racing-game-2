@@ -7,9 +7,25 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
   const walletAddress = useGameStore(state => state.walletAddress);
   const startTime = useGameStore(state => state.startTime);
   const selectedTeam = useGameStore(state => state.selectedTeam);
+  const gameMode = useGameStore(state => state.gameMode);
+  const reachedLevel2 = useGameStore(state => state.reachedLevel2);
 
   const [saveStatus, setSaveStatus] = useState('saving'); // 'saving', 'saved', 'error'
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Calculate final score based on game mode
+  const calculateFinalScore = () => {
+    if (gameMode === 'doubleOrNothing') {
+      if (reachedLevel2) {
+        return Math.floor(score * 2); // 2x score if reached Level 2
+      } else {
+        return 0; // 0 score if didn't reach Level 2
+      }
+    }
+    return Math.floor(score); // Classic mode - normal score
+  };
+
+  const finalScore = calculateFinalScore();
 
   useEffect(() => {
     // Prevent double saving if component re-renders
@@ -23,7 +39,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
       }
 
       const duration = Math.floor((Date.now() - startTime) / 1000);
-      console.log("Submitting Score:", score, "Duration:", duration);
+      console.log("Submitting Score:", finalScore, "Duration:", duration, "Mode:", gameMode);
 
       if (!navigator.onLine) {
         setSaveStatus('error');
@@ -34,7 +50,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
       try {
         const { error } = await supabase.rpc('submit_score', {
             p_wallet: walletAddress,
-            p_score: Math.floor(score),
+            p_score: finalScore,
             p_duration: duration,
             p_distance: Math.floor(totalDistance),
             p_team: selectedTeam || 'none' // Add team parameter
@@ -93,12 +109,52 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
         <div className="w-full max-w-md backdrop-blur-lg bg-white/10 rounded-3xl p-4 sm:p-8 shadow-2xl border border-white/20">
 
           {/* Score Display */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-red-500/30 to-orange-500/30 rounded-xl border border-red-400/30 text-center">
+          <div className={`mb-6 p-4 rounded-xl border text-center ${
+            gameMode === 'doubleOrNothing'
+              ? reachedLevel2
+                ? 'bg-gradient-to-r from-green-500/30 to-emerald-500/30 border-green-400/30'
+                : 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400/30'
+              : 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400/30'
+          }`}>
             <p className="text-gray-300 text-sm mb-1">FINAL SCORE</p>
-            <p className="text-5xl font-bold text-yellow-400 drop-shadow-lg">{Math.floor(score)}</p>
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <span className="text-yellow-300 text-xs animate-pulse">⭐ Play more to score More ⭐</span>
-            </div>
+            <p className={`text-5xl font-bold drop-shadow-lg ${
+              gameMode === 'doubleOrNothing' && !reachedLevel2
+                ? 'text-red-400'
+                : gameMode === 'doubleOrNothing' && reachedLevel2
+                  ? 'text-green-400'
+                  : 'text-yellow-400'
+            }`}>{finalScore}</p>
+
+            {/* Double or Nothing Mode Info */}
+            {gameMode === 'doubleOrNothing' && (
+              <div className={`mt-3 p-2 rounded-lg ${
+                reachedLevel2
+                  ? 'bg-green-500/20 border border-green-400/30'
+                  : 'bg-red-500/20 border border-red-400/30'
+              }`}>
+                {reachedLevel2 ? (
+                  <>
+                    <p className="text-green-300 text-sm font-bold">🎰 DOUBLE OR NOTHING: SUCCESS!</p>
+                    <p className="text-green-200 text-xs mt-1">
+                      Level 2 reached! Original: {Math.floor(score)} → 2X = {finalScore}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-red-300 text-sm font-bold">🎰 DOUBLE OR NOTHING: FAILED!</p>
+                    <p className="text-red-200 text-xs mt-1">
+                      Did not reach Level 2. Score: 0
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {gameMode === 'classic' && (
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <span className="text-yellow-300 text-xs animate-pulse">⭐ Play more to score More ⭐</span>
+              </div>
+            )}
           </div>
 
           {/* Statistics Grid */}
