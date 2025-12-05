@@ -138,6 +138,10 @@ export const useGameStore = create((set, get) => ({
   teamSelectionDate: null,
   canChangeTeam: true,
 
+  // Game Mode System
+  gameMode: 'classic', // 'classic' | 'doubleOrNothing'
+  reachedLevel2: false, // Track if player reached level 2 (for Double or Nothing)
+
   updateCounter: 0,
   lastSpawnZ: -400,
 
@@ -157,6 +161,12 @@ export const useGameStore = create((set, get) => ({
     selectedTeam: team,
     teamSelectionDate: selectionDate,
     canChangeTeam: canChange
+  }),
+
+  // Set game mode
+  setGameMode: (mode) => set({
+    gameMode: mode,
+    reachedLevel2: false
   }),
 
   // FIX 1: Enemy passed flag güncellemesi için yeni action
@@ -213,6 +223,7 @@ export const useGameStore = create((set, get) => ({
       isNitroActive: false,
       updateCounter: 0,
       startTime: 0, // Reset time
+      reachedLevel2: false, // Reset for Double or Nothing mode
 
       cameraShake: 0,
       lastSpawnZ: -400
@@ -407,12 +418,21 @@ export const useGameStore = create((set, get) => ({
     const newLevel = Math.floor(newDistance / 1000) + 1;
     let newLastLevelUpDistance = state.lastLevelUpDistance;
     let levelUpMessage = '';
+    let newReachedLevel2 = state.reachedLevel2;
 
     if (newLevel > state.currentLevel) {
       levelUpMessage = `LEVEL ${newLevel}!`;
       newLastLevelUpDistance = newDistance;
       // Show level up message
       setTimeout(() => set({ message: '' }), 1500);
+
+      // Double or Nothing: Mark if player reached Level 2
+      if (newLevel >= 2 && !state.reachedLevel2) {
+        newReachedLevel2 = true;
+        if (state.gameMode === 'doubleOrNothing') {
+          levelUpMessage = `LEVEL 2! 2X BONUS UNLOCKED!`;
+        }
+      }
     }
 
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
@@ -615,6 +635,7 @@ export const useGameStore = create((set, get) => ({
       updateCounter: newUpdateCounter,
       currentLevel: newLevel,
       lastLevelUpDistance: newLastLevelUpDistance,
+      reachedLevel2: newReachedLevel2,
       message: levelUpMessage || state.message
     };
   }),

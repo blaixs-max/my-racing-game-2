@@ -2261,6 +2261,7 @@ export default function App() {
   const setGameState = useGameStore(state => state.setGameState);
   const setWalletData = useGameStore(state => state.setWalletData);
   const setTeamData = useGameStore(state => state.setTeamData);
+  const setGameMode = useGameStore(state => state.setGameMode);
   const startGame = useGameStore(state => state.startGame);
 
   // Restore viewport settings on mount
@@ -2330,6 +2331,11 @@ export default function App() {
     // Team bilgisini kaydet
     if (data.selectedTeam) {
       setTeamData(data.selectedTeam, null, false);
+    }
+
+    // Game mode bilgisini kaydet
+    if (data.gameMode) {
+      setGameMode(data.gameMode);
     }
 
     // Oyunu başlat (countdown timer'ı başlatır)
