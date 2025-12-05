@@ -23,7 +23,7 @@ const appMetadata = {
   icons: [`${APP_URL}icon.png`],
 };
 
-// Shared WalletConnect Parameters - Enhanced for Mobile
+// Shared WalletConnect Parameters - Enhanced for iOS Safari
 const sharedWalletConnectParams = {
   projectId: projectId,
   metadata: appMetadata,
@@ -33,16 +33,24 @@ const sharedWalletConnectParams = {
     themeMode: 'dark',
     themeVariables: {
       '--wcm-z-index': '9999'
-    }
+    },
+    // iOS Safari specific
+    explorerRecommendedWalletIds: [
+      'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+      '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
+    ],
+    explorerExcludedWalletIds: 'ALL', // Only show recommended wallets
   },
   // Disable email/SMS login to force wallet-only connection
   enableExplorer: true,
-  // Mobile deep linking configuration
+  // Mobile deep linking configuration - iOS Safari optimized
   mobileLinks: [
     'metamask',
     'trust',
     'rainbow',
   ],
+  // iOS-specific universal links
+  isNewChainsStale: false,
 };
 
 // Wallet Configuration
@@ -51,10 +59,16 @@ const connectors = connectorsForWallets(
     {
       groupName: 'Recommended',
       wallets: [
-        // MetaMask
+        // MetaMask - iOS Safari optimized
         () => metaMaskWallet({
           projectId: projectId,
           walletConnectParameters: sharedWalletConnectParams,
+          // iOS Safari specific options
+          dappMetadata: appMetadata,
+          // Force deep linking on mobile
+          preferDesktop: false,
+          // Enable mobile app detection
+          checkInstallationImmediately: false,
         }),
         // Trust Wallet
         () => trustWallet({

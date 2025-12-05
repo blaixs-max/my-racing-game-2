@@ -26,9 +26,16 @@ createRoot(document.getElementById('root')).render(
           appInfo={{
             appName: 'LUMEXIA Racing',
             learnMoreUrl: 'https://newracing.netlify.app/',
+            disclaimer: ({ Text, Link }) => (
+              <Text>
+                MetaMask açıldıktan sonra "Bağlan" butonuna basın, ardından bu uygulamaya geri dönün.
+              </Text>
+            ),
           }}
           // Mobile wallet connection configuration
           coolMode={false} // Disable confetti to reduce interference
+          // iOS Safari: Keep modal open after connection initiated
+          // to help users return to the app after confirming in wallet
         >
           <App />
         </RainbowKitProvider>
