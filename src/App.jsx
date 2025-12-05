@@ -106,8 +106,8 @@ class ErrorBoundary extends React.Component {
           textAlign: 'center',
           zIndex: 10000
         }}>
-          <h1 style={{ color: '#ff0000', fontSize: '36px' }}>⚠️ Oyun Hatası</h1>
-          <p style={{ fontSize: '18px' }}>Bir hata oluştu. Lütfen sayfayı yenileyin.</p>
+          <h1 style={{ color: '#ff0000', fontSize: '36px' }}>⚠️ Game Error</h1>
+          <p style={{ fontSize: '18px' }}>An error occurred. Please refresh the page.</p>
           <button
             onClick={() => window.location.reload()}
             style={{
@@ -120,7 +120,7 @@ class ErrorBoundary extends React.Component {
               fontWeight: 'bold'
             }}
           >
-            Yeniden Başlat
+            Restart
           </button>
         </div>
       );
@@ -1632,13 +1632,13 @@ function Game() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      console.log("✅ İnternet bağlantısı geri geldi");
+      console.log("✅ Internet connection restored");
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      console.log("❌ İnternet bağlantısı kesildi");
-      alert("⚠️ İnternet bağlantısı kesildi!\nBağlantı geri geldiğinde oyuna devam edebilirsiniz.");
+      console.log("❌ Internet connection lost");
+      alert("⚠️ Internet connection lost!\nYou can continue playing when the connection is restored.");
     };
 
     window.addEventListener('online', handleOnline);
@@ -1748,7 +1748,7 @@ function Game() {
           boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)',
           animation: 'pulse 2s infinite'
         }}>
-          ⚠️ İnternet Bağlantısı Yok
+          ⚠️ No Internet Connection
         </div>
       )}
 

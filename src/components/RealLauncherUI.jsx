@@ -557,10 +557,10 @@ const RealLauncherUI = ({ onStartGame }) => {
               <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg animate-pulse">
                 <p className="text-yellow-200 text-xs text-center font-semibold">
                   <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Cüzdan bağlanıyor...
+                  Connecting wallet...
                 </p>
                 <p className="text-yellow-300 text-xs text-center mt-2">
-                  MetaMask uygulamanızda "Bağlan" butonuna basın
+                  Click "Connect" in your MetaMask app
                 </p>
               </div>
             )}
@@ -569,8 +569,8 @@ const RealLauncherUI = ({ onStartGame }) => {
             {!isConnected && connectionStatus !== 'connecting' && (
               <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <p className="text-blue-200 text-xs text-center">
-                  💡 Mobilde MetaMask uygulamanızı açın ve "Bağlan" butonuna basın. <br />
-                  Ardından bu uygulamaya geri dönün.
+                  💡 On mobile, open your MetaMask app and click "Connect". <br />
+                  Then return to this app.
                 </p>
               </div>
             )}
@@ -580,13 +580,13 @@ const RealLauncherUI = ({ onStartGame }) => {
           {showWrongNetwork ? (
             <div className="mb-6 p-6 bg-red-900/50 rounded-xl border border-red-500 text-center animate-pulse">
               <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
-              <h3 className="text-xl font-bold text-white mb-2">Yanlış Ağ!</h3>
-              <p className="text-gray-300 mb-4">Lütfen oyuna devam etmek için BSC Testnet ağına geçin.</p>
+              <h3 className="text-xl font-bold text-white mb-2">Wrong Network!</h3>
+              <p className="text-gray-300 mb-4">Please switch to BSC Testnet to continue playing.</p>
               <button
                 onClick={() => switchChain({ chainId: bscTestnet.id })}
                 className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors shadow-lg"
               >
-                Ağı Değiştir (BSC Testnet)
+                Switch Network (BSC Testnet)
               </button>
             </div>
           ) : (
@@ -775,11 +775,11 @@ const RealLauncherUI = ({ onStartGame }) => {
                   <div className="flex items-center justify-center mb-2">
                     <i className="fas fa-spinner fa-spin mr-2 text-orange-400"></i>
                     <p className="text-orange-200 text-sm font-semibold">
-                      İşlem onayı bekleniyor...
+                      Waiting for transaction confirmation...
                     </p>
                   </div>
                   <p className="text-xs text-gray-300 mb-3">
-                    💡 MetaMask'te ödemeyi onayladıysanız, aşağıdaki butona basarak durumu kontrol edin.
+                    💡 If you confirmed payment in MetaMask, click the button below to check status.
                   </p>
                   <p className="text-xs text-gray-400 mb-3">
                     TX Hash: {state.pendingTxHash.slice(0, 10)}...{state.pendingTxHash.slice(-8)}
@@ -789,10 +789,10 @@ const RealLauncherUI = ({ onStartGame }) => {
                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
                   >
                     <i className="fas fa-check-circle mr-2"></i>
-                    Durumu Kontrol Et
+                    Check Status
                   </button>
                   <p className="text-xs text-gray-500 mt-3">
-                    İşlem genellikle 5-30 saniye içinde onaylanır
+                    Transaction usually confirms within 5-30 seconds
                   </p>
                 </div>
               )}
