@@ -203,6 +203,22 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             </p>
           </div>
 
+          {/* Anti-Cheat Warning */}
+          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-500/30">
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-2xl">🛡️</span>
+              <div className="text-center">
+                <p className="text-amber-300 text-sm font-semibold">
+                  Fair Play Protected
+                </p>
+                <p className="text-amber-200/70 text-xs mt-1">
+                  All scores are verified on-chain. Cheaters will be detected.
+                </p>
+              </div>
+              <span className="text-2xl">⚔️</span>
+            </div>
+          </div>
+
           {/* Action Buttons - Only 2 buttons */}
           <div className="space-y-3">
             {/* RACE AGAIN - Only enabled if user has credits */}
