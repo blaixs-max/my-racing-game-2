@@ -2264,6 +2264,10 @@ export default function App() {
   const setGameMode = useGameStore(state => state.setGameMode);
   const startGame = useGameStore(state => state.startGame);
 
+  // Key to force RealLauncherUI remount when returning from Game Over
+  // This ensures loadUserData is called and credits are refreshed
+  const [launcherKey, setLauncherKey] = useState(0);
+
   // Restore viewport settings on mount
   useEffect(() => {
     let metaViewport = document.querySelector('meta[name=viewport]');
@@ -2347,7 +2351,7 @@ export default function App() {
       {gameState === 'loading' && <LoadingScreen />}
 
       {gameState === 'launcher' && (
-        <RealLauncherUI onStartGame={handleLauncherStart} />
+        <RealLauncherUI key={launcherKey} onStartGame={handleLauncherStart} />
       )}
 
       {/* Render Game (Canvas) ONLY when playing or countdown. Unmount on GameOver. */}
@@ -2361,7 +2365,11 @@ export default function App() {
           totalDistance={useGameStore.getState().totalDistance}
           nearMissCount={useGameStore.getState().nearMissCount}
           onRestart={useGameStore.getState().startGame}
-          onMainMenu={() => setGameState('launcher')}
+          onMainMenu={() => {
+            // Increment key to force RealLauncherUI remount and reload user data
+            setLauncherKey(prev => prev + 1);
+            setGameState('launcher');
+          }}
         />
       )}
     </ErrorBoundary>
