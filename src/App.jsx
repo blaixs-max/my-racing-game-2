@@ -2134,31 +2134,31 @@ const LoadingScreen = () => {
       pointerEvents: 'none',
       padding: isMobile ? '20px' : '40px'
     }}>
-      {/* Banner - Gradient Design */}
+      {/* Banner - Frame Design */}
       <div style={{
         width: bannerWidth,
         height: bannerHeight,
         maxWidth: '1400px',
         maxHeight: '750px',
         marginBottom: isMobile ? '15px' : '25px',
-        borderRadius: '20px',
+        borderRadius: '12px',
         overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(255, 215, 0, 0.3), 0 0 40px rgba(255, 165, 0, 0.2)',
-        border: '2px solid rgba(255, 215, 0, 0.3)',
+        boxShadow: '0 20px 60px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 165, 0, 0.3)',
+        border: '4px solid #FFD700',
         position: 'relative',
         animation: 'pulse 3s ease-in-out infinite',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        background: '#000'
       }}>
         <img
-          src="/Lumexia.png"
+          src="/Lumexia.jpg"
           alt="LUMEXIA Racing"
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'contain',
-            borderRadius: '18px'
+            objectFit: 'contain'
           }}
         />
       </div>
