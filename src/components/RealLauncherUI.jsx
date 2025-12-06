@@ -377,7 +377,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         ...prev,
         isProcessing: true,
         statusMessage: isMobile
-          ? '⏳ Cüzdan açılıyor... MetaMask\'te işlemi onaylayın'
+          ? '⏳ Opening wallet... Confirm in MetaMask'
           : '⏳ Opening wallet... Please confirm in your wallet app'
       }));
 
@@ -398,7 +398,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         pendingTxHash: hash,
         lastTransaction: hash,
         statusMessage: isMobile
-          ? '⏳ İşlem gönderildi! Cüzdanı kontrol edin...'
+          ? '⏳ Transaction sent! Check your wallet...'
           : '⏳ Transaction sent! Waiting for blockchain confirmation...'
       }));
 
@@ -424,7 +424,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         errorMessage = 'Wallet disconnected. Please reconnect and try again.';
       } else if (error.message?.includes('connector')) {
         errorMessage = isMobile
-          ? 'Cüzdan bağlantısı kesildi. Sayfayı yenileyip tekrar deneyin.'
+          ? 'Wallet connection lost. Refresh and try again.'
           : 'Wallet connection lost. Please refresh and try again.';
       } else {
         errorMessage = error.message || 'Unknown error occurred';
@@ -446,8 +446,8 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       if (isMobile && showOpenWalletHint) {
         alert(
-          `❌ Ödeme Başarısız\n\n${errorMessage}\n\n` +
-          `💡 İpucu: MetaMask uygulamanızı manuel olarak açıp bekleyen işlem olup olmadığını kontrol edin.`
+          `❌ Payment Failed\n\n${errorMessage}\n\n` +
+          `💡 Tip: Open your MetaMask app manually and check for pending transactions.`
         );
       } else {
         alert(`❌ Payment Failed\n\n${errorMessage}`);
@@ -617,10 +617,10 @@ const RealLauncherUI = ({ onStartGame }) => {
               <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg animate-pulse">
                 <p className="text-yellow-200 text-xs text-center font-semibold">
                   <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Cüzdan bağlanıyor...
+                  Connecting wallet...
                 </p>
                 <p className="text-yellow-300 text-xs text-center mt-2">
-                  MetaMask uygulamanızda "Bağlan" butonuna basın
+                  Click "Connect" in your MetaMask app
                 </p>
               </div>
             )}
@@ -629,8 +629,8 @@ const RealLauncherUI = ({ onStartGame }) => {
             {!isConnected && connectionStatus !== 'connecting' && (
               <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <p className="text-blue-200 text-xs text-center">
-                  💡 Mobilde MetaMask uygulamanızı açın ve "Bağlan" butonuna basın. <br />
-                  Ardından bu uygulamaya geri dönün.
+                  💡 On mobile, open your MetaMask app and click "Connect". <br />
+                  Then return to this app.
                 </p>
               </div>
             )}
@@ -640,13 +640,13 @@ const RealLauncherUI = ({ onStartGame }) => {
           {showWrongNetwork ? (
             <div className="mb-6 p-6 bg-red-900/50 rounded-xl border border-red-500 text-center animate-pulse">
               <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
-              <h3 className="text-xl font-bold text-white mb-2">Yanlış Ağ!</h3>
-              <p className="text-gray-300 mb-4">Lütfen oyuna devam etmek için BSC Testnet ağına geçin.</p>
+              <h3 className="text-xl font-bold text-white mb-2">Wrong Network!</h3>
+              <p className="text-gray-300 mb-4">Please switch to BSC Testnet to continue playing.</p>
               <button
                 onClick={() => switchChain({ chainId: bscTestnet.id })}
                 className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors shadow-lg"
               >
-                Ağı Değiştir (BSC Testnet)
+                Switch Network (BSC Testnet)
               </button>
             </div>
           ) : (
@@ -839,11 +839,11 @@ const RealLauncherUI = ({ onStartGame }) => {
                       <i className="fas fa-clock mr-2 text-orange-400"></i>
                     )}
                     <p className="text-orange-200 text-sm font-semibold">
-                      {state.isProcessing ? 'İşlem onayı bekleniyor...' : 'Bekleyen işlem var'}
+                      {state.isProcessing ? 'Waiting for transaction confirmation...' : 'Pending transaction'}
                     </p>
                   </div>
                   <p className="text-xs text-gray-300 mb-3">
-                    💡 MetaMask'te ödemeyi onayladıysanız, aşağıdaki butona basarak durumu kontrol edin.
+                    💡 If you confirmed payment in MetaMask, click the button below to check status.
                   </p>
                   <p className="text-xs text-gray-400 mb-3">
                     TX Hash: {state.pendingTxHash.slice(0, 10)}...{state.pendingTxHash.slice(-8)}
@@ -858,7 +858,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
                       >
                         <i className="fas fa-wallet mr-2"></i>
-                        Cüzdanı Aç
+                        Open Wallet
                       </button>
                     )}
                     <button
@@ -874,17 +874,17 @@ const RealLauncherUI = ({ onStartGame }) => {
                        }`}
                     >
                       <i className="fas fa-check-circle mr-2"></i>
-                      Durumu Kontrol Et
+                      Check Status
                     </button>
                     <button
                        onClick={() => {
-                         if (confirm('İşlemi iptal etmek istediğinize emin misiniz?\n\nNot: Eğer blockchain\'de ödeme zaten yapıldıysa, kredi hesabınıza eklenmeyebilir.')) {
+                         if (confirm('Are you sure you want to cancel the transaction?\n\nNote: If the payment was already made on blockchain, credits may not be added to your account.')) {
                            setState(prev => ({
                              ...prev,
                              isProcessing: false,
                              pendingTxHash: null,
                              selectedPackage: null,
-                             statusMessage: 'İşlem iptal edildi'
+                             statusMessage: 'Transaction cancelled'
                            }));
                            localStorage.removeItem('lumexia-pending-tx');
                          }
@@ -892,13 +892,13 @@ const RealLauncherUI = ({ onStartGame }) => {
                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
                     >
                       <i className="fas fa-times-circle mr-2"></i>
-                      İptal Et
+                      Cancel
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-3">
                     {isMobileDevice()
-                      ? '📱 Cüzdan açılmazsa "Cüzdanı Aç" butonuna basın'
-                      : 'İşlem genellikle 5-30 saniye içinde onaylanır'}
+                      ? '📱 If wallet doesn\'t open, click "Open Wallet" button'
+                      : 'Transaction usually confirms within 5-30 seconds'}
                   </p>
                   {/* BSCScan Link */}
                   <a
@@ -907,7 +907,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                     rel="noopener noreferrer"
                     className="inline-block mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
                   >
-                    BSCScan'da Görüntüle →
+                    View on BSCScan →
                   </a>
                 </div>
               )}

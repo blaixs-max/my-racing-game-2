@@ -28,7 +28,7 @@ createRoot(document.getElementById('root')).render(
             learnMoreUrl: 'https://newracing.netlify.app/',
             disclaimer: ({ Text, Link }) => (
               <Text>
-                MetaMask açıldıktan sonra "Bağlan" butonuna basın, ardından bu uygulamaya geri dönün.
+                After MetaMask opens, click "Connect", then return to this app.
               </Text>
             ),
           }}
