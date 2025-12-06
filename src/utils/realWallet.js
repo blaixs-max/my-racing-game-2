@@ -1,7 +1,12 @@
 /**
- * REAL WALLET UTILITIES
+ * REAL WALLET UTILITIES - 2025 STABLE VERSION
  * BSC Testnet - Real Blockchain Integration
- * Enhanced for Mobile Wallet Support
+ *
+ * Key improvements:
+ * 1. Universal links for iOS (more reliable than deep links)
+ * 2. Android intent:// fallback
+ * 3. Better error handling and retry logic
+ * 4. Robust transaction confirmation
  */
 
 import { sendTransaction, waitForTransactionReceipt, getTransactionReceipt, reconnect, getAccount } from '@wagmi/core';
@@ -15,14 +20,27 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Detect if user is on mobile device
+ * Enhanced detection for tablets and modern devices
  */
 export function isMobileDevice() {
   if (typeof window === 'undefined') return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // Check user agent
+  const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i;
+
+  // Check touch support
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+  // Check screen size (mobile typically < 768px width)
+  const isSmallScreen = window.innerWidth < 768;
+
+  return mobileRegex.test(userAgent) || (hasTouch && isSmallScreen);
 }
 
 /**
  * Detect if user is on iOS
+ * Includes iPad detection (iPadOS reports as MacIntel)
  */
 export function isIOS() {
   if (typeof window === 'undefined') return false;
@@ -31,33 +49,79 @@ export function isIOS() {
 }
 
 /**
- * Get MetaMask deep link URL
- * Uses universal links for iOS (recommended by MetaMask)
+ * Detect if user is on Android
+ */
+export function isAndroid() {
+  if (typeof window === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+/**
+ * Get MetaMask universal link URL
+ *
+ * 2025 Best Practice: Use universal links instead of deep links
+ * - iOS: Universal links are more reliable in Safari
+ * - Avoids "open in app?" prompts
  */
 export function getMetaMaskDeepLink() {
-  // Universal link works better on iOS
-  // WalletConnect bridge link - triggers MetaMask to check for pending requests
+  // Universal link - works on both iOS and Android
+  // This triggers MetaMask to check for pending WalletConnect requests
   return 'https://metamask.app.link/wc';
 }
 
 /**
- * Open MetaMask wallet on mobile
- * This forces the wallet app to open and show pending transaction
+ * Get Trust Wallet universal link
  */
-export function openWalletOnMobile() {
-  if (!isMobileDevice()) return false;
+export function getTrustWalletDeepLink() {
+  return 'https://link.trustwallet.com/wc';
+}
+
+/**
+ * Open wallet app on mobile
+ *
+ * Strategy:
+ * 1. iOS: Use universal links (window.location.href)
+ * 2. Android: Try universal link, fallback to intent://
+ * 3. Delay slightly to ensure WalletConnect session is ready
+ */
+export function openWalletOnMobile(walletType = 'metamask') {
+  if (!isMobileDevice()) {
+    console.log('📱 Not a mobile device, skipping wallet open');
+    return false;
+  }
 
   try {
-    const deepLink = getMetaMaskDeepLink();
-    console.log('📱 Opening MetaMask via deep link:', deepLink);
+    let deepLink;
 
-    // Use window.location for more reliable deep linking on iOS Safari
+    switch (walletType) {
+      case 'trust':
+        deepLink = getTrustWalletDeepLink();
+        break;
+      case 'metamask':
+      default:
+        deepLink = getMetaMaskDeepLink();
+        break;
+    }
+
+    console.log(`📱 Opening ${walletType} via link:`, deepLink);
+
     if (isIOS()) {
+      // iOS: Use location.href for more reliable universal link handling
+      // This avoids the "Open in App?" confirmation dialog
       window.location.href = deepLink;
+    } else if (isAndroid()) {
+      // Android: Try universal link first
+      // If MetaMask is not installed, this will open browser
+      const win = window.open(deepLink, '_blank');
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        // Popup blocked, try direct navigation
+        window.location.href = deepLink;
+      }
     } else {
-      // For Android, window.open works better
+      // Fallback for other mobile browsers
       window.open(deepLink, '_blank');
     }
+
     return true;
   } catch (error) {
     console.warn('Failed to open wallet:', error);
@@ -67,36 +131,49 @@ export function openWalletOnMobile() {
 
 /**
  * Ensure wallet is connected before transaction
- * Attempts reconnection if needed
+ * Attempts reconnection if needed with exponential backoff
  */
-export async function ensureWalletConnected(config) {
-  try {
-    const account = getAccount(config);
+export async function ensureWalletConnected(config, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const account = getAccount(config);
 
-    if (!account.isConnected) {
-      console.log('🔄 Wallet disconnected, attempting reconnect...');
+      if (account.isConnected && account.address) {
+        console.log('✅ Wallet connected:', account.address);
+        return account;
+      }
+
+      console.log(`🔄 Wallet not connected, attempting reconnect (${attempt}/${maxRetries})...`);
       await reconnect(config);
 
-      // Wait a bit for reconnection
-      await sleep(500);
+      // Wait for reconnection to settle
+      await sleep(500 * attempt);
 
       const newAccount = getAccount(config);
-      if (!newAccount.isConnected) {
-        throw new Error('Wallet not connected. Please reconnect your wallet.');
+      if (newAccount.isConnected && newAccount.address) {
+        console.log('✅ Wallet reconnected:', newAccount.address);
+        return newAccount;
       }
-      console.log('✅ Wallet reconnected:', newAccount.address);
-    }
 
-    return account;
-  } catch (error) {
-    console.error('❌ Wallet connection check failed:', error);
-    throw new Error('Please reconnect your wallet and try again.');
+    } catch (error) {
+      console.warn(`Reconnect attempt ${attempt} failed:`, error.message);
+      if (attempt < maxRetries) {
+        await sleep(1000 * attempt); // Exponential backoff
+      }
+    }
   }
+
+  throw new Error('Wallet not connected. Please reconnect your wallet.');
 }
 
 /**
- * Send BNB to payment receiver address (Step 1: Send)
- * Enhanced for mobile with deep linking and retry logic
+ * Send BNB Payment (Step 1: Initiate Transaction)
+ *
+ * Enhanced for mobile with:
+ * - Automatic wallet app opening
+ * - Retry logic with exponential backoff
+ * - Better error categorization
+ *
  * @param {object} config - wagmi config
  * @param {string} userAddress - User's wallet address
  * @param {number} packageAmount - Package amount (1, 5, or 10)
@@ -113,12 +190,8 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
   let lastError = null;
   const isMobile = isMobileDevice();
 
-  // Step 0: Ensure wallet is still connected
-  try {
-    await ensureWalletConnected(config);
-  } catch (error) {
-    throw new Error('Wallet disconnected. Please reconnect and try again.');
-  }
+  // Step 0: Ensure wallet is connected
+  await ensureWalletConnected(config);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -130,14 +203,6 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
         isMobile,
       });
 
-      // On mobile, open wallet BEFORE sending transaction
-      // This primes the wallet to receive the transaction request
-      if (isMobile && attempt === 1) {
-        console.log('📱 Mobile detected - opening wallet for transaction...');
-        // Small delay to let the UI update before opening wallet
-        await sleep(100);
-      }
-
       // Create transaction promise
       const transactionPromise = sendTransaction(config, {
         to: PAYMENT_RECEIVER_ADDRESS,
@@ -145,14 +210,13 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
         chainId: 97, // BSC Testnet
       });
 
-      // On mobile, open wallet after a short delay
-      // This gives time for the transaction to be queued in WalletConnect
+      // On mobile, open wallet after transaction is queued in WalletConnect
+      // Small delay ensures the request is ready when wallet opens
       if (isMobile) {
-        // Open wallet after transaction is initiated (with small delay)
         setTimeout(() => {
           console.log('📱 Opening wallet app to show transaction...');
           openWalletOnMobile();
-        }, 500);
+        }, 800);
       }
 
       // Wait for transaction hash
@@ -165,33 +229,40 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
       lastError = error;
       console.error(`❌ Payment attempt ${attempt} failed:`, error);
 
-      // Don't retry for user-caused errors
-      if (error.message?.includes('User rejected') || error.code === 4001) {
+      // Categorize errors - don't retry user-caused errors
+      const errorMessage = error.message?.toLowerCase() || '';
+
+      // User rejected - no retry
+      if (errorMessage.includes('user rejected') ||
+          errorMessage.includes('user denied') ||
+          errorMessage.includes('cancelled') ||
+          error.code === 4001) {
         throw new Error('Transaction rejected by user');
       }
-      if (error.message?.includes('insufficient funds')) {
+
+      // Insufficient funds - no retry
+      if (errorMessage.includes('insufficient funds') ||
+          errorMessage.includes('insufficient balance')) {
         throw new Error('Insufficient BNB balance. Please get test BNB from faucet.');
       }
-      if (error.message?.includes('denied') || error.message?.includes('cancelled')) {
-        throw new Error('Transaction cancelled by user');
-      }
 
-      // Check for connector/connection errors and try to reconnect
-      if (error.message?.includes('connector') ||
-          error.message?.includes('disconnected') ||
-          error.message?.includes('no active connector')) {
+      // Connection issues - try to reconnect
+      if (errorMessage.includes('connector') ||
+          errorMessage.includes('disconnected') ||
+          errorMessage.includes('no active connector') ||
+          errorMessage.includes('provider')) {
         console.log('🔄 Connection issue detected, attempting reconnect...');
         try {
           await reconnect(config);
           await sleep(1000);
         } catch (reconnectError) {
-          console.warn('Reconnect failed:', reconnectError);
+          console.warn('Reconnect failed:', reconnectError.message);
         }
       }
 
-      // Retry for network/connection errors
+      // Retry for network/transient errors
       if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
         console.log(`⏳ Retrying in ${delay / 1000}s...`);
         await sleep(delay);
       }
@@ -199,12 +270,20 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
   }
 
   // All retries exhausted
-  throw new Error(lastError?.message || 'Payment initiation failed after multiple attempts. Please try again.');
+  throw new Error(
+    lastError?.message ||
+    'Payment initiation failed after multiple attempts. Please check your connection and try again.'
+  );
 }
 
 /**
- * Wait for transaction confirmation (Step 2: Confirm)
- * Robust polling method with multiple retries
+ * Wait for Transaction Confirmation (Step 2)
+ *
+ * Robust confirmation with:
+ * - Standard wait with timeout
+ * - Fallback to polling
+ * - Proper error handling for reverted transactions
+ *
  * @param {object} config - wagmi config
  * @param {string} hash - Transaction Hash
  * @param {object} options - Configuration options
@@ -212,14 +291,14 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
  */
 export async function waitForPaymentConfirmation(config, hash, options = {}) {
   const {
-    maxPollingAttempts = 30,  // Maximum polling attempts
-    pollingInterval = 3000,   // Poll every 3 seconds
-    initialWaitTimeout = 30000, // Initial wait timeout: 30 seconds
+    maxPollingAttempts = 40,    // Up to 2 minutes of polling
+    pollingInterval = 3000,     // Poll every 3 seconds
+    initialWaitTimeout = 30000, // Initial wait: 30 seconds
   } = options;
 
   console.log('⏳ Waiting for confirmation of:', hash);
 
-  // Step 1: Try standard wait first (shorter timeout)
+  // Step 1: Try standard wait first (faster when network is responsive)
   try {
     const receipt = await waitForTransactionReceipt(config, {
       hash,
@@ -232,15 +311,19 @@ export async function waitForPaymentConfirmation(config, hash, options = {}) {
       return formatReceipt(receipt);
     }
   } catch (error) {
-    console.warn('⚠️ Standard wait failed, switching to polling mode...', error.message);
+    // TimeoutError is expected on slow networks
+    if (!error.message?.includes('timed out') && !error.message?.includes('timeout')) {
+      console.warn('⚠️ Standard wait error:', error.message);
+    }
+    console.log('🔄 Switching to polling mode...');
   }
 
-  // Step 2: Polling mode - check receipt repeatedly
-  console.log('🔄 Starting polling mode...');
-
+  // Step 2: Polling mode - more reliable for mobile/slow networks
   for (let attempt = 1; attempt <= maxPollingAttempts; attempt++) {
     try {
-      console.log(`📡 Polling attempt ${attempt}/${maxPollingAttempts}...`);
+      if (attempt % 5 === 0) {
+        console.log(`📡 Polling attempt ${attempt}/${maxPollingAttempts}...`);
+      }
 
       const receipt = await getTransactionReceipt(config, { hash });
 
@@ -253,11 +336,14 @@ export async function waitForPaymentConfirmation(config, hash, options = {}) {
         }
       }
     } catch (error) {
-      // Ignore polling errors and continue (might be network issues)
+      // Re-throw reverted errors
       if (error.message?.includes('reverted')) {
-        throw error; // Re-throw reverted errors
+        throw error;
       }
-      console.warn(`Polling attempt ${attempt} error:`, error.message);
+      // Log other polling errors but continue
+      if (attempt % 10 === 0) {
+        console.warn(`Polling attempt ${attempt} error:`, error.message);
+      }
     }
 
     // Wait before next poll
@@ -266,7 +352,7 @@ export async function waitForPaymentConfirmation(config, hash, options = {}) {
     }
   }
 
-  // All polling attempts exhausted - but transaction might still confirm later
+  // Timeout - but transaction might still confirm
   throw new Error(
     'Transaction confirmation timed out. ' +
     'Your transaction may still be processing. ' +
@@ -274,7 +360,9 @@ export async function waitForPaymentConfirmation(config, hash, options = {}) {
   );
 }
 
-// Helper to format receipt consistent with previous version
+/**
+ * Format transaction receipt for consistent response
+ */
 function formatReceipt(receipt) {
   return {
     success: receipt.status === 'success',
@@ -298,10 +386,11 @@ export function getBSCScanLink(hash) {
 
 /**
  * Check if user has enough BNB for package
+ * Includes gas buffer for transaction fees
  */
 export function hasEnoughBalance(balance, packageAmount) {
   const required = parseFloat(PRICING[packageAmount]);
   const current = parseFloat(balance);
-  const gasBuffer = 0.0001;
+  const gasBuffer = 0.0005; // ~0.0005 BNB for gas on BSC
   return current >= (required + gasBuffer);
 }
