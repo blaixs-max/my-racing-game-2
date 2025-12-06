@@ -4,120 +4,199 @@ import {
   trustWallet,
   rainbowWallet,
   walletConnectWallet,
+  coinbaseWallet,
 } from '@rainbow-me/rainbowkit/wallets';
-import { createConfig, http, createStorage } from 'wagmi';
+import { createConfig, http, createStorage, fallback } from 'wagmi';
 import { bscTestnet } from 'wagmi/chains';
 
-// WalletConnect Project ID
+/**
+ * WALLET CONFIGURATION - 2025 STABLE VERSION
+ *
+ * Key optimizations:
+ * 1. WalletConnect v2 with proper chain pre-approval
+ * 2. MetaMask SDK with universal links (not deep links)
+ * 3. Multiple RPC fallbacks for reliability
+ * 4. Proper mobile wallet handling
+ */
+
+// WalletConnect Project ID (Required for WalletConnect v2)
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'a01e43bf25a11bf3e32d058780b62fe8';
 
-// FIXED METADATA - Critical for Mobile Deep Linking
-// We hardcode the URL to ensure MetaMask always knows exactly where to return.
-// Dynamic URLs (window.location) often confuse mobile wallets during redirects.
-const APP_URL = 'https://newracing.netlify.app/';
+// Production App URL - Hardcoded for stable mobile redirects
+const APP_URL = 'https://newracing.netlify.app';
 
+// App Metadata - Used by all wallet connectors
 const appMetadata = {
   name: 'LUMEXIA Racing',
-  description: 'Endless Web3 Racing Game',
-  url: APP_URL, // Hardcoded for stability
-  icons: [`${APP_URL}icon.png`],
+  description: 'Endless Web3 Racing Game on BSC',
+  url: APP_URL,
+  icons: [`${APP_URL}/icon.png`],
 };
 
-// Shared WalletConnect Parameters - Enhanced for iOS Safari
-const sharedWalletConnectParams = {
-  projectId: projectId,
+/**
+ * WalletConnect v2 Shared Parameters
+ *
+ * Critical settings for stable connections:
+ * - showQrModal: true - Always show QR for desktop fallback
+ * - isNewChainsStale: false - Don't disconnect on new chains
+ * - qrModalOptions - iOS Safari optimized settings
+ */
+const walletConnectParams = {
+  projectId,
   metadata: appMetadata,
-  // Mobile-specific configurations
-  showQrModal: true, // Always show QR modal as fallback
+  showQrModal: true,
   qrModalOptions: {
     themeMode: 'dark',
     themeVariables: {
-      '--wcm-z-index': '9999'
+      '--wcm-z-index': '99999',
     },
-    // iOS Safari specific
+    // Only show recommended wallets for cleaner UX
     explorerRecommendedWalletIds: [
       'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
       '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
+      '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow
     ],
-    explorerExcludedWalletIds: 'ALL', // Only show recommended wallets
   },
-  // Disable email/SMS login to force wallet-only connection
-  enableExplorer: true,
-  // Mobile deep linking configuration - iOS Safari optimized
-  mobileLinks: [
-    'metamask',
-    'trust',
-    'rainbow',
-  ],
-  // iOS-specific universal links
+  // CRITICAL: Don't treat new chains as stale - prevents disconnection
   isNewChainsStale: false,
+  // Mobile wallet deep link priorities
+  mobileLinks: ['metamask', 'trust', 'rainbow'],
 };
 
-// Wallet Configuration
+/**
+ * MetaMask Wallet Configuration
+ *
+ * 2025 Best Practices:
+ * - Use universal links instead of deep links on iOS
+ * - Don't check installation immediately (causes issues on mobile browsers)
+ * - Let SDK handle mobile detection
+ */
+const metaMaskConfig = {
+  projectId,
+  walletConnectParameters: walletConnectParams,
+  // SDK Configuration
+  dappMetadata: appMetadata,
+  // IMPORTANT: Prefer desktop on non-mobile to avoid unnecessary redirects
+  preferDesktop: false,
+  // Don't check immediately - mobile browsers may not have window.ethereum
+  checkInstallationImmediately: false,
+  // Use universal links for iOS (more reliable than deep links)
+  useDeeplink: false,
+  // Infura fallback for mobile read-only requests (prevents disconnection)
+  infuraAPIKey: import.meta.env.VITE_INFURA_API_KEY || undefined,
+  // Extension-only mode disabled - allow mobile SDK
+  extensionOnly: false,
+};
+
+/**
+ * Wallet Connectors Configuration
+ *
+ * Order matters for UX - most popular wallets first
+ */
 const connectors = connectorsForWallets(
   [
     {
-      groupName: 'Recommended',
+      groupName: 'Popular',
       wallets: [
-        // MetaMask - iOS Safari optimized
-        () => metaMaskWallet({
-          projectId: projectId,
-          walletConnectParameters: sharedWalletConnectParams,
-          // iOS Safari specific options
-          dappMetadata: appMetadata,
-          // Force deep linking on mobile
-          preferDesktop: false,
-          // Enable mobile app detection
-          checkInstallationImmediately: false,
-        }),
-        // Trust Wallet
+        // MetaMask - Most used wallet
+        () => metaMaskWallet(metaMaskConfig),
+        // Trust Wallet - Popular on mobile
         () => trustWallet({
-          projectId: projectId,
-          walletConnectParameters: sharedWalletConnectParams,
+          projectId,
+          walletConnectParameters: walletConnectParams,
         }),
-        // Generic WalletConnect
+        // Coinbase Wallet - Growing user base
+        () => coinbaseWallet({
+          appName: appMetadata.name,
+          appLogoUrl: appMetadata.icons[0],
+        }),
+      ],
+    },
+    {
+      groupName: 'Other Wallets',
+      wallets: [
+        // Generic WalletConnect - Supports 300+ wallets
         () => walletConnectWallet({
-          projectId: projectId,
-          walletConnectParameters: sharedWalletConnectParams,
+          projectId,
+          walletConnectParameters: walletConnectParams,
         }),
-        // Rainbow
+        // Rainbow Wallet
         () => rainbowWallet({
-          projectId: projectId,
-          walletConnectParameters: sharedWalletConnectParams,
+          projectId,
+          walletConnectParameters: walletConnectParams,
         }),
       ],
     },
   ],
   {
     appName: appMetadata.name,
-    projectId: projectId,
-    appUrl: appMetadata.url, // Ensure top-level appUrl matches
+    projectId,
+    appUrl: appMetadata.url,
     appIcon: appMetadata.icons[0],
   }
 );
 
+/**
+ * BSC Testnet RPC Endpoints (Multiple for fallback)
+ *
+ * Using fallback transport for reliability:
+ * - Primary: Official BNB Chain RPC
+ * - Secondary: Alternative endpoints
+ */
+const bscTestnetRpcUrls = [
+  'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+  'https://data-seed-prebsc-2-s1.bnbchain.org:8545',
+  'https://data-seed-prebsc-1-s2.bnbchain.org:8545',
+  'https://bsc-testnet-rpc.publicnode.com',
+];
+
+/**
+ * Main Wagmi Configuration
+ */
 export const config = createConfig({
   connectors,
   chains: [bscTestnet],
-  // Persist connection state
+
+  // Persist wallet connection across sessions
   storage: createStorage({
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    key: 'lumexia-wagmi',
+    key: 'lumexia-wagmi-v2',
   }),
-  // Aggressive polling (1s) to catch mobile state changes immediately
-  pollingInterval: 1_000,
+
+  // Transport configuration with fallbacks
   transports: {
-    [bscTestnet.id]: http(),
+    [bscTestnet.id]: fallback(
+      bscTestnetRpcUrls.map(url => http(url, {
+        // Retry failed requests
+        retryCount: 3,
+        retryDelay: 1000,
+        // Timeout after 10 seconds
+        timeout: 10_000,
+      }))
+    ),
   },
-  // Enable automatic reconnection on page load and visibility change
+
+  // Polling interval for state updates (balance, etc.)
+  // 3 seconds is good balance between responsiveness and RPC limits
+  pollingInterval: 3_000,
+
+  // Disable SSR for client-only app
   ssr: false,
-  // Batch multiple requests together
+
+  // Enable multicall for batched requests (reduces RPC calls)
   batch: {
-    multicall: true,
+    multicall: {
+      wait: 50, // Wait 50ms to batch requests
+    },
   },
+
+  // Sync connected chain with wallet
+  syncConnectedChain: true,
 });
 
-// BSC Testnet Configuration
+// ==================== EXPORTS ====================
+
+// BSC Testnet Chain Configuration
 export const BSC_TESTNET = {
   id: 97,
   name: 'BSC Testnet',
@@ -128,17 +207,13 @@ export const BSC_TESTNET = {
     symbol: 'tBNB',
   },
   rpcUrls: {
-    default: {
-      http: ['https://data-seed-prebsc-1-s1.bnbchain.org:8545'],
-    },
-    public: {
-      http: ['https://data-seed-prebsc-1-s1.bnbchain.org:8545'],
-    },
+    default: { http: bscTestnetRpcUrls },
+    public: { http: bscTestnetRpcUrls },
   },
   blockExplorers: {
     default: {
       name: 'BscScan',
-      url: 'https://testnet.bscscan.com'
+      url: 'https://testnet.bscscan.com',
     },
   },
   testnet: true,
@@ -147,14 +222,14 @@ export const BSC_TESTNET = {
 // Payment Receiver Address
 export const PAYMENT_RECEIVER_ADDRESS = '0x093fc78470f68abd7b058d781f4aba90cb634697';
 
-// Pricing Configuration
+// Pricing Configuration (BNB amounts)
 export const PRICING = {
   1: '0.001',
   5: '0.005',
   10: '0.01',
 };
 
-// Convert BNB to Wei
+// Helper: Convert BNB to Wei
 export function bnbToWei(bnbAmount) {
   return BigInt(Math.floor(parseFloat(bnbAmount) * 1e18));
 }
