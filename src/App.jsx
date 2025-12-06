@@ -520,8 +520,8 @@ function PlayerCar() {
   const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed, isNitroActive } = useGameStore();
   const group = useRef();
 
-  // Track player position for particles
-  const [playerPos, setPlayerPos] = useState([0, 0.1, -2]);
+  // PERFORMANCE: Use ref instead of state to avoid re-renders every frame
+  const playerPosRef = useRef([0, 0.1, -2]);
 
   const [leftTarget] = useState(() => {
     const obj = new THREE.Object3D();
@@ -551,8 +551,10 @@ function PlayerCar() {
     const lerpSpeed = 5;
     group.current.position.x = THREE.MathUtils.lerp(currentX, targetX, clampedDelta * lerpSpeed);
 
-    // Update player position for particles
-    setPlayerPos([group.current.position.x, group.current.position.y, group.current.position.z]);
+    // PERFORMANCE: Update ref directly (no re-render needed)
+    playerPosRef.current[0] = group.current.position.x;
+    playerPosRef.current[1] = group.current.position.y;
+    playerPosRef.current[2] = group.current.position.z;
 
     const moveDiff = (group.current.position.x - currentX) / clampedDelta;
     group.current.rotation.z = -moveDiff * 0.002;
@@ -696,7 +698,7 @@ function PlayerCar() {
       {/* Advanced Particle Effects */}
       <NitroBoostParticles
         isActive={isNitroActive}
-        position={playerPos}
+        position={playerPosRef.current}
         speed={speed}
       />
     </>
@@ -1628,6 +1630,12 @@ function Game() {
 
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
 
+  // PERFORMANCE: Use ref to track gameState for event listeners (avoids re-registering listeners on every gameState change)
+  const gameStateRef = React.useRef(gameState);
+  React.useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   // Network durumu monitoring
   useEffect(() => {
     const handleOnline = () => {
@@ -1660,11 +1668,12 @@ function Game() {
     };
   }, [cleanupTimer]);
 
+  // PERFORMANCE: Event listeners use refs to avoid re-registration on every gameState change
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowLeft') steer(-1);
       if (e.key === 'ArrowRight') steer(1);
-      if (e.key === ' ' && gameState === 'playing') {
+      if (e.key === ' ' && gameStateRef.current === 'playing') {
         e.preventDefault();
         activateNitro();
       }
@@ -1700,7 +1709,7 @@ function Game() {
       window.removeEventListener('gesturechange', preventDefaults);
       window.removeEventListener('gestureend', preventDefaults);
     };
-  }, [gameState, steer, activateNitro, deactivateNitro]);
+  }, [steer, activateNitro, deactivateNitro]);
 
   const isGoldMessage = message.includes("GOLD");
   const isLevelMessage = message.includes("LEVEL");

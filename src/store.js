@@ -440,15 +440,17 @@ export const useGameStore = create((set, get) => ({
 
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
 
-    // Safety: Filter out any undefined/null particles first
-    let newParticles = state.particles.filter(p => p && typeof p === 'object' && typeof p.life !== 'undefined').map(p => ({
-      ...p,
-      x: p.x + p.vx * clampedDelta,
-      y: p.y + p.vy * clampedDelta - 9.8 * clampedDelta,
-      z: p.z + p.vz * clampedDelta,
-      vy: p.vy - 9.8 * clampedDelta,
-      life: p.life - clampedDelta * 3
-    })).filter(p => p.life > 0);
+    // PERFORMANCE: Update particles in-place, then filter (avoids creating new objects every frame)
+    const validParticles = state.particles.filter(p => p && typeof p === 'object' && typeof p.life !== 'undefined');
+    for (let i = 0; i < validParticles.length; i++) {
+      const p = validParticles[i];
+      p.x += p.vx * clampedDelta;
+      p.y += p.vy * clampedDelta - 9.8 * clampedDelta;
+      p.z += p.vz * clampedDelta;
+      p.vy -= 9.8 * clampedDelta;
+      p.life -= clampedDelta * 3;
+    }
+    let newParticles = validParticles.filter(p => p.life > 0);
 
     // FIX 7: Frame-rate bağımsız enemy update - zamana dayalı
     // Safety: Filter out any undefined/null enemies first
@@ -529,11 +531,12 @@ export const useGameStore = create((set, get) => ({
       return updated;
     }).filter(e => e.z < 50);
 
-    // Safety: Filter out any undefined/null coins first
-    let newCoins = state.coins.filter(c => c && typeof c === 'object' && typeof c.z !== 'undefined').map(c => ({
-      ...c,
-      z: c.z + newSpeed * clampedDelta * 0.5
-    })).filter(c => c.z < 50);
+    // PERFORMANCE: Update coins in-place (avoids creating new objects every frame)
+    let newCoins = state.coins.filter(c => c && typeof c === 'object' && typeof c.z !== 'undefined');
+    for (let i = 0; i < newCoins.length; i++) {
+      newCoins[i].z += newSpeed * clampedDelta * 0.5;
+    }
+    newCoins = newCoins.filter(c => c.z < 50);
 
     // FIX 7: Spawn rate zamana dayalı
     let newLastSpawnZ = state.lastSpawnZ;

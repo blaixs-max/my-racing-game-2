@@ -15,6 +15,10 @@ export function NitroBoostParticles({ isActive = false, position = [0, 0, 0] }) 
   const particles = useRef([]);
   const maxParticles = 50;
 
+  // PERFORMANCE: Reuse these objects to avoid GC pressure
+  const dummyRef = useRef(new THREE.Object3D());
+  const tempColorRef = useRef(new THREE.Color());
+
   // Initialize particle pool (only once on mount)
   useEffect(() => {
     if (particles.current.length === 0) {
@@ -33,7 +37,8 @@ export function NitroBoostParticles({ isActive = false, position = [0, 0, 0] }) 
     if (!particlesRef.current) return;
 
     const clampedDelta = Math.min(delta, 0.1);
-    const dummy = new THREE.Object3D();
+    const dummy = dummyRef.current;
+    const tempColor = tempColorRef.current;
 
     particles.current.forEach((particle, i) => {
       // Spawn new particles when nitro is active
@@ -78,11 +83,9 @@ export function NitroBoostParticles({ isActive = false, position = [0, 0, 0] }) 
         dummy.updateMatrix();
 
         particlesRef.current.setMatrixAt(i, dummy.matrix);
-        particlesRef.current.setColorAt(i, new THREE.Color(
-          1.0,
-          0.5 + lifeFactor * 0.5,
-          0.0
-        ));
+        // PERFORMANCE: Reuse tempColor instead of creating new Color each frame
+        tempColor.setRGB(1.0, 0.5 + lifeFactor * 0.5, 0.0);
+        particlesRef.current.setColorAt(i, tempColor);
       } else {
         // Hide inactive particles
         dummy.position.set(0, -1000, 0);
