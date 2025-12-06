@@ -2100,23 +2100,23 @@ const LoadingScreen = () => {
 
   if (!shouldRender) return null;
 
-  // Responsive sizing for banner image (85% of screen)
+  // Responsive sizing for banner image (larger to fit full image)
   const bannerHeight = isMobile
-    ? (isPortrait ? height * 0.5 : height * 0.6)
-    : height * 0.6;
+    ? (isPortrait ? height * 0.55 : height * 0.65)
+    : height * 0.65;
 
   const bannerWidth = isMobile
-    ? (isPortrait ? width * 0.9 : width * 0.85)
-    : width * 0.7;
+    ? (isPortrait ? width * 0.95 : width * 0.9)
+    : width * 0.85;
 
-  // Responsive text sizing
+  // Responsive text sizing (smaller for loading text)
   const titleSize = isMobile
-    ? (isPortrait ? '28px' : '24px')
-    : '48px';
+    ? (isPortrait ? '18px' : '16px')
+    : '28px';
 
   const percentSize = isMobile
-    ? (isPortrait ? '20px' : '18px')
-    : '32px';
+    ? (isPortrait ? '16px' : '14px')
+    : '24px';
 
   return (
     <div style={{
@@ -2138,9 +2138,9 @@ const LoadingScreen = () => {
       <div style={{
         width: bannerWidth,
         height: bannerHeight,
-        maxWidth: '1200px',
-        maxHeight: '600px',
-        marginBottom: isMobile ? '30px' : '50px',
+        maxWidth: '1400px',
+        maxHeight: '750px',
+        marginBottom: isMobile ? '15px' : '25px',
         borderRadius: '20px',
         overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(255, 215, 0, 0.3), 0 0 40px rgba(255, 165, 0, 0.2)',
@@ -2157,7 +2157,7 @@ const LoadingScreen = () => {
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            objectFit: 'contain',
             borderRadius: '18px'
           }}
         />
@@ -2167,13 +2167,13 @@ const LoadingScreen = () => {
       <div style={{
         fontSize: titleSize,
         fontWeight: '900',
-        marginBottom: '25px',
+        marginBottom: '12px',
         background: 'linear-gradient(90deg, #FFD700, #FFA500, #FFD700)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         backgroundClip: 'text',
         textShadow: '0 0 30px rgba(255, 215, 0, 0.5)',
-        letterSpacing: isMobile ? '3px' : '8px',
+        letterSpacing: isMobile ? '2px' : '5px',
         textTransform: 'uppercase',
         fontFamily: "'Inter', 'Arial Black', sans-serif",
         animation: 'glow 2s ease-in-out infinite alternate'
