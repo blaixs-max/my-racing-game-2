@@ -96,6 +96,7 @@ class AudioSystem {
     osc2.start(now + 0.05);
     osc2.stop(now + 0.35);
   }
+
 }
 
 export const audioSystem = new AudioSystem();
@@ -226,7 +227,6 @@ export const useGameStore = create((set, get) => ({
       updateCounter: 0,
       startTime: 0, // Reset time
       reachedLevel5: false, // Reset for Double or Nothing mode
-
       cameraShake: 0,
       lastSpawnZ: -400
     });
@@ -577,7 +577,7 @@ export const useGameStore = create((set, get) => ({
 
       if (finalAvailableLanes.length > 0) {
         const lane = finalAvailableLanes[Math.floor(Math.random() * finalAvailableLanes.length)];
-        // SYSTEMATIC DEBUGGING: Final - All Safe Vehicles (No Police)
+        // Vehicle types for traffic
         const allowedTypes = ['truck', 'sedan', 'suv', 'sport'];
 
         if (allowedTypes.length > 0) {
