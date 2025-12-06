@@ -144,42 +144,6 @@ export const useCredit = async (walletAddress, amount = 1) => {
   }
 };
 
-// ==================== TRANSACTION LOGGING ====================
-
-/**
- * İşlemi kaydet
- * @param {string} walletAddress
- * @param {object} transaction - Transaction data
- */
-export const logTransaction = async (walletAddress, transaction) => {
-  try {
-    const user = await getOrCreateUser(walletAddress);
-
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert([
-        {
-          user_id: user.id,
-          amount: transaction.amount,
-          credits_added: transaction.credits,
-          transaction_hash: transaction.hash,
-          status: transaction.status
-        }
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    console.log('📝 Transaction logged:', data);
-    return data;
-  } catch (error) {
-    console.error('Error logging transaction:', error);
-    // İşlem logu hata verirse devam et
-    return null;
-  }
-};
-
 // ==================== TEAM OPERATIONS ====================
 
 /**
@@ -240,66 +204,3 @@ export const updateTeamSelection = async (walletAddress, team) => {
   }
 };
 
-/**
- * Günlük team skorlarını getir (bugün)
- * @returns {object} { blueScore: number, redScore: number, winner: 'blue'|'red'|'tie' }
- */
-export const getTodayTeamScores = async () => {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-
-    const { data, error } = await supabase
-      .from('daily_team_scores')
-      .select('*')
-      .eq('play_date', today);
-
-    if (error) throw error;
-
-    const blueTeam = data.find(d => d.team === 'blue');
-    const redTeam = data.find(d => d.team === 'red');
-
-    const blueScore = blueTeam?.total_score || 0;
-    const redScore = redTeam?.total_score || 0;
-
-    let winner = 'tie';
-    if (blueScore > redScore) winner = 'blue';
-    else if (redScore > blueScore) winner = 'red';
-
-    return {
-      blueScore,
-      redScore,
-      winner,
-      blueGames: blueTeam?.total_games || 0,
-      redGames: redTeam?.total_games || 0
-    };
-  } catch (error) {
-    console.error('Error fetching team scores:', error);
-    return { blueScore: 0, redScore: 0, winner: 'tie', blueGames: 0, redGames: 0 };
-  }
-};
-
-// ==================== LEADERBOARD (İlerisi için) ====================
-
-/**
- * Günlük skor tablosu (placeholder)
- */
-export const getTodayLeaderboard = async () => {
-  try {
-    // TODO: Scores tablosu oluşturulunca implement edilecek
-    const today = new Date().toISOString().split('T')[0];
-
-    const { data, error } = await supabase
-      .from('scores')
-      .select('*')
-      .gte('created_at', today)
-      .order('score', { ascending: false })
-      .limit(10);
-
-    if (error) throw error;
-
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching leaderboard:', error);
-    return [];
-  }
-};

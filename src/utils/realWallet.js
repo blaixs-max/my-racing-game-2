@@ -290,34 +290,6 @@ function formatReceipt(receipt) {
 }
 
 /**
- * Wrapper for backward compatibility or simple usage
- */
-export async function sendBNBPayment(config, userAddress, packageAmount) {
-  const hash = await initiateBNBPayment(config, userAddress, packageAmount);
-
-  // Return a mock object that contains the hash,
-  // but we know we will wait for it in the UI separately if we use the new flow.
-  // For backward compatibility with existing code:
-  const receipt = await waitForPaymentConfirmation(config, hash);
-  return { ...receipt, amount: PRICING[packageAmount], credits: packageAmount };
-}
-
-/**
- * Format wallet address for display
- */
-export function formatAddress(address) {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-/**
- * Validate transaction hash format
- */
-export function isValidTxHash(hash) {
-  return /^0x[a-fA-F0-9]{64}$/.test(hash);
-}
-
-/**
  * Get BSCScan link for transaction
  */
 export function getBSCScanLink(hash) {
