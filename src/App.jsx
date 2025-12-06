@@ -2136,29 +2136,23 @@ const LoadingScreen = () => {
     }}>
       {/* Banner - Frame Design */}
       <div style={{
-        width: bannerWidth,
-        height: bannerHeight,
-        maxWidth: '1400px',
-        maxHeight: '750px',
+        maxWidth: isMobile ? '95%' : '85%',
+        maxHeight: '70vh',
         marginBottom: isMobile ? '15px' : '25px',
         borderRadius: '12px',
         overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 165, 0, 0.3)',
         border: '4px solid #FFD700',
-        position: 'relative',
         animation: 'pulse 3s ease-in-out infinite',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#000'
+        lineHeight: 0
       }}>
         <img
           src="/Lumexia.jpg"
           alt="LUMEXIA Racing"
           style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain'
+            maxWidth: '100%',
+            maxHeight: '70vh',
+            display: 'block'
           }}
         />
       </div>
