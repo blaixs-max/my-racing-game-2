@@ -2147,22 +2147,20 @@ const LoadingScreen = () => {
         border: '2px solid rgba(255, 215, 0, 0.3)',
         position: 'relative',
         animation: 'pulse 3s ease-in-out infinite',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center'
       }}>
-        <div style={{
-          fontSize: isMobile ? '24px' : '48px',
-          fontWeight: 'bold',
-          textAlign: 'center',
-          color: '#FFD700',
-          textShadow: '0 0 30px rgba(255, 215, 0, 0.8)',
-          padding: '20px',
-          lineHeight: '1.4'
-        }}>
-          🏁 RACE ENDLESS<br/>EARN LIMITLESS 🪙
-        </div>
+        <img
+          src="/Lumexia.png"
+          alt="LUMEXIA Racing"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            borderRadius: '18px'
+          }}
+        />
       </div>
 
       {/* Loading Game Text */}
