@@ -196,53 +196,36 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
           </div>
 
           {/* Credits Info */}
-          <div className="mb-4 text-center">
+          <div className="mb-6 text-center">
             <p className="text-gray-400 text-sm mb-1">Remaining Credits</p>
-            <p className={`text-3xl font-bold ${credits > 0 ? 'text-white' : 'text-red-500'}`}>
+            <p className={`text-3xl font-bold ${credits > 0 ? 'text-white' : 'text-red-400'}`}>
               {credits}
             </p>
-            {credits <= 0 && (
-               <div className="mt-2 flex items-center justify-center gap-2 text-orange-300 text-xl">
-                 <i className="fas fa-info-circle"></i>
-                 <span>To Purchase Credits Go Back to Main Menu</span>
-               </div>
-            )}
           </div>
 
-          {/* Anti-Cheat Message */}
-          <div className="mb-6 text-center">
-             <p className="text-[20px] text-red-500/70 font-mono">
-               ⚠ Please don't try to cheat, you'll get caught 99.9% of the time. :) ⚠
-             </p>
-          </div>
-
-          {/* Action Buttons */}
+          {/* Action Buttons - Only 2 buttons */}
           <div className="space-y-3">
-            {credits > 0 ? (
-              <button
-                onClick={onRestart}
-                className="w-full py-4 rounded-xl font-bold text-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 animate-pulse"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <i className="fas fa-flag-checkered"></i>
-                  RACE AGAIN
-                </span>
-              </button>
-            ) : (
-              <button
-                onClick={onMainMenu}
-                className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-yellow-500 to-orange-600 text-white hover:from-yellow-600 hover:to-orange-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <i className="fas fa-home"></i>
-                  GO TO MAIN MENU TO BUY
-                </span>
-              </button>
-            )}
+            {/* RACE AGAIN - Only enabled if user has credits */}
+            <button
+              onClick={credits > 0 ? onRestart : undefined}
+              disabled={credits <= 0}
+              className={`w-full py-4 rounded-xl font-bold text-xl transition-all duration-300 ${
+                credits > 0
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 animate-pulse cursor-pointer'
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <i className="fas fa-flag-checkered"></i>
+                RACE AGAIN
+                {credits <= 0 && <span className="text-sm">(No Credits)</span>}
+              </span>
+            </button>
 
+            {/* MAIN MENU - Always available */}
             <button
               onClick={onMainMenu}
-              className="w-full py-3 rounded-xl font-semibold text-base bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all duration-300"
+              className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
             >
               <span className="flex items-center justify-center gap-2">
                 <i className="fas fa-home"></i>
