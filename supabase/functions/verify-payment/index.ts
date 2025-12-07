@@ -122,6 +122,31 @@ serve(async (req) => {
     const newCredits = (user.credits || 0) + packageAmount;
     const newTotalSpent = (user.total_spent || 0) + packageAmount;
 
+    // CRITICAL FIX: Insert transaction FIRST to prevent duplicate credit addition
+    // If this fails, we haven't modified user credits yet
+    const { data: txRecord, error: txInsertError } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: user.id,
+        amount: packageAmount,
+        credits_added: packageAmount,
+        transaction_hash: transactionHash,
+        status: 'pending', // Mark as pending until credits are added
+      })
+      .select()
+      .single();
+
+    if (txInsertError) {
+      // If duplicate key error (transaction already exists), return error
+      if (txInsertError.code === '23505') {
+        return new Response(
+          JSON.stringify({ error: 'Transaction already processed' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw txInsertError;
+    }
+
     // Update user credits
     const { error: updateError } = await supabase
       .from('users')
@@ -131,20 +156,17 @@ serve(async (req) => {
       })
       .eq('wallet_address', userAddress);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      // ROLLBACK: Delete the transaction record if credit update fails
+      await supabase.from('transactions').delete().eq('id', txRecord.id);
+      throw updateError;
+    }
 
-    // Log transaction
-    const { error: txError } = await supabase
+    // Mark transaction as successful
+    await supabase
       .from('transactions')
-      .insert({
-        user_id: user.id,
-        amount: packageAmount,
-        credits_added: packageAmount,
-        transaction_hash: transactionHash,
-        status: 'success',
-      });
-
-    if (txError) throw txError;
+      .update({ status: 'success' })
+      .eq('id', txRecord.id);
 
     console.log('✅ Payment verified and credits added:', {
       user: userAddress,
