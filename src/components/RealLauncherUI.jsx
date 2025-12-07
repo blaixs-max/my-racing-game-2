@@ -335,6 +335,12 @@ const RealLauncherUI = ({ onStartGame }) => {
   const checkPendingTransaction = async (hash) => {
     if (!hash || !state.selectedPackage) return;
 
+    // Prevent multiple simultaneous checks for the same transaction
+    if (state.isProcessing) {
+      console.log("⚠️ Already checking transaction, ignoring duplicate call");
+      return;
+    }
+
     console.log("Checking pending transaction...", hash);
     await processTransactionResult(hash, address, state.selectedPackage);
   };
