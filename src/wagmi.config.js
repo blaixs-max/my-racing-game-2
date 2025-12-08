@@ -23,7 +23,7 @@ import { bscTestnet } from 'wagmi/chains';
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'a01e43bf25a11bf3e32d058780b62fe8';
 
 // Production App URL - Hardcoded for stable mobile redirects
-const APP_URL = 'https://newracing.netlify.app';
+const APP_URL = 'https://lumexia.net';
 
 // App Metadata - Used by all wallet connectors
 const appMetadata = {
