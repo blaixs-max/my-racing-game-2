@@ -25,7 +25,7 @@ createRoot(document.getElementById('root')).render(
           modalSize="compact" // Better for mobile
           appInfo={{
             appName: 'LUMEXIA Racing',
-            learnMoreUrl: 'https://lumexia.net/',
+            learnMoreUrl: 'https://game.lumexia.net/',
             disclaimer: ({ Text, Link }) => (
               <Text>
                 After MetaMask opens, click "Connect", then return to this app.
