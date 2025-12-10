@@ -191,46 +191,75 @@ serve(async (req) => {
   }
 });
 
-// Verify transaction on BSC blockchain
-async function verifyTransactionOnChain(txHash: string) {
-  try {
-    const response = await fetch(BSC_TESTNET_RPC, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'eth_getTransactionByHash',
-        params: [txHash],
-      }),
-    });
+// Helper function to wait
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-    const data = await response.json();
-    const tx = data.result;
+// Verify transaction on BSC blockchain with retry mechanism
+async function verifyTransactionOnChain(txHash: string, maxRetries = 5, delayMs = 3000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Verification attempt ${attempt}/${maxRetries} for tx: ${txHash}`);
 
-    if (!tx) {
-      return { valid: false, error: 'Transaction not found' };
+      const response = await fetch(BSC_TESTNET_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_getTransactionByHash',
+          params: [txHash],
+        }),
+      });
+
+      const data = await response.json();
+      const tx = data.result;
+
+      if (!tx) {
+        console.log(`⏳ Attempt ${attempt}: Transaction not found yet`);
+        if (attempt < maxRetries) {
+          await sleep(delayMs);
+          continue;
+        }
+        return { valid: false, error: 'Transaction not found after retries' };
+      }
+
+      // Check if transaction is confirmed (has blockNumber)
+      if (!tx.blockNumber) {
+        console.log(`⏳ Attempt ${attempt}: Transaction not confirmed yet`);
+        if (attempt < maxRetries) {
+          await sleep(delayMs);
+          continue;
+        }
+        return { valid: false, error: 'Transaction not confirmed after retries' };
+      }
+
+      // Transaction is confirmed!
+      console.log(`✅ Transaction confirmed on attempt ${attempt}`);
+
+      // Convert hex value to BNB (Wei to BNB: divide by 10^18)
+      const valueInWei = BigInt(tx.value);
+      const valueInBNB = Number(valueInWei) / 1e18;
+
+      return {
+        valid: true,
+        from: tx.from,
+        to: tx.to,
+        value: valueInBNB.toFixed(3), // Format to 3 decimals
+        blockNumber: parseInt(tx.blockNumber, 16),
+      };
+    } catch (error) {
+      console.log(`❌ Attempt ${attempt} error:`, error.message);
+      if (attempt < maxRetries) {
+        await sleep(delayMs);
+        continue;
+      }
+      return { valid: false, error: error.message };
     }
-
-    // Check if transaction is confirmed (has blockNumber)
-    if (!tx.blockNumber) {
-      return { valid: false, error: 'Transaction not confirmed yet' };
-    }
-
-    // Convert hex value to BNB (Wei to BNB: divide by 10^18)
-    const valueInWei = BigInt(tx.value);
-    const valueInBNB = Number(valueInWei) / 1e18;
-
-    return {
-      valid: true,
-      from: tx.from,
-      to: tx.to,
-      value: valueInBNB.toFixed(3), // Format to 3 decimals
-      blockNumber: parseInt(tx.blockNumber, 16),
-    };
-  } catch (error) {
-    return { valid: false, error: error.message };
   }
+
+  return { valid: false, error: 'Max retries exceeded' };
 }
 
 // Get expected BNB amount for package
