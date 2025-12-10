@@ -78,71 +78,44 @@ export const getUserCredits = async (walletAddress) => {
 
 // ==================== CREDIT OPERATIONS ====================
 
-/**
- * Kullanıcıya credit ekle
- * @param {string} walletAddress
- * @param {number} amount - Credit miktarı
- * @param {number} spentAmount - Harcanan para ($)
- */
-export const addCredits = async (walletAddress, amount, spentAmount) => {
-  try {
-    // Önce mevcut user'ı al
-    const user = await getOrCreateUser(walletAddress);
-
-    const newCredits = (user.credits || 0) + amount;
-    const newTotalSpent = (user.total_spent || 0) + spentAmount;
-
-    const { data, error } = await supabase
-      .from('users')
-      .update({
-        credits: newCredits,
-        total_spent: newTotalSpent
-      })
-      .eq('wallet_address', walletAddress)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    console.log(`✅ Added ${amount} credits. New total: ${newCredits}`);
-    return data;
-  } catch (error) {
-    console.error('Error adding credits:', error);
-    throw error;
-  }
-};
+// NOT: addCredits fonksiyonu KALDIRILDI - Güvenlik riski!
+// Kredi ekleme SADECE verify-payment Edge Function üzerinden yapılmalı.
+// Frontend'den doğrudan kredi ekleme yapılamaz.
 
 /**
  * Kullanıcıdan credit düş (oyun oynandığında)
+ * GÜVENLİ: Edge Function üzerinden çalışır
  * @param {string} walletAddress
  * @param {number} amount - Düşülecek kredi miktarı (varsayılan: 1)
  */
 export const useCredit = async (walletAddress, amount = 1) => {
   try {
-    const user = await getOrCreateUser(walletAddress);
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/use-credit`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          walletAddress,
+          amount
+        })
+      }
+    );
 
-    if (user.credits < amount) {
-      throw new Error('Insufficient credits');
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to use credit');
     }
 
-    const newCredits = user.credits - amount;
-    const newGamesPlayed = (user.total_games_played || 0) + 1;
-
-    const { data, error } = await supabase
-      .from('users')
-      .update({
-        credits: newCredits,
-        total_games_played: newGamesPlayed,
-        last_played: new Date().toISOString()
-      })
-      .eq('wallet_address', walletAddress)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    console.log(`✅ Used ${amount} credit(s). Remaining: ${newCredits}`);
-    return data;
+    console.log(`✅ Used ${amount} credit(s). Remaining: ${result.remainingCredits}`);
+    return {
+      credits: result.remainingCredits,
+      total_games_played: result.totalGamesPlayed
+    };
   } catch (error) {
     console.error('Error using credit:', error);
     throw error;
