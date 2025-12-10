@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase Configuration
-const SUPABASE_URL = 'https://cldjwajhcepyzvmwjcmz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNsZGp3YWpoY2VweXp2bXdqY216Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxMzIxMDcsImV4cCI6MjA3OTcwODEwN30.y4s4UH2JERVhUgdztg1u6DaAsvMy4PNNM2euYQCvre0';
+// Supabase Configuration - Environment Variables kullan
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Güvenlik kontrolü - env variables tanımlı mı?
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Supabase environment variables eksik! .env dosyasını kontrol edin.');
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
