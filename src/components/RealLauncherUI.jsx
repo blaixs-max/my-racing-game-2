@@ -461,35 +461,63 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
   };
 
-  // Verify payment via Supabase Edge Function
-  const verifyPaymentOnChain = async (transactionHash, userAddress, packageAmount) => {
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({
-            transactionHash,
-            userAddress,
-            packageAmount
-          })
+  // Verify payment via Supabase Edge Function (with timeout and retry)
+  const verifyPaymentOnChain = async (transactionHash, userAddress, packageAmount, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Frontend verification attempt ${attempt}/${maxRetries}`);
+
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+              transactionHash,
+              userAddress,
+              packageAmount
+            }),
+            signal: controller.signal
+          }
+        );
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Verification failed');
         }
-      );
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Verification failed');
+        const result = await response.json();
+        console.log(`✅ Verification successful on attempt ${attempt}`);
+        return result;
+      } catch (error) {
+        console.error(`❌ Verification attempt ${attempt} failed:`, error.message);
+
+        // If aborted (timeout) or network error, retry
+        const isRetryable = error.name === 'AbortError' ||
+                           error.message.includes('Load failed') ||
+                           error.message.includes('network') ||
+                           error.message.includes('fetch');
+
+        if (isRetryable && attempt < maxRetries) {
+          console.log(`⏳ Waiting 3 seconds before retry...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          continue;
+        }
+
+        return { success: false, error: error.message };
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Verification error:', error);
-      return { success: false, error: error.message };
     }
+
+    return { success: false, error: 'Verification failed after multiple attempts' };
   };
 
   // Team Selection Handler
