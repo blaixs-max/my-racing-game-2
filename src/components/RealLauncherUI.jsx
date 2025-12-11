@@ -27,8 +27,25 @@ const RealLauncherUI = ({ onStartGame }) => {
 
   // Debounced Network Check
   const [showWrongNetwork, setShowWrongNetwork] = useState(false);
+  const [isInitialMount, setIsInitialMount] = useState(true);
+
+  // Reset wrong network state on mount and wait for wallet to stabilize
+  useEffect(() => {
+    setShowWrongNetwork(false);
+    setIsInitialMount(true);
+
+    // Give wallet time to stabilize after component mounts (e.g., returning from game)
+    const mountDelay = setTimeout(() => {
+      setIsInitialMount(false);
+    }, 2000); // 2s delay before allowing network checks
+
+    return () => clearTimeout(mountDelay);
+  }, []);
 
   useEffect(() => {
+    // Don't check network during initial mount period
+    if (isInitialMount) return;
+
     let timeoutId;
     if (isConnected && chainId && chainId !== bscTestnet.id) {
       // Delay showing wrong network to allow mobile wallet to settle connection
@@ -46,7 +63,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       setShowWrongNetwork(false);
     }
     return () => clearTimeout(timeoutId);
-  }, [isConnected, chainId, switchChain]);
+  }, [isConnected, chainId, switchChain, isInitialMount]);
 
 
   // State Management - with localStorage persistence for iOS Safari
