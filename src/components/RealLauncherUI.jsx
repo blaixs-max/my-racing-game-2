@@ -393,6 +393,15 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
+    // CRITICAL: Capture package value before any async operations
+    // This prevents closure issues where state.selectedPackage becomes stale
+    const packageAmount = state.selectedPackage;
+
+    if (!packageAmount) {
+      console.log('⚠️ No package selected');
+      return;
+    }
+
     const isMobile = isMobileDevice();
 
     try {
@@ -405,12 +414,12 @@ const RealLauncherUI = ({ onStartGame }) => {
       }));
 
       console.log('📱 Preparing to open wallet...', { isMobile });
-      console.log('📱 Package:', state.selectedPackage, 'Address:', address);
+      console.log('📱 Package:', packageAmount, 'Address:', address);
 
       // Step 1: Initiate Transaction (Send only)
       // IMPORTANT: This will open MetaMask app on mobile (with deep link)
       // Now with retry logic and mobile deep linking built-in
-      const hash = await initiateBNBPayment(config, address, state.selectedPackage);
+      const hash = await initiateBNBPayment(config, address, packageAmount);
 
       console.log('✅ Payment initiated, hash:', hash);
 
@@ -429,7 +438,8 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       // Step 2: Process Confirmation (Separate step)
       // This might be interrupted if user switches to MetaMask
-      await processTransactionResult(hash, address, state.selectedPackage);
+      // Use captured packageAmount instead of state.selectedPackage
+      await processTransactionResult(hash, address, packageAmount);
 
     } catch (error) {
       console.error('❌ Payment initiation failed:', error);
