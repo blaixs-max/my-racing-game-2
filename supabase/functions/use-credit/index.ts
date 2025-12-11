@@ -28,6 +28,11 @@ interface UseCreditRequest {
   amount?: number; // Default: 1
 }
 
+// Validation helper
+const isValidEthAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -45,16 +50,16 @@ serve(async (req) => {
     const { walletAddress, amount = 1 }: UseCreditRequest = await req.json();
 
     // Validate input
-    if (!walletAddress) {
+    if (!walletAddress || !isValidEthAddress(walletAddress)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Wallet address is required' }),
+        JSON.stringify({ success: false, error: 'Invalid wallet address format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (amount < 1 || amount > 10) {
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid credit amount (1-10)' }),
+        JSON.stringify({ success: false, error: 'Invalid credit amount (must be integer 1-10)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

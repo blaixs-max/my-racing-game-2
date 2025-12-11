@@ -47,6 +47,19 @@ interface TransactionData {
   packageAmount: number;
 }
 
+// Validation helpers
+const isValidEthAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
+const isValidTxHash = (hash: string): boolean => {
+  return /^0x[a-fA-F0-9]{64}$/.test(hash);
+};
+
+const isValidPackageAmount = (amount: number): boolean => {
+  return [1, 5, 10].includes(amount);
+};
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -71,6 +84,28 @@ serve(async (req) => {
     }
 
     const { transactionHash, userAddress, packageAmount }: TransactionData = await req.json();
+
+    // INPUT VALIDATION
+    if (!transactionHash || !isValidTxHash(transactionHash)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid transaction hash format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!userAddress || !isValidEthAddress(userAddress)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid wallet address format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!packageAmount || !isValidPackageAmount(packageAmount)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid package amount. Must be 1, 5, or 10' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log('🔍 Verifying payment:', { transactionHash, userAddress, packageAmount });
 
