@@ -26,8 +26,13 @@ function getCorsHeaders(req: Request) {
 // BSC Testnet RPC endpoint
 const BSC_TESTNET_RPC = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545';
 
-// Payment receiver address (your wallet)
-const PAYMENT_RECEIVER = '0x093fc78470f68abd7b058d781f4aba90cb634697';
+// Payment receiver address - Must be set in Supabase Edge Function secrets
+const PAYMENT_RECEIVER = Deno.env.get('PAYMENT_RECEIVER_ADDRESS') || '';
+
+// Validate that payment receiver is configured
+if (!PAYMENT_RECEIVER) {
+  console.error('❌ PAYMENT_RECEIVER_ADDRESS environment variable is not set!');
+}
 
 // Pricing: amount in BNB -> credits
 const PRICING: { [key: string]: number } = {
@@ -55,6 +60,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Validate payment receiver is configured
+    if (!PAYMENT_RECEIVER) {
+      console.error('❌ PAYMENT_RECEIVER_ADDRESS not configured');
+      return new Response(
+        JSON.stringify({ error: 'Payment system not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const { transactionHash, userAddress, packageAmount }: TransactionData = await req.json();
 
