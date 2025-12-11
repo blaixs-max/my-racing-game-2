@@ -4,17 +4,38 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Allowed origins for CORS
+const allowedOrigins = [
+  'https://lumexia.net',
+  'https://game.lumexia.net',
+  'http://localhost:5173', // Development
+];
+
+// Dynamic CORS headers based on request origin
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || '';
+  const allowedOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 interface UseCreditRequest {
   walletAddress: string;
   amount?: number; // Default: 1
 }
 
+// Validation helper
+const isValidEthAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -29,16 +50,16 @@ serve(async (req) => {
     const { walletAddress, amount = 1 }: UseCreditRequest = await req.json();
 
     // Validate input
-    if (!walletAddress) {
+    if (!walletAddress || !isValidEthAddress(walletAddress)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Wallet address is required' }),
+        JSON.stringify({ success: false, error: 'Invalid wallet address format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (amount < 1 || amount > 10) {
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid credit amount (1-10)' }),
+        JSON.stringify({ success: false, error: 'Invalid credit amount (must be integer 1-10)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

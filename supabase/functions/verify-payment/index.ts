@@ -4,16 +4,35 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Allowed origins for CORS
+const allowedOrigins = [
+  'https://lumexia.net',
+  'https://game.lumexia.net',
+  'http://localhost:5173', // Development
+];
+
+// Dynamic CORS headers based on request origin
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || '';
+  const allowedOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 // BSC Testnet RPC endpoint
 const BSC_TESTNET_RPC = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545';
 
-// Payment receiver address (your wallet)
-const PAYMENT_RECEIVER = '0x093fc78470f68abd7b058d781f4aba90cb634697';
+// Payment receiver address - Must be set in Supabase Edge Function secrets
+const PAYMENT_RECEIVER = Deno.env.get('PAYMENT_RECEIVER_ADDRESS') || '';
+
+// Validate that payment receiver is configured
+if (!PAYMENT_RECEIVER) {
+  console.error('❌ PAYMENT_RECEIVER_ADDRESS environment variable is not set!');
+}
 
 // Pricing: amount in BNB -> credits
 const PRICING: { [key: string]: number } = {
@@ -28,7 +47,22 @@ interface TransactionData {
   packageAmount: number;
 }
 
+// Validation helpers
+const isValidEthAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
+const isValidTxHash = (hash: string): boolean => {
+  return /^0x[a-fA-F0-9]{64}$/.test(hash);
+};
+
+const isValidPackageAmount = (amount: number): boolean => {
+  return [1, 5, 10].includes(amount);
+};
+
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -40,7 +74,38 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Validate payment receiver is configured
+    if (!PAYMENT_RECEIVER) {
+      console.error('❌ PAYMENT_RECEIVER_ADDRESS not configured');
+      return new Response(
+        JSON.stringify({ error: 'Payment system not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { transactionHash, userAddress, packageAmount }: TransactionData = await req.json();
+
+    // INPUT VALIDATION
+    if (!transactionHash || !isValidTxHash(transactionHash)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid transaction hash format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!userAddress || !isValidEthAddress(userAddress)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid wallet address format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!packageAmount || !isValidPackageAmount(packageAmount)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid package amount. Must be 1, 5, or 10' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log('🔍 Verifying payment:', { transactionHash, userAddress, packageAmount });
 
