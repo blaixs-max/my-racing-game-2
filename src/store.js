@@ -455,8 +455,20 @@ export const useGameStore = create((set, get) => ({
     let newEnemies = state.enemies.filter(e => e && typeof e === 'object' && typeof e.z !== 'undefined').map(e => {
       let updated = { ...e };
 
-      // Şerit değiştirme mantığı - zamana dayalı olasılık
-      if (!e.isChanging && Math.random() < 0.003 * (clampedDelta * 60)) {
+      // ==================== TURN SIGNAL SYSTEM ====================
+      // Player position (fixed at Z = -2)
+      const playerZ = -2;
+      const playerX = state.currentX;
+
+      // Distance calculation: positive means NPC is ahead of player
+      const distanceAheadOfPlayer = playerZ - e.z;
+
+      // NPC can only change lanes if it's at least 25 meters ahead of player
+      const MIN_DISTANCE_FOR_LANE_CHANGE = 25;
+      const canChangeLaneNow = distanceAheadOfPlayer >= MIN_DISTANCE_FOR_LANE_CHANGE;
+
+      // STEP 1: Start signaling (plan lane change 3-5 seconds ahead)
+      if (!e.isChanging && !e.signalDirection && Math.random() < 0.003 * (clampedDelta * 60)) {
         const currentLane = e.lane;
         let possibleLanes = [];
 
@@ -469,7 +481,7 @@ export const useGameStore = create((set, get) => ({
         }
 
         const safeLanes = possibleLanes.filter(l => {
-          const targetX = l * 4.5; // Lane centers: -4.5, 0, +4.5 (matching road markings at ±2.25)
+          const targetX = l * 4.5;
           const isSafe = !state.enemies.some(other =>
             other && other.id !== e.id &&
             typeof other.x !== 'undefined' &&
@@ -482,12 +494,50 @@ export const useGameStore = create((set, get) => ({
 
         if (safeLanes.length > 0) {
           const newLane = safeLanes[Math.floor(Math.random() * safeLanes.length)];
+          // Determine signal direction: left (-1) or right (+1)
+          const signalDir = newLane > currentLane ? 'right' : 'left';
+          // Random timer between 3-5 seconds
+          const signalDuration = 3 + Math.random() * 2;
+
           updated = {
             ...updated,
-            isChanging: true,
-            targetLane: newLane,
-            changeProgress: 0
+            signalDirection: signalDir,
+            signalTimer: signalDuration,
+            plannedLaneChange: newLane
           };
+        }
+      }
+
+      // STEP 2: Count down signal timer and check if can change lane
+      if (updated.signalDirection && !updated.isChanging) {
+        // Decrease timer
+        updated.signalTimer = Math.max(0, updated.signalTimer - clampedDelta);
+
+        // Timer expired - check if we can change lanes
+        if (updated.signalTimer <= 0) {
+          // Re-check if target lane is still safe
+          const targetX = updated.plannedLaneChange * 4.5;
+          const isStillSafe = !state.enemies.some(other =>
+            other && other.id !== e.id &&
+            typeof other.x !== 'undefined' &&
+            typeof other.z !== 'undefined' &&
+            Math.abs(other.x - targetX) < 4.5 &&
+            Math.abs(other.z - e.z) < 25
+          );
+
+          // Check player distance - must be 25m ahead to change
+          if (canChangeLaneNow && isStillSafe) {
+            // Start lane change
+            updated = {
+              ...updated,
+              isChanging: true,
+              targetLane: updated.plannedLaneChange,
+              changeProgress: 0
+            };
+          } else {
+            // Can't change yet - reset timer to wait more (check every 0.5 seconds)
+            updated.signalTimer = 0.5;
+          }
         }
       }
 
@@ -512,7 +562,11 @@ export const useGameStore = create((set, get) => ({
             lane: updated.targetLane,
             x: finalX,
             changeProgress: 0,
-            z: e.z + (newSpeed - e.ownSpeed) * clampedDelta // Removed 0.5 factor completely for 1:1 movement
+            z: e.z + (newSpeed - e.ownSpeed) * clampedDelta,
+            // Reset turn signal after lane change completes
+            signalDirection: null,
+            signalTimer: 0,
+            plannedLaneChange: null
           };
         } else {
           updated = {
@@ -605,7 +659,11 @@ export const useGameStore = create((set, get) => ({
             targetLane: lane,
             ownSpeed: ownSpeed,
             passed: false,
-            changeProgress: 0
+            changeProgress: 0,
+            // Turn signal system
+            signalDirection: null, // 'left' | 'right' | null
+            signalTimer: 0, // Countdown timer for lane change (3-5 seconds)
+            plannedLaneChange: null // Target lane after signal countdown
           });
         }
       }

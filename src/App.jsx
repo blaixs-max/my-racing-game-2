@@ -747,6 +747,68 @@ SingleCoin.displayName = 'SingleCoin';
 
 Coins.displayName = 'Coins';
 
+// ==================== TURN SIGNAL COMPONENT ====================
+// Signal positions based on vehicle dimensions (rear corners)
+// Note: truck, suv, sedan are rotated 180° so their rear is at positive Z
+// Sport car is NOT rotated, so its rear is at negative Z
+const SIGNAL_POSITIONS = {
+  truck: { x: 1.4, y: 1.8, z: 4.0 },     // width 3.1, length 8.3 (rotated 180°)
+  sedan: { x: 1.3, y: 1.2, z: 3.2 },     // width 3.0, length 6.75 (rotated 180°)
+  suv: { x: 1.3, y: 1.5, z: 3.6 },       // width 2.9, length 7.6 (rotated 180°)
+  sport: { x: 0.85, y: 0.8, z: -2.0 }    // width 1.9, length 4.2 (NOT rotated - rear at negative Z)
+};
+
+const TurnSignal = memo(({ side, isActive, vehicleType }) => {
+  const meshRef = useRef();
+  const materialRef = useRef();
+
+  // Get signal position based on vehicle type
+  const signalPos = SIGNAL_POSITIONS[vehicleType] || SIGNAL_POSITIONS.sedan;
+  const xPos = side === 'left' ? -signalPos.x : signalPos.x;
+
+  // Create material once
+  const material = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#FF8800',
+    emissive: '#FF8800',
+    emissiveIntensity: 0,
+    transparent: true,
+    opacity: 0
+  }), []);
+
+  // Blinking animation - 2 times per second (0.5s period)
+  useFrame((state) => {
+    if (!materialRef.current) return;
+
+    if (isActive) {
+      // Blink: on for 0.25s, off for 0.25s (2 blinks per second)
+      const blinkOn = Math.sin(state.clock.elapsedTime * Math.PI * 4) > 0;
+      materialRef.current.emissiveIntensity = blinkOn ? 5 : 0;
+      materialRef.current.opacity = blinkOn ? 1 : 0;
+    } else {
+      materialRef.current.emissiveIntensity = 0;
+      materialRef.current.opacity = 0;
+    }
+  });
+
+  // Cleanup material on unmount
+  useEffect(() => {
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
+
+  return (
+    <mesh
+      ref={meshRef}
+      position={[xPos, signalPos.y, signalPos.z]}
+    >
+      <boxGeometry args={[0.25, 0.12, 0.05]} />
+      <primitive object={material} ref={materialRef} attach="material" />
+    </mesh>
+  );
+});
+TurnSignal.displayName = 'TurnSignal';
+
 // ==================== TRAFİK ====================
 const Traffic = memo(() => {
   const enemies = useGameStore(state => state.enemies);
@@ -798,6 +860,10 @@ const Traffic = memo(() => {
       {validEnemies.map(enemy => {
         const x = enemy.x;
         const tilt = enemy.isChanging ? (enemy.targetLane > enemy.lane ? -0.1 : 0.1) : 0;
+        // Turn signal state - active when signaling or changing lanes
+        const isSignaling = enemy.signalDirection !== null && enemy.signalDirection !== undefined;
+        const leftSignalActive = isSignaling && enemy.signalDirection === 'left';
+        const rightSignalActive = isSignaling && enemy.signalDirection === 'right';
 
         return (
           <group key={enemy.id} position={[x, 0, enemy.z]} rotation={[0, 0, tilt]}>
@@ -805,24 +871,36 @@ const Traffic = memo(() => {
               <group rotation={[0, Math.PI, 0]}>
                 {/* Truck: Reduced by 8% from 1.824 -> 1.678 */}
                 <CarModel modelPath="/models/truck.glb" scale={1.678} />
+                {/* Turn Signals */}
+                <TurnSignal side="left" isActive={leftSignalActive} vehicleType="truck" />
+                <TurnSignal side="right" isActive={rightSignalActive} vehicleType="truck" />
               </group>
             )}
             {enemy.type === 'suv' && (
               <group rotation={[0, Math.PI, 0]}>
                 {/* SUV: Car 2 - Reduced by 8% (1.66 * 0.92 = 1.527 -> 1.53) */}
                 <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
+                {/* Turn Signals */}
+                <TurnSignal side="left" isActive={leftSignalActive} vehicleType="suv" />
+                <TurnSignal side="right" isActive={rightSignalActive} vehicleType="suv" />
               </group>
             )}
             {enemy.type === 'sedan' && (
               <group rotation={[0, Math.PI, 0]}>
                 {/* Sedan: Car 3 (Green Taxi/Pickup) - Scaled up by 35% */}
                 <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.35} />
+                {/* Turn Signals */}
+                <TurnSignal side="left" isActive={leftSignalActive} vehicleType="sedan" />
+                <TurnSignal side="right" isActive={rightSignalActive} vehicleType="sedan" />
               </group>
             )}
             {enemy.type === 'sport' && (
               <group rotation={[0, 0, 0]}>
                 {/* Sport: Ferrari Model. Increased by 5% (1.15 * 1.05 = 1.21) */}
                 <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
+                {/* Turn Signals - Note: sport car is not rotated 180°, so signals are at back (negative Z) */}
+                <TurnSignal side="left" isActive={leftSignalActive} vehicleType="sport" />
+                <TurnSignal side="right" isActive={rightSignalActive} vehicleType="sport" />
               </group>
             )}
           </group>
