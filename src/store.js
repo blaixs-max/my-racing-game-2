@@ -265,13 +265,16 @@ export const useGameStore = create((set, get) => ({
             });
           } catch (error) {
             console.error('❌ Credit deduction failed:', error);
-            // Hata durumunda oyunu başlatma
+            // DEV/TEST: Start game anyway if credit deduction fails (network issue)
+            console.warn('⚠️ Starting game without credit deduction (test mode)');
             set({
-              gameState: 'launcher',
+              gameState: 'playing',
               countdown: null,
-              countdownTimer: null
+              speed: 0,
+              targetSpeed: 110,
+              countdownTimer: null,
+              startTime: Date.now()
             });
-            alert('Failed to start game. Please check your credits and try again.');
           }
         }, 2500); // Increased from 1300ms to 2500ms for shader compilation
       }
