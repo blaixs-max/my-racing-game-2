@@ -747,57 +747,6 @@ SingleCoin.displayName = 'SingleCoin';
 
 Coins.displayName = 'Coins';
 
-// ==================== TURN SIGNAL COMPONENT ====================
-// Signal positions - adjusted based on screenshot feedback
-// Signals should be at rear corners of vehicles (facing player)
-// Since vehicles are rotated 180°, negative Z in local space = positive Z in world (toward player)
-const SIGNAL_POSITIONS = {
-  truck: { x: 1.2, y: 1.2, z: -4.0 },    // Truck - lower corners at back
-  sedan: { x: 1.0, y: 0.9, z: -3.0 },    // Sedan
-  suv: { x: 1.1, y: 1.0, z: -3.5 },      // SUV
-  sport: { x: 0.6, y: 0.5, z: -2.0 }     // Sport (NOT rotated, so negative Z is back)
-};
-
-const TurnSignal = memo(({ side, isActive, vehicleType }) => {
-  const meshRef = useRef();
-
-  // Get signal position based on vehicle type
-  const signalPos = SIGNAL_POSITIONS[vehicleType] || SIGNAL_POSITIONS.sedan;
-  const xPos = side === 'left' ? -signalPos.x : signalPos.x;
-
-  // Blinking state using ref for better performance
-  const blinkRef = useRef(true);
-
-  // Blinking animation - 2 times per second
-  useFrame((state) => {
-    if (!meshRef.current) return;
-    if (isActive) {
-      const blinkOn = Math.sin(state.clock.elapsedTime * Math.PI * 4) > 0;
-      meshRef.current.visible = blinkOn;
-    } else {
-      meshRef.current.visible = false;
-    }
-  });
-
-  // Always render but control visibility via useFrame
-  return (
-    <mesh
-      ref={meshRef}
-      position={[xPos, signalPos.y, signalPos.z]}
-      visible={false}
-    >
-      <boxGeometry args={[0.4, 0.25, 0.1]} />
-      <meshStandardMaterial
-        color="#FF6600"
-        emissive="#FF6600"
-        emissiveIntensity={10}
-        toneMapped={false}
-      />
-    </mesh>
-  );
-});
-TurnSignal.displayName = 'TurnSignal';
-
 // ==================== TRAFİK ====================
 const Traffic = memo(() => {
   const enemies = useGameStore(state => state.enemies);
@@ -849,12 +798,6 @@ const Traffic = memo(() => {
       {validEnemies.map(enemy => {
         const x = enemy.x;
         const tilt = enemy.isChanging ? (enemy.targetLane > enemy.lane ? -0.1 : 0.1) : 0;
-        // Turn signal state - active when signaling or changing lanes
-        const isSignaling = enemy.signalDirection !== null && enemy.signalDirection !== undefined;
-        const leftSignalActive = isSignaling && enemy.signalDirection === 'left';
-        const rightSignalActive = isSignaling && enemy.signalDirection === 'right';
-        // DEBUG: Always show both signals to test positioning
-        const DEBUG_SIGNALS = true;
 
         return (
           <group key={enemy.id} position={[x, 0, enemy.z]} rotation={[0, 0, tilt]}>
@@ -862,36 +805,24 @@ const Traffic = memo(() => {
               <group rotation={[0, Math.PI, 0]}>
                 {/* Truck: Reduced by 8% from 1.824 -> 1.678 */}
                 <CarModel modelPath="/models/truck.glb" scale={1.678} />
-                {/* Turn Signals */}
-                <TurnSignal side="left" isActive={DEBUG_SIGNALS || leftSignalActive} vehicleType="truck" />
-                <TurnSignal side="right" isActive={DEBUG_SIGNALS || rightSignalActive} vehicleType="truck" />
               </group>
             )}
             {enemy.type === 'suv' && (
               <group rotation={[0, Math.PI, 0]}>
                 {/* SUV: Car 2 - Reduced by 8% (1.66 * 0.92 = 1.527 -> 1.53) */}
                 <CarModel modelPath="/models/Car 2/scene.gltf" scale={1.53} />
-                {/* Turn Signals */}
-                <TurnSignal side="left" isActive={DEBUG_SIGNALS || leftSignalActive} vehicleType="suv" />
-                <TurnSignal side="right" isActive={DEBUG_SIGNALS || rightSignalActive} vehicleType="suv" />
               </group>
             )}
             {enemy.type === 'sedan' && (
               <group rotation={[0, Math.PI, 0]}>
                 {/* Sedan: Car 3 (Green Taxi/Pickup) - Scaled up by 35% */}
                 <CarModel modelPath="/models/Car 3/scene.gltf" scale={1.35} />
-                {/* Turn Signals */}
-                <TurnSignal side="left" isActive={DEBUG_SIGNALS || leftSignalActive} vehicleType="sedan" />
-                <TurnSignal side="right" isActive={DEBUG_SIGNALS || rightSignalActive} vehicleType="sedan" />
               </group>
             )}
             {enemy.type === 'sport' && (
               <group rotation={[0, 0, 0]}>
                 {/* Sport: Ferrari Model. Increased by 5% (1.15 * 1.05 = 1.21) */}
                 <CarModel modelPath="/models/ferrari.glb" scale={1.21} />
-                {/* Turn Signals - Note: sport car is not rotated 180°, so signals are at back (negative Z) */}
-                <TurnSignal side="left" isActive={DEBUG_SIGNALS || leftSignalActive} vehicleType="sport" />
-                <TurnSignal side="right" isActive={DEBUG_SIGNALS || rightSignalActive} vehicleType="sport" />
               </group>
             )}
           </group>
