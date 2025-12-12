@@ -465,11 +465,11 @@ export const useGameStore = create((set, get) => ({
       // Distance calculation: positive means NPC is ahead of player
       const distanceAheadOfPlayer = playerZ - e.z;
 
-      // NPC can only change lanes if it's at least 25 meters ahead of player
-      const MIN_DISTANCE_FOR_LANE_CHANGE = 25;
+      // NPC can only change lanes if it's at least 35 meters ahead of player
+      const MIN_DISTANCE_FOR_LANE_CHANGE = 35;
       const canChangeLaneNow = distanceAheadOfPlayer >= MIN_DISTANCE_FOR_LANE_CHANGE;
 
-      // Lane change logic - only if 25m ahead of player
+      // Lane change logic - only if 35m ahead of player
       if (!e.isChanging && canChangeLaneNow && Math.random() < 0.003 * (clampedDelta * 60)) {
         const currentLane = e.lane;
         let possibleLanes = [];
