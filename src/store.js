@@ -265,16 +265,12 @@ export const useGameStore = create((set, get) => ({
             });
           } catch (error) {
             console.error('❌ Credit deduction failed:', error);
-            // DEV/TEST: Start game anyway if credit deduction fails (network issue)
-            console.warn('⚠️ Starting game without credit deduction (test mode)');
             set({
-              gameState: 'playing',
+              gameState: 'launcher',
               countdown: null,
-              speed: 0,
-              targetSpeed: 110,
-              countdownTimer: null,
-              startTime: Date.now()
+              countdownTimer: null
             });
+            alert('Failed to start game. Please check your credits and try again.');
           }
         }, 2500); // Increased from 1300ms to 2500ms for shader compilation
       }
@@ -458,7 +454,7 @@ export const useGameStore = create((set, get) => ({
     let newEnemies = state.enemies.filter(e => e && typeof e === 'object' && typeof e.z !== 'undefined').map(e => {
       let updated = { ...e };
 
-      // ==================== 25 METER SAFETY DISTANCE ====================
+      // ==================== 35 METER SAFETY DISTANCE ====================
       // Player position (fixed at Z = -2)
       const playerZ = -2;
 
