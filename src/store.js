@@ -265,7 +265,6 @@ export const useGameStore = create((set, get) => ({
             });
           } catch (error) {
             console.error('❌ Credit deduction failed:', error);
-            // Hata durumunda oyunu başlatma
             set({
               gameState: 'launcher',
               countdown: null,
@@ -455,8 +454,19 @@ export const useGameStore = create((set, get) => ({
     let newEnemies = state.enemies.filter(e => e && typeof e === 'object' && typeof e.z !== 'undefined').map(e => {
       let updated = { ...e };
 
-      // Şerit değiştirme mantığı - zamana dayalı olasılık
-      if (!e.isChanging && Math.random() < 0.003 * (clampedDelta * 60)) {
+      // ==================== 35 METER SAFETY DISTANCE ====================
+      // Player position (fixed at Z = -2)
+      const playerZ = -2;
+
+      // Distance calculation: positive means NPC is ahead of player
+      const distanceAheadOfPlayer = playerZ - e.z;
+
+      // NPC can only change lanes if it's at least 35 meters ahead of player
+      const MIN_DISTANCE_FOR_LANE_CHANGE = 35;
+      const canChangeLaneNow = distanceAheadOfPlayer >= MIN_DISTANCE_FOR_LANE_CHANGE;
+
+      // Lane change logic - only if 35m ahead of player
+      if (!e.isChanging && canChangeLaneNow && Math.random() < 0.003 * (clampedDelta * 60)) {
         const currentLane = e.lane;
         let possibleLanes = [];
 
@@ -469,7 +479,7 @@ export const useGameStore = create((set, get) => ({
         }
 
         const safeLanes = possibleLanes.filter(l => {
-          const targetX = l * 4.5; // Lane centers: -4.5, 0, +4.5 (matching road markings at ±2.25)
+          const targetX = l * 4.5;
           const isSafe = !state.enemies.some(other =>
             other && other.id !== e.id &&
             typeof other.x !== 'undefined' &&
@@ -512,7 +522,7 @@ export const useGameStore = create((set, get) => ({
             lane: updated.targetLane,
             x: finalX,
             changeProgress: 0,
-            z: e.z + (newSpeed - e.ownSpeed) * clampedDelta // Removed 0.5 factor completely for 1:1 movement
+            z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
           };
         } else {
           updated = {
