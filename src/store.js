@@ -533,7 +533,35 @@ export const useGameStore = create((set, get) => ({
           };
         }
       } else {
-        updated.z = e.z + (newSpeed - e.ownSpeed) * clampedDelta;
+        // ==================== NPC COLLISION AVOIDANCE ====================
+        // Check if there's another NPC directly ahead in the same lane
+        const mySpeed = e.ownSpeed;
+        let newZ = e.z + (newSpeed - mySpeed) * clampedDelta;
+
+        // Find NPCs ahead in the same lane (within 4 units X distance)
+        const npcAhead = state.enemies.find(other =>
+          other &&
+          other.id !== e.id &&
+          typeof other.z !== 'undefined' &&
+          typeof other.x !== 'undefined' &&
+          Math.abs(other.x - e.x) < 3.5 &&  // Same lane check
+          other.z < e.z &&                   // Other is ahead (more negative Z)
+          e.z - other.z < 15                 // Within 15 meters
+        );
+
+        if (npcAhead) {
+          // Match the speed of the car ahead to avoid collision
+          const distanceToAhead = e.z - npcAhead.z;
+          if (distanceToAhead < 8) {
+            // Too close - slow down more aggressively
+            newZ = e.z + (newSpeed - mySpeed * 0.5) * clampedDelta;
+          } else {
+            // Keep safe distance - match speed
+            newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
+          }
+        }
+
+        updated.z = newZ;
       }
 
       return updated;

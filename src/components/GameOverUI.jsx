@@ -219,7 +219,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             </div>
           </div>
 
-          {/* Action Buttons - Only 2 buttons */}
+          {/* Action Buttons */}
           <div className="space-y-3">
             {/* RACE AGAIN - Only enabled if user has credits */}
             <button
@@ -235,6 +235,17 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
                 <i className="fas fa-flag-checkered"></i>
                 RACE AGAIN
                 {credits <= 0 && <span className="text-sm">(No Credits)</span>}
+              </span>
+            </button>
+
+            {/* CHECK SCORES - Opens Lumexia.net */}
+            <button
+              onClick={() => window.open('https://lumexia.net', '_blank')}
+              className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+            >
+              <span className="flex items-center justify-center gap-2">
+                <i className="fas fa-trophy"></i>
+                CHECK SCORES
               </span>
             </button>
 
