@@ -471,7 +471,8 @@ export const useGameStore = create((set, get) => ({
       const canChangeLaneNow = distanceAheadOfPlayer >= MIN_DISTANCE_FOR_LANE_CHANGE;
 
       // STEP 1: Start signaling (plan lane change 3-5 seconds ahead)
-      if (!e.isChanging && !e.signalDirection && Math.random() < 0.003 * (clampedDelta * 60)) {
+      // Increased probability for more frequent lane changes (0.01 = ~1% per frame)
+      if (!e.isChanging && !e.signalDirection && Math.random() < 0.01 * (clampedDelta * 60)) {
         const currentLane = e.lane;
         let possibleLanes = [];
 

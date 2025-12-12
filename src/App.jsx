@@ -749,61 +749,49 @@ Coins.displayName = 'Coins';
 
 // ==================== TURN SIGNAL COMPONENT ====================
 // Signal positions based on vehicle dimensions (rear corners)
-// Note: truck, suv, sedan are rotated 180° so their rear is at positive Z
-// Sport car is NOT rotated, so its rear is at negative Z
+// Note: All vehicles face away from player, signals are at the back facing player
+// Adjusted for each vehicle's scale factor
 const SIGNAL_POSITIONS = {
-  truck: { x: 1.4, y: 1.8, z: 4.0 },     // width 3.1, length 8.3 (rotated 180°)
-  sedan: { x: 1.3, y: 1.2, z: 3.2 },     // width 3.0, length 6.75 (rotated 180°)
-  suv: { x: 1.3, y: 1.5, z: 3.6 },       // width 2.9, length 7.6 (rotated 180°)
-  sport: { x: 0.85, y: 0.8, z: -2.0 }    // width 1.9, length 4.2 (NOT rotated - rear at negative Z)
+  truck: { x: 0.9, y: 2.8, z: 4.5 },     // Truck scale 1.678
+  sedan: { x: 0.85, y: 1.8, z: 3.0 },    // Sedan scale 1.35
+  suv: { x: 0.9, y: 2.2, z: 3.8 },       // SUV scale 1.53
+  sport: { x: 0.55, y: 0.5, z: -2.2 }    // Sport scale 1.21 (NOT rotated)
 };
 
 const TurnSignal = memo(({ side, isActive, vehicleType }) => {
   const meshRef = useRef();
-  const materialRef = useRef();
 
   // Get signal position based on vehicle type
   const signalPos = SIGNAL_POSITIONS[vehicleType] || SIGNAL_POSITIONS.sedan;
   const xPos = side === 'left' ? -signalPos.x : signalPos.x;
 
-  // Create material once
-  const material = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#FF8800',
-    emissive: '#FF8800',
-    emissiveIntensity: 0,
-    transparent: true,
-    opacity: 0
-  }), []);
+  // Blinking state
+  const [visible, setVisible] = useState(false);
 
-  // Blinking animation - 2 times per second (0.5s period)
+  // Blinking animation - 2 times per second
   useFrame((state) => {
-    if (!materialRef.current) return;
-
     if (isActive) {
-      // Blink: on for 0.25s, off for 0.25s (2 blinks per second)
       const blinkOn = Math.sin(state.clock.elapsedTime * Math.PI * 4) > 0;
-      materialRef.current.emissiveIntensity = blinkOn ? 5 : 0;
-      materialRef.current.opacity = blinkOn ? 1 : 0;
+      setVisible(blinkOn);
     } else {
-      materialRef.current.emissiveIntensity = 0;
-      materialRef.current.opacity = 0;
+      setVisible(false);
     }
   });
 
-  // Cleanup material on unmount
-  useEffect(() => {
-    return () => {
-      material.dispose();
-    };
-  }, [material]);
+  if (!isActive) return null;
 
   return (
     <mesh
       ref={meshRef}
       position={[xPos, signalPos.y, signalPos.z]}
+      visible={visible}
     >
-      <boxGeometry args={[0.25, 0.12, 0.05]} />
-      <primitive object={material} ref={materialRef} attach="material" />
+      <boxGeometry args={[0.35, 0.18, 0.08]} />
+      <meshStandardMaterial
+        color="#FF6600"
+        emissive="#FF6600"
+        emissiveIntensity={8}
+      />
     </mesh>
   );
 });
