@@ -194,7 +194,7 @@ export const useGameStore = create((set, get) => ({
       console.error('❌ Insufficient credits');
       const modeText = state.gameMode === 'doubleOrNothing' ? 'Double or Nothing requires 2 credits!' : '';
       alert(`❌ Insufficient credits!\n\n${modeText}\nPlease purchase more credits to play.`);
-      set({ gameState: 'launcher' }); // Launcher'a geri dön
+      set({ gameState: 'launcher' });
       return;
     }
 
@@ -204,7 +204,7 @@ export const useGameStore = create((set, get) => ({
 
     set({
       gameState: 'countdown',
-      countdown: 5, // Changed from 3 to 5 for longer warmup
+      countdown: 5,
       speed: 0,
       targetSpeed: 0,
       score: 0,
@@ -225,13 +225,13 @@ export const useGameStore = create((set, get) => ({
       nitro: 100,
       isNitroActive: false,
       updateCounter: 0,
-      startTime: 0, // Reset time
-      reachedLevel5: false, // Reset for Double or Nothing mode
+      startTime: 0,
+      reachedLevel5: false,
       cameraShake: 0,
       lastSpawnZ: -400
     });
 
-    let count = 5; // Changed from 3 to 5
+    let count = 5;
     const timer = setInterval(() => {
       count--;
       if (count > 0) {
@@ -240,17 +240,13 @@ export const useGameStore = create((set, get) => ({
         set({ countdown: "GO!" });
       } else {
         clearInterval(timer);
-        // Show "GO!" for 2.5 seconds to allow shader compilation
-        // This prevents the black screen/freeze when game starts
         setTimeout(async () => {
-          // Oyun başlarken credit düş (gameMode'a göre 1 veya 2 credit)
           const currentState = get();
           const creditsToDeduct = currentState.gameMode === 'doubleOrNothing' ? 2 : 1;
           try {
             console.log(`🎮 Starting race - deducting ${creditsToDeduct} credit(s)...`);
             await useCredit(currentState.walletAddress, creditsToDeduct);
 
-            // Güncel credit sayısını al
             const newCredits = await getUserCredits(currentState.walletAddress);
             console.log(`✅ Credit deducted. Remaining: ${newCredits}`);
 
@@ -261,7 +257,7 @@ export const useGameStore = create((set, get) => ({
               targetSpeed: 110,
               countdownTimer: null,
               startTime: Date.now(),
-              credits: newCredits // Store'u güncelle
+              credits: newCredits
             });
           } catch (error) {
             console.error('❌ Credit deduction failed:', error);
@@ -272,7 +268,7 @@ export const useGameStore = create((set, get) => ({
             });
             alert('Failed to start game. Please check your credits and try again.');
           }
-        }, 2500); // Increased from 1300ms to 2500ms for shader compilation
+        }, 2500);
       }
     }, 1000);
 
@@ -386,37 +382,32 @@ export const useGameStore = create((set, get) => ({
     set((state) => ({ particles: [...state.particles, ...newParticles] }));
   },
 
-  // FIX 3: Nested set() kaldırıldı, return değeri içinde nitro kontrolü yapılıyor
+  // ==================== PERFORMANCE OPTIMIZED updateGame ====================
   updateGame: (delta) => set((state) => {
     if (state.gameState !== 'playing') return { speed: 0 };
 
-    // FIX 6: Delta spike koruması - maksimum 0.1 saniye (100ms)
+    // Delta spike protection - max 0.1 second (100ms)
     const clampedDelta = Math.min(delta, 0.1);
-
     const newUpdateCounter = (state.updateCounter || 0) + 1;
 
+    // ==================== NITRO SYSTEM ====================
     let newNitro = state.nitro;
     let newTargetSpeed = 110;
     let newIsNitroActive = state.isNitroActive;
 
     if (state.isNitroActive && state.nitro > 0) {
       newNitro = Math.max(0, state.nitro - clampedDelta * 25);
-      newTargetSpeed = 200; // Increased to 200 km/h
-
-      // FIX 3: Nested set yerine state içinde güncelleme
-      if (newNitro <= 0) {
-        newIsNitroActive = false;
-      }
+      newTargetSpeed = 200;
+      if (newNitro <= 0) newIsNitroActive = false;
     } else {
       newNitro = Math.min(state.maxNitro, state.nitro + clampedDelta * state.nitroRegenRate);
-      newTargetSpeed = 110;
     }
 
     const newSpeed = THREE.MathUtils.lerp(state.speed, newTargetSpeed, clampedDelta * 2);
     const newScore = state.score + (newSpeed * clampedDelta * 0.2);
     const newDistance = state.totalDistance + (newSpeed * clampedDelta * 0.1);
 
-    // Level System - Level up every 1000 meters
+    // ==================== LEVEL SYSTEM ====================
     const newLevel = Math.floor(newDistance / 1000) + 1;
     let newLastLevelUpDistance = state.lastLevelUpDistance;
     let levelUpMessage = '';
@@ -425,10 +416,7 @@ export const useGameStore = create((set, get) => ({
     if (newLevel > state.currentLevel) {
       levelUpMessage = `LEVEL ${newLevel}!`;
       newLastLevelUpDistance = newDistance;
-      // Show level up message
       setTimeout(() => set({ message: '' }), 1500);
-
-      // Double or Nothing: Mark if player reached Level 5
       if (newLevel >= 5 && !state.reachedLevel5) {
         newReachedLevel5 = true;
         if (state.gameMode === 'doubleOrNothing') {
@@ -439,274 +427,213 @@ export const useGameStore = create((set, get) => ({
 
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
 
-    // Safety: Filter out any undefined/null particles first
-    let newParticles = state.particles.filter(p => p && typeof p === 'object' && typeof p.life !== 'undefined').map(p => ({
-      ...p,
-      x: p.x + p.vx * clampedDelta,
-      y: p.y + p.vy * clampedDelta - 9.8 * clampedDelta,
-      z: p.z + p.vz * clampedDelta,
-      vy: p.vy - 9.8 * clampedDelta,
-      life: p.life - clampedDelta * 3
-    })).filter(p => p.life > 0);
-
-    // FIX 7: Frame-rate bağımsız enemy update - zamana dayalı
-    // Safety: Filter out any undefined/null enemies first
-    let newEnemies = state.enemies.filter(e => e && typeof e === 'object' && typeof e.z !== 'undefined').map(e => {
-      let updated = { ...e };
-
-      // ==================== 35 METER SAFETY DISTANCE ====================
-      // Player position (fixed at Z = -2)
-      const playerZ = -2;
-
-      // Distance calculation: positive means NPC is ahead of player
-      const distanceAheadOfPlayer = playerZ - e.z;
-
-      // NPC can only change lanes if it's at least 35 meters ahead of player
-      const MIN_DISTANCE_FOR_LANE_CHANGE = 35;
-      const canChangeLaneNow = distanceAheadOfPlayer >= MIN_DISTANCE_FOR_LANE_CHANGE;
-
-      // Lane change logic - only if 35m ahead of player
-      if (!e.isChanging && canChangeLaneNow && Math.random() < 0.003 * (clampedDelta * 60)) {
-        const currentLane = e.lane;
-        let possibleLanes = [];
-
-        if (currentLane === -1) {
-          possibleLanes = [0];
-        } else if (currentLane === 0) {
-          possibleLanes = [-1, 1];
-        } else if (currentLane === 1) {
-          possibleLanes = [0];
-        }
-
-        // Determine player's current lane
-        const playerCurrentX = state.currentX;
-        let playerLane;
-        if (playerCurrentX < -2.25) playerLane = -1;
-        else if (playerCurrentX > 2.25) playerLane = 1;
-        else playerLane = 0;
-
-        // ==================== ALWAYS KEEP ONE LANE OPEN ====================
-        // Count how many lanes are blocked in the visible area (35m to 100m ahead of player)
-        const countBlockedLanes = (excludeNpcId, simulateLaneChange = null) => {
-          const allLanes = [-1, 0, 1];
-          let blockedCount = 0;
-
-          for (const lane of allLanes) {
-            const laneX = lane * 4.5;
-            // Check if any NPC blocks this lane in the visible range
-            const isBlocked = state.enemies.some(other => {
-              if (!other || other.id === excludeNpcId) return false;
-              if (typeof other.x === 'undefined' || typeof other.z === 'undefined') return false;
-
-              // Check NPC's effective lane (considering simulated lane change)
-              let effectiveLane = other.lane;
-              if (simulateLaneChange && other.id === simulateLaneChange.id) {
-                effectiveLane = simulateLaneChange.newLane;
-              }
-
-              const otherX = effectiveLane * 4.5;
-              const distFromPlayer = playerZ - other.z;
-
-              // Only check NPCs in visible range ahead (35m to 100m)
-              return Math.abs(otherX - laneX) < 3.5 &&
-                     distFromPlayer >= 35 &&
-                     distFromPlayer <= 100;
-            });
-
-            if (isBlocked) blockedCount++;
-          }
-          return blockedCount;
-        };
-
-        const safeLanes = possibleLanes.filter(l => {
-          const targetX = l * 4.5;
-
-          // Check no other NPC in target lane
-          const isLaneClearOfNPCs = !state.enemies.some(other =>
-            other && other.id !== e.id &&
-            typeof other.x !== 'undefined' &&
-            typeof other.z !== 'undefined' &&
-            Math.abs(other.x - targetX) < 4.5 &&
-            Math.abs(other.z - e.z) < 25
-          );
-
-          // Don't block player's lane if within 50m
-          const wouldBlockPlayer = l === playerLane && distanceAheadOfPlayer < 50;
-
-          // Check if this lane change would block all 3 lanes
-          // Simulate: this NPC moves from current lane to target lane l
-          const currentBlockedLanes = countBlockedLanes(e.id, null);
-          const simulatedBlockedLanes = countBlockedLanes(null, { id: e.id, newLane: l });
-          const wouldBlockAllLanes = simulatedBlockedLanes >= 3;
-
-          return isLaneClearOfNPCs && !wouldBlockPlayer && !wouldBlockAllLanes;
+    // ==================== OPTIMIZED PARTICLE UPDATE ====================
+    // In-place update to reduce object allocations
+    const newParticles = [];
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      if (!p || typeof p.life === 'undefined') continue;
+      const newLife = p.life - clampedDelta * 3;
+      if (newLife > 0) {
+        newParticles.push({
+          id: p.id,
+          type: p.type,
+          x: p.x + p.vx * clampedDelta,
+          y: p.y + p.vy * clampedDelta - 9.8 * clampedDelta,
+          z: p.z + p.vz * clampedDelta,
+          vx: p.vx,
+          vy: p.vy - 9.8 * clampedDelta,
+          vz: p.vz,
+          life: newLife,
+          size: p.size
         });
+      }
+    }
 
-        if (safeLanes.length > 0) {
-          const newLane = safeLanes[Math.floor(Math.random() * safeLanes.length)];
-          updated = {
-            ...updated,
-            isChanging: true,
-            targetLane: newLane,
-            changeProgress: 0
-          };
+    // ==================== CACHED ENEMY DATA FOR COLLISION ====================
+    // Pre-compute enemy positions once for O(1) lookups
+    const playerZ = -2;
+    const playerCurrentX = state.currentX;
+    const playerLane = playerCurrentX < -2.25 ? -1 : (playerCurrentX > 2.25 ? 1 : 0);
+
+    // Filter valid enemies once
+    const validEnemies = [];
+    for (let i = 0; i < state.enemies.length; i++) {
+      const e = state.enemies[i];
+      if (e && typeof e.z !== 'undefined' && e.z < 50) {
+        validEnemies.push(e);
+      }
+    }
+
+    // Pre-compute lane occupancy for quick lookups (grid-based spatial partitioning)
+    const laneOccupancy = { '-1': [], '0': [], '1': [] };
+    for (let i = 0; i < validEnemies.length; i++) {
+      const e = validEnemies[i];
+      const laneName = String(e.lane);
+      if (laneOccupancy[laneName]) {
+        laneOccupancy[laneName].push(e);
+      }
+    }
+
+    // ==================== OPTIMIZED ENEMY UPDATE ====================
+    const newEnemies = [];
+    for (let i = 0; i < validEnemies.length; i++) {
+      const e = validEnemies[i];
+      const distanceAheadOfPlayer = playerZ - e.z;
+      const canChangeLaneNow = distanceAheadOfPlayer >= 35;
+
+      // Reuse object properties instead of spread operator
+      let newX = e.x;
+      let newZ = e.z;
+      let newLane = e.lane;
+      let isChanging = e.isChanging;
+      let targetLane = e.targetLane;
+      let changeProgress = e.changeProgress;
+
+      // Lane change initiation logic
+      if (!isChanging && canChangeLaneNow && Math.random() < 0.003 * (clampedDelta * 60)) {
+        const currentLane = e.lane;
+        const possibleLanes = currentLane === -1 ? [0] : (currentLane === 0 ? [-1, 1] : [0]);
+
+        // Quick lane availability check using cached data
+        for (let j = 0; j < possibleLanes.length; j++) {
+          const testLane = possibleLanes[j];
+          const targetX = testLane * 4.5;
+          const laneEnemies = laneOccupancy[String(testLane)] || [];
+
+          let isLaneClear = true;
+          for (let k = 0; k < laneEnemies.length; k++) {
+            const other = laneEnemies[k];
+            if (other.id !== e.id && Math.abs(other.z - e.z) < 25) {
+              isLaneClear = false;
+              break;
+            }
+          }
+
+          const wouldBlockPlayer = testLane === playerLane && distanceAheadOfPlayer < 50;
+
+          if (isLaneClear && !wouldBlockPlayer) {
+            isChanging = true;
+            targetLane = testLane;
+            changeProgress = 0;
+            break;
+          }
         }
       }
 
-      if (updated.isChanging) {
-        const newProgress = updated.changeProgress + clampedDelta * 2;
-        const startX = updated.lane * 4.5; // Lane centers: -4.5, 0, +4.5
-        const endX = updated.targetLane * 4.5; // Lane centers: -4.5, 0, +4.5
+      // Process lane change
+      if (isChanging) {
+        const newProgress = changeProgress + clampedDelta * 2;
+        const startX = newLane * 4.5;
+        const endX = targetLane * 4.5;
 
-        // ==================== COLLISION CHECK DURING LANE CHANGE ====================
-        // Check if another NPC has entered the target lane during the lane change
-        const targetLaneX = updated.targetLane * 4.5;
-        const isTargetLaneBlocked = state.enemies.some(other =>
-          other &&
-          other.id !== e.id &&
-          typeof other.x !== 'undefined' &&
-          typeof other.z !== 'undefined' &&
-          Math.abs(other.x - targetLaneX) < 3.5 &&  // In target lane
-          Math.abs(other.z - e.z) < 12               // Within collision range
-        );
-
-        // If target lane became blocked, abort lane change and return to original lane
-        if (isTargetLaneBlocked && newProgress < 0.5) {
-          // Abort - return to original lane (only if less than halfway through change)
-          const returnX = Math.max(-7, Math.min(7, updated.lane * 4.5));
-          updated = {
-            ...updated,
-            isChanging: false,
-            targetLane: updated.lane,  // Reset target to original lane
-            x: returnX,
-            changeProgress: 0,
-            z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
-          };
-        } else if (isTargetLaneBlocked && newProgress >= 0.5) {
-          // Too late to abort - pause the lane change (don't advance progress)
-          // This creates a "hesitation" effect until the lane clears
-          updated = {
-            ...updated,
-            x: THREE.MathUtils.lerp(startX, endX, updated.changeProgress), // Keep current position
-            z: e.z + (newSpeed - e.ownSpeed * 0.7) * clampedDelta  // Slow down a bit
-          };
-        } else {
-          // Target lane is clear - continue normal lane change
-          let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
-
-          // SAFETY: Clamp X position to stay within safe road bounds (-7 to +7)
-          // Road is 20 units wide (-10 to +10), lanes centered at -4.5, 0, +4.5
-          // This ensures even the widest vehicles (3.1 units) stay well within road bounds
-          newX = Math.max(-7, Math.min(7, newX));
-
-          if (newProgress >= 1) {
-            // Clamp final position to safe road bounds
-            const finalX = Math.max(-7, Math.min(7, updated.targetLane * 4.5));
-
-            updated = {
-              ...updated,
-              isChanging: false,
-              lane: updated.targetLane,
-              x: finalX,
-              changeProgress: 0,
-              z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
-            };
-          } else {
-            updated = {
-              ...updated,
-              x: newX,
-              changeProgress: newProgress,
-              z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
-            };
+        // Quick collision check for target lane
+        const targetLaneEnemies = laneOccupancy[String(targetLane)] || [];
+        let isTargetBlocked = false;
+        for (let k = 0; k < targetLaneEnemies.length; k++) {
+          const other = targetLaneEnemies[k];
+          if (other.id !== e.id && Math.abs(other.z - e.z) < 12) {
+            isTargetBlocked = true;
+            break;
           }
         }
+
+        if (isTargetBlocked && newProgress < 0.5) {
+          // Abort lane change
+          isChanging = false;
+          targetLane = newLane;
+          newX = Math.max(-7, Math.min(7, newLane * 4.5));
+          changeProgress = 0;
+          newZ = e.z + (newSpeed - e.ownSpeed) * clampedDelta;
+        } else if (isTargetBlocked) {
+          // Pause lane change
+          newX = THREE.MathUtils.lerp(startX, endX, changeProgress);
+          newZ = e.z + (newSpeed - e.ownSpeed * 0.7) * clampedDelta;
+        } else if (newProgress >= 1) {
+          // Complete lane change
+          isChanging = false;
+          newLane = targetLane;
+          newX = Math.max(-7, Math.min(7, targetLane * 4.5));
+          changeProgress = 0;
+          newZ = e.z + (newSpeed - e.ownSpeed) * clampedDelta;
+        } else {
+          // Continue lane change
+          newX = Math.max(-7, Math.min(7, THREE.MathUtils.lerp(startX, endX, newProgress)));
+          changeProgress = newProgress;
+          newZ = e.z + (newSpeed - e.ownSpeed) * clampedDelta;
+        }
       } else {
-        // ==================== NPC COLLISION AVOIDANCE ====================
-        // Check if there's another NPC directly ahead in the same lane
+        // Normal driving - check for NPC ahead
         const mySpeed = e.ownSpeed;
-        let newZ = e.z + (newSpeed - mySpeed) * clampedDelta;
+        newZ = e.z + (newSpeed - mySpeed) * clampedDelta;
 
-        // Find NPCs ahead in the same lane (within 3.5 units X distance)
-        const npcAhead = state.enemies.find(other =>
-          other &&
-          other.id !== e.id &&
-          typeof other.z !== 'undefined' &&
-          typeof other.x !== 'undefined' &&
-          Math.abs(other.x - e.x) < 3.5 &&  // Same lane check
-          other.z < e.z &&                   // Other is ahead (more negative Z)
-          e.z - other.z < 15                 // Within 15 meters
-        );
+        // Quick ahead check using cached lane data
+        const sameLaneEnemies = laneOccupancy[String(e.lane)] || [];
+        let npcAhead = null;
+        let minDist = 15;
 
-        if (npcAhead) {
-          const distanceToAhead = e.z - npcAhead.z;
-
-          // Option 1: Try to change lane if blocked (only if distance 8-15m AND 35m ahead of player)
-          // Also ensure we don't block the player's path
-          if (distanceToAhead >= 8 && distanceToAhead < 15 && !updated.isChanging && canChangeLaneNow) {
-            const currentLane = e.lane;
-            let possibleLanes = [];
-
-            if (currentLane === -1) possibleLanes = [0];
-            else if (currentLane === 0) possibleLanes = [-1, 1];
-            else if (currentLane === 1) possibleLanes = [0];
-
-            // Determine player's current lane based on X position
-            const playerCurrentX = state.currentX;
-            let playerLane;
-            if (playerCurrentX < -2.25) playerLane = -1;
-            else if (playerCurrentX > 2.25) playerLane = 1;
-            else playerLane = 0;
-
-            // Find a safe lane to change to:
-            // 1. No NPC vehicles within 20m in that lane
-            // 2. Don't move into player's lane if NPC is close to player (within 50m)
-            const safeLane = possibleLanes.find(targetLane => {
-              const targetX = targetLane * 4.5;
-
-              // Check if lane is clear of other NPCs
-              const isLaneClearOfNPCs = !state.enemies.some(other =>
-                other &&
-                other.id !== e.id &&
-                typeof other.x !== 'undefined' &&
-                typeof other.z !== 'undefined' &&
-                Math.abs(other.x - targetX) < 3.5 &&
-                Math.abs(other.z - e.z) < 20
-              );
-
-              // Don't block player's lane if NPC is within 50m of player
-              const wouldBlockPlayer = targetLane === playerLane && distanceAheadOfPlayer < 50;
-
-              return isLaneClearOfNPCs && !wouldBlockPlayer;
-            });
-
-            if (safeLane !== undefined) {
-              // Safe lane found - initiate lane change
-              updated = {
-                ...updated,
-                isChanging: true,
-                targetLane: safeLane,
-                changeProgress: 0
-              };
-            } else {
-              // No safe lane - slow down to match speed
-              newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
+        for (let k = 0; k < sameLaneEnemies.length; k++) {
+          const other = sameLaneEnemies[k];
+          if (other.id !== e.id && other.z < e.z) {
+            const dist = e.z - other.z;
+            if (dist < minDist) {
+              minDist = dist;
+              npcAhead = other;
             }
           }
-          // Option 2: Too close (< 8m) - must slow down aggressively
-          else if (distanceToAhead < 8) {
+        }
+
+        if (npcAhead) {
+          if (minDist >= 8 && minDist < 15 && canChangeLaneNow) {
+            // Try to change lane
+            const possibleLanes = e.lane === -1 ? [0] : (e.lane === 0 ? [-1, 1] : [0]);
+            for (let j = 0; j < possibleLanes.length; j++) {
+              const testLane = possibleLanes[j];
+              const laneEnemies = laneOccupancy[String(testLane)] || [];
+              let isLaneClear = true;
+
+              for (let k = 0; k < laneEnemies.length; k++) {
+                const other = laneEnemies[k];
+                if (other.id !== e.id && Math.abs(other.z - e.z) < 20) {
+                  isLaneClear = false;
+                  break;
+                }
+              }
+
+              const wouldBlockPlayer = testLane === playerLane && distanceAheadOfPlayer < 50;
+              if (isLaneClear && !wouldBlockPlayer) {
+                isChanging = true;
+                targetLane = testLane;
+                changeProgress = 0;
+                break;
+              }
+            }
+            if (!isChanging) {
+              newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
+            }
+          } else if (minDist < 8) {
             newZ = e.z + (newSpeed - mySpeed * 0.5) * clampedDelta;
-          }
-          // Option 3: Safe distance but following - match speed
-          else {
+          } else {
             newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
           }
         }
-
-        updated.z = newZ;
       }
 
-      return updated;
-    }).filter(e => e.z < 50);
+      // Push updated enemy (reuse object structure)
+      newEnemies.push({
+        id: e.id,
+        x: newX,
+        z: newZ,
+        lane: newLane,
+        speed: e.speed,
+        type: e.type,
+        isChanging: isChanging,
+        targetLane: targetLane,
+        ownSpeed: e.ownSpeed,
+        passed: e.passed,
+        changeProgress: changeProgress
+      });
+    }
 
     // Safety: Filter out any undefined/null coins first
     let newCoins = state.coins.filter(c => c && typeof c === 'object' && typeof c.z !== 'undefined').map(c => ({

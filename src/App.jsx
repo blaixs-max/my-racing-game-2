@@ -130,37 +130,102 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// ==================== PARTIKÜL SİSTEMİ ====================
+// ==================== PARTIKÜL SİSTEMİ (GPU INSTANCED) ====================
 const ParticleSystem = memo(() => {
   const particles = useGameStore(state => state.particles);
+  const sparkInstanceRef = useRef();
+  const explosionInstanceRef = useRef();
 
-  // Safety: Filter out invalid particles before rendering
-  const validParticles = particles.filter(p =>
-    p &&
-    typeof p === 'object' &&
-    typeof p.x !== 'undefined' &&
-    typeof p.y !== 'undefined' &&
-    typeof p.z !== 'undefined' &&
-    typeof p.life !== 'undefined'
-  );
+  // Pre-allocated matrices for GPU instancing
+  const tempMatrix = useMemo(() => new THREE.Matrix4(), []);
+  const tempColor = useMemo(() => new THREE.Color(), []);
+
+  // Shared geometries and materials (created once)
+  const sparkGeometry = useMemo(() => new THREE.SphereGeometry(0.1, 4, 4), []);
+  const explosionGeometry = useMemo(() => new THREE.SphereGeometry(0.3, 4, 4), []);
+  const sparkMaterial = useMemo(() => new THREE.MeshBasicMaterial({
+    color: '#ffff00',
+    transparent: true
+  }), []);
+  const explosionMaterial = useMemo(() => new THREE.MeshBasicMaterial({
+    color: '#ff4500',
+    transparent: true
+  }), []);
+
+  // Update instance matrices each frame
+  useFrame(() => {
+    if (!sparkInstanceRef.current || !explosionInstanceRef.current) return;
+
+    let sparkIdx = 0;
+    let explosionIdx = 0;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      if (!p || typeof p.life === 'undefined') continue;
+
+      if (p.type === 'spark') {
+        if (sparkIdx < 50) {
+          tempMatrix.makeTranslation(p.x, p.y, p.z);
+          tempMatrix.scale(new THREE.Vector3(p.life, p.life, p.life));
+          sparkInstanceRef.current.setMatrixAt(sparkIdx, tempMatrix);
+          sparkIdx++;
+        }
+      } else {
+        if (explosionIdx < 50) {
+          const scale = (p.size || 0.3) * p.life;
+          tempMatrix.makeTranslation(p.x, p.y, p.z);
+          tempMatrix.scale(new THREE.Vector3(scale, scale, scale));
+          explosionInstanceRef.current.setMatrixAt(explosionIdx, tempMatrix);
+
+          // Color transition: orange -> dark
+          tempColor.setHex(p.life > 0.5 ? 0xff4500 : 0x333333);
+          explosionInstanceRef.current.setColorAt(explosionIdx, tempColor);
+          explosionIdx++;
+        }
+      }
+    }
+
+    // Hide unused instances by scaling to 0
+    for (let i = sparkIdx; i < 50; i++) {
+      tempMatrix.makeScale(0, 0, 0);
+      sparkInstanceRef.current.setMatrixAt(i, tempMatrix);
+    }
+    for (let i = explosionIdx; i < 50; i++) {
+      tempMatrix.makeScale(0, 0, 0);
+      explosionInstanceRef.current.setMatrixAt(i, tempMatrix);
+    }
+
+    sparkInstanceRef.current.instanceMatrix.needsUpdate = true;
+    explosionInstanceRef.current.instanceMatrix.needsUpdate = true;
+    if (explosionInstanceRef.current.instanceColor) {
+      explosionInstanceRef.current.instanceColor.needsUpdate = true;
+    }
+  });
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      sparkGeometry.dispose();
+      explosionGeometry.dispose();
+      sparkMaterial.dispose();
+      explosionMaterial.dispose();
+    };
+  }, [sparkGeometry, explosionGeometry, sparkMaterial, explosionMaterial]);
 
   return (
     <group>
-      {validParticles.map(p => {
-        const color = p.type === 'spark' ? '#ffff00' : (p.life > 0.5 ? '#ff4500' : '#333');
-        const size = p.type === 'spark' ? 0.1 : (p.size || 0.3);
-
-        return (
-          <mesh key={p.id} position={[p.x, p.y, p.z]}>
-            <sphereGeometry args={[size, 4, 4]} />
-            <meshBasicMaterial
-              color={color}
-              transparent
-              opacity={p.life}
-            />
-          </mesh>
-        );
-      })}
+      {/* GPU Instanced Spark Particles - max 50 */}
+      <instancedMesh
+        ref={sparkInstanceRef}
+        args={[sparkGeometry, sparkMaterial, 50]}
+        frustumCulled={false}
+      />
+      {/* GPU Instanced Explosion Particles - max 50 */}
+      <instancedMesh
+        ref={explosionInstanceRef}
+        args={[explosionGeometry, explosionMaterial, 50]}
+        frustumCulled={false}
+      />
     </group>
   );
 });
@@ -834,6 +899,27 @@ const Traffic = memo(() => {
 
 Traffic.displayName = 'Traffic';
 
+// ==================== SHARED BUILDING MATERIALS (OPTIMIZED) ====================
+// Global material pool - shared across all buildings to reduce memory and GPU overhead
+const sharedBuildingMaterials = {
+  // Building body materials by type
+  apartment: new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.9 }),
+  villa: new THREE.MeshStandardMaterial({ color: '#8B7355', roughness: 0.9 }),
+  modern_house: new THREE.MeshStandardMaterial({ color: '#778899', roughness: 0.9 }),
+  shop: new THREE.MeshStandardMaterial({ color: '#A0522D', roughness: 0.9 }),
+  townhouse: new THREE.MeshStandardMaterial({ color: '#6B6B6B', roughness: 0.9 }),
+  small_house: new THREE.MeshStandardMaterial({ color: '#666', roughness: 0.9 }),
+  // Shared materials
+  window: new THREE.MeshStandardMaterial({ color: '#88ccff', emissive: '#4488ff', emissiveIntensity: 2 }),
+  windowFrame: new THREE.MeshStandardMaterial({ color: '#ddd', roughness: 0.6 }),
+  roof: new THREE.MeshStandardMaterial({ color: '#3a3a3a', roughness: 0.7 }),
+  modernRoof: new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.4, metalness: 0.3 }),
+  villaRoof: new THREE.MeshStandardMaterial({ color: '#8B4513', roughness: 0.8 }),
+  balcony: new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.5, metalness: 0.2 }),
+  door: new THREE.MeshStandardMaterial({ color: '#4a3520', roughness: 0.8 }),
+  awning: new THREE.MeshStandardMaterial({ color: '#CC5500', roughness: 0.8 })
+};
+
 // ==================== ÇEVRE ====================
 const Building = memo(({ width, height, side, type }) => {
   const isApartment = type === 'apartment';
@@ -842,32 +928,8 @@ const Building = memo(({ width, height, side, type }) => {
   const isShop = type === 'shop';
   const isTownhouse = type === 'townhouse';
 
-  // Different colors for different building types
-  const buildingColor = useMemo(() => {
-    if (isApartment) return '#555';
-    if (isVilla) return '#8B7355';
-    if (isModernHouse) return '#778899';
-    if (isShop) return '#A0522D';
-    if (isTownhouse) return '#6B6B6B';
-    return '#666';
-  }, [isApartment, isVilla, isModernHouse, isShop, isTownhouse]);
-
-  const materials = useMemo(() => ({
-    building: new THREE.MeshStandardMaterial({ color: buildingColor, roughness: 0.9 }),
-    window: new THREE.MeshStandardMaterial({ color: '#88ccff', emissive: '#4488ff', emissiveIntensity: 2 }),
-    windowFrame: new THREE.MeshStandardMaterial({ color: '#ddd', roughness: 0.6 }),
-    roof: new THREE.MeshStandardMaterial({ color: '#3a3a3a', roughness: 0.7 }),
-    modernRoof: new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.4, metalness: 0.3 }),
-    villaRoof: new THREE.MeshStandardMaterial({ color: '#8B4513', roughness: 0.8 }),
-    balcony: new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.5, metalness: 0.2 }),
-    door: new THREE.MeshStandardMaterial({ color: '#4a3520', roughness: 0.8 })
-  }), [buildingColor]);
-
-  useEffect(() => {
-    return () => {
-      Object.values(materials).forEach(mat => mat.dispose());
-    };
-  }, [materials]);
+  // Use shared materials from global pool (no per-component allocation)
+  const buildingMaterial = sharedBuildingMaterials[type] || sharedBuildingMaterials.small_house;
 
   // Windows for apartments and townhouses - More consistent
   const wins = useMemo(() => {
@@ -902,7 +964,7 @@ const Building = memo(({ width, height, side, type }) => {
   return (
     <group>
       {/* Main building body */}
-      <mesh position={[0, height / 2, 0]} material={materials.building}>
+      <mesh position={[0, height / 2, 0]} material={buildingMaterial}>
         <boxGeometry args={[width, height, width]} />
       </mesh>
 
@@ -910,16 +972,16 @@ const Building = memo(({ width, height, side, type }) => {
       {wins.map((pos, i) => (
         <group key={i}>
           {/* Window glass */}
-          <mesh position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+          <mesh position={pos} material={sharedBuildingMaterials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
             <planeGeometry args={[1.8, 1.5]} />
           </mesh>
           {/* Window frame */}
-          <mesh position={[pos[0], pos[1], pos[2]]} material={materials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+          <mesh position={[pos[0], pos[1], pos[2]]} material={sharedBuildingMaterials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
             <planeGeometry args={[2.0, 1.7]} />
           </mesh>
           {/* Balcony for apartments */}
           {isApartment && i % 3 === 0 && (
-            <mesh position={[pos[0], pos[1] - 1, pos[2] + (side > 0 ? -0.3 : 0.3)]} material={materials.balcony}>
+            <mesh position={[pos[0], pos[1] - 1, pos[2] + (side > 0 ? -0.3 : 0.3)]} material={sharedBuildingMaterials.balcony}>
               <boxGeometry args={[2.2, 0.1, 0.6]} />
             </mesh>
           )}
@@ -930,11 +992,11 @@ const Building = memo(({ width, height, side, type }) => {
       {smallWins.map((pos, i) => (
         <group key={`sw-${i}`}>
           {/* Window glass */}
-          <mesh position={pos} material={materials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+          <mesh position={pos} material={sharedBuildingMaterials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
             <planeGeometry args={[1.2, 1.0]} />
           </mesh>
           {/* Window frame */}
-          <mesh position={[pos[0], pos[1], pos[2]]} material={materials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+          <mesh position={[pos[0], pos[1], pos[2]]} material={sharedBuildingMaterials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
             <planeGeometry args={[1.4, 1.2]} />
           </mesh>
         </group>
@@ -945,14 +1007,14 @@ const Building = memo(({ width, height, side, type }) => {
         <>
           <mesh position={[0, height + 1, 0]} rotation={[0, Math.PI / 4, 0]}>
             <coneGeometry args={[width * 0.8, 3, 4]} />
-            <primitive object={materials.roof} attach="material" />
+            <primitive object={sharedBuildingMaterials.roof} attach="material" />
           </mesh>
           {/* Door */}
-          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.door}>
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.door}>
             <planeGeometry args={[1.2, 2.5]} />
           </mesh>
           {/* Door frame */}
-          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.04)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.windowFrame}>
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.04)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.windowFrame}>
             <planeGeometry args={[1.3, 2.6]} />
           </mesh>
         </>
@@ -963,11 +1025,11 @@ const Building = memo(({ width, height, side, type }) => {
         <>
           <mesh position={[0, height + 0.2, 0]}>
             <boxGeometry args={[width, 0.4, width]} />
-            <primitive object={materials.villaRoof} attach="material" />
+            <primitive object={sharedBuildingMaterials.villaRoof} attach="material" />
           </mesh>
           <mesh position={[width * 0.3, height + 1.5, 0]}>
             <boxGeometry args={[0.8, 3, 0.8]} />
-            <primitive object={materials.villaRoof} attach="material" />
+            <primitive object={sharedBuildingMaterials.villaRoof} attach="material" />
           </mesh>
         </>
       )}
@@ -976,7 +1038,7 @@ const Building = memo(({ width, height, side, type }) => {
       {isModernHouse && (
         <mesh position={[0, height + 0.15, 0]}>
           <boxGeometry args={[width * 1.05, 0.3, width * 1.05]} />
-          <primitive object={materials.modernRoof} attach="material" />
+          <primitive object={sharedBuildingMaterials.modernRoof} attach="material" />
         </mesh>
       )}
 
@@ -984,12 +1046,11 @@ const Building = memo(({ width, height, side, type }) => {
       {isShop && (
         <>
           {/* Awning */}
-          <mesh position={[0, 2.5, side > 0 ? -width / 2 : width / 2]} rotation={[Math.PI / 6, 0, 0]}>
+          <mesh position={[0, 2.5, side > 0 ? -width / 2 : width / 2]} rotation={[Math.PI / 6, 0, 0]} material={sharedBuildingMaterials.awning}>
             <boxGeometry args={[width * 0.9, 0.1, 1.5]} />
-            <meshStandardMaterial color="#CC5500" roughness={0.8} />
           </mesh>
           {/* Door */}
-          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={materials.door}>
+          <mesh position={[0, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.door}>
             <planeGeometry args={[1.2, 2.5]} />
           </mesh>
         </>
@@ -999,7 +1060,7 @@ const Building = memo(({ width, height, side, type }) => {
       {isTownhouse && (
         <mesh position={[0, height + 1.5, 0]} rotation={[0, 0, 0]}>
           <coneGeometry args={[width * 0.7, 3, 4]} />
-          <primitive object={materials.roof} attach="material" />
+          <primitive object={sharedBuildingMaterials.roof} attach="material" />
         </mesh>
       )}
     </group>
@@ -1172,25 +1233,25 @@ const Barrier = memo(({ x }) => {
 
 Barrier.displayName = 'Barrier';
 
-// ==================== STREET LIGHTS ====================
+// ==================== STREET LIGHTS (OPTIMIZED) ====================
 const StreetLights = memo(() => {
   const { speed } = useGameStore();
   const lightsRef = useRef();
 
-  // Initialize lights array - every 100 meters on both sides
+  // OPTIMIZED: Reduced from 22 to 12 lights (every 150m instead of 100m)
   const lights = useMemo(() => {
     const result = [];
-    // Create lights from -500m to +500m initially
-    for (let i = -5; i <= 5; i++) {
+    // Create lights from -450m to +450m (6 pairs = 12 total, down from 22)
+    for (let i = -3; i <= 3; i++) {
       result.push({
         id: `left-${i}`,
         side: -1,
-        initialZ: i * 100
+        initialZ: i * 150
       });
       result.push({
         id: `right-${i}`,
         side: 1,
-        initialZ: i * 100
+        initialZ: i * 150
       });
     }
     return result;
@@ -1268,25 +1329,13 @@ const StreetLights = memo(() => {
               </mesh>
             </group>
 
-            {/* Point Light (glowing effect) - Higher intensity */}
+            {/* OPTIMIZED: Single point light with reduced intensity (was 25+12, now just 15) */}
             <pointLight
               position={[armDirection * 1.2, 6.8, 0]}
               color="#FFB347"
-              intensity={25}
-              distance={35}
-              decay={1.5}
-            />
-
-            {/* Spot Light (downward illumination) - More focused */}
-            <spotLight
-              position={[armDirection * 1.2, 6.8, 0]}
-              target-position={[armDirection * 1.2, 0, 0]}
-              angle={Math.PI / 4}
-              penumbra={0.6}
-              intensity={12}
-              color="#FFA500"
+              intensity={15}
               distance={25}
-              castShadow={false}
+              decay={2}
             />
           </group>
         );
@@ -1297,22 +1346,54 @@ const StreetLights = memo(() => {
 
 StreetLights.displayName = 'StreetLights';
 
-// ==================== YOL VE ZEMİN ====================
+// ==================== YOL VE ZEMİN (OPTIMIZED) ====================
 function RoadEnvironment() {
   const { updateGame, speed } = useGameStore();
-  const stripesRef = useRef();
+  const leftStripesRef = useRef();
+  const rightStripesRef = useRef();
+
+  // Pre-allocated matrix for GPU instancing
+  const tempMatrix = useMemo(() => new THREE.Matrix4(), []);
+
+  // Track stripe positions (30 stripes per lane)
+  const stripePositions = useRef(
+    Array.from({ length: 30 }, (_, i) => -i * 20)
+  );
+
+  // Shared geometry for all stripes (created once)
+  const stripeGeometry = useMemo(() => new THREE.PlaneGeometry(0.25, 6), []);
 
   useFrame((state, delta) => {
     updateGame(delta);
 
-    // FIX 6: Delta clamp
     const clampedDelta = Math.min(delta, 0.1);
 
-    if (stripesRef.current) {
-      stripesRef.current.children.forEach(stripe => {
-        stripe.position.z += speed * clampedDelta * 0.5;
-        if (stripe.position.z > 10) stripe.position.z = -200;
-      });
+    // Update stripe positions
+    for (let i = 0; i < stripePositions.current.length; i++) {
+      stripePositions.current[i] += speed * clampedDelta * 0.5;
+      if (stripePositions.current[i] > 10) {
+        stripePositions.current[i] = -200;
+      }
+    }
+
+    // Update instanced mesh matrices
+    if (leftStripesRef.current && rightStripesRef.current) {
+      for (let i = 0; i < 30; i++) {
+        const z = stripePositions.current[i];
+
+        // Left lane stripes
+        tempMatrix.makeRotationX(-Math.PI / 2);
+        tempMatrix.setPosition(-2.25, 0.02, z);
+        leftStripesRef.current.setMatrixAt(i, tempMatrix);
+
+        // Right lane stripes
+        tempMatrix.makeRotationX(-Math.PI / 2);
+        tempMatrix.setPosition(2.25, 0.02, z);
+        rightStripesRef.current.setMatrixAt(i, tempMatrix);
+      }
+
+      leftStripesRef.current.instanceMatrix.needsUpdate = true;
+      rightStripesRef.current.instanceMatrix.needsUpdate = true;
     }
   });
 
@@ -1325,8 +1406,9 @@ function RoadEnvironment() {
   useEffect(() => {
     return () => {
       Object.values(roadMaterials).forEach(mat => mat.dispose());
+      stripeGeometry.dispose();
     };
-  }, [roadMaterials]);
+  }, [roadMaterials, stripeGeometry]);
 
   return (
     <group>
@@ -1334,19 +1416,23 @@ function RoadEnvironment() {
         <planeGeometry args={[20, 1000]} />
         <primitive object={roadMaterials.road} attach="material" />
       </mesh>
-      <group ref={stripesRef}>
-        {[-2.25, 2.25].map((x) => Array.from({ length: 30 }).map((_, j) => (
-          <mesh key={`${x}-${j}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.02, -j * 20]}>
-            <planeGeometry args={[0.25, 6]} />
-            <primitive object={roadMaterials.stripe} attach="material" />
-          </mesh>
-        )))}
-      </group>
-      {/* FIX 2: Barrier artık dışarıda tanımlı */}
+
+      {/* OPTIMIZED: GPU Instanced stripes - 2 instanced meshes instead of 60 separate meshes */}
+      <instancedMesh
+        ref={leftStripesRef}
+        args={[stripeGeometry, roadMaterials.stripe, 30]}
+        frustumCulled={false}
+      />
+      <instancedMesh
+        ref={rightStripesRef}
+        args={[stripeGeometry, roadMaterials.stripe, 30]}
+        frustumCulled={false}
+      />
+
       <Barrier x={-10.5} />
       <Barrier x={10.5} />
 
-      {/* Street Lights - Every 100m */}
+      {/* Street Lights - OPTIMIZED: Reduced count */}
       <StreetLights />
 
       <SideObjects side={1} />
