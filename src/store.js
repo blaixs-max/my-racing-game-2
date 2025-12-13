@@ -518,32 +518,68 @@ export const useGameStore = create((set, get) => ({
         const newProgress = updated.changeProgress + clampedDelta * 2;
         const startX = updated.lane * 4.5; // Lane centers: -4.5, 0, +4.5
         const endX = updated.targetLane * 4.5; // Lane centers: -4.5, 0, +4.5
-        let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
 
-        // SAFETY: Clamp X position to stay within safe road bounds (-7 to +7)
-        // Road is 20 units wide (-10 to +10), lanes centered at -4.5, 0, +4.5
-        // This ensures even the widest vehicles (3.1 units) stay well within road bounds
-        newX = Math.max(-7, Math.min(7, newX));
+        // ==================== COLLISION CHECK DURING LANE CHANGE ====================
+        // Check if another NPC has entered the target lane during the lane change
+        const targetLaneX = updated.targetLane * 4.5;
+        const isTargetLaneBlocked = state.enemies.some(other =>
+          other &&
+          other.id !== e.id &&
+          typeof other.x !== 'undefined' &&
+          typeof other.z !== 'undefined' &&
+          Math.abs(other.x - targetLaneX) < 3.5 &&  // In target lane
+          Math.abs(other.z - e.z) < 12               // Within collision range
+        );
 
-        if (newProgress >= 1) {
-          // Clamp final position to safe road bounds
-          const finalX = Math.max(-7, Math.min(7, updated.targetLane * 4.5));
-
+        // If target lane became blocked, abort lane change and return to original lane
+        if (isTargetLaneBlocked && newProgress < 0.5) {
+          // Abort - return to original lane (only if less than halfway through change)
+          const returnX = Math.max(-7, Math.min(7, updated.lane * 4.5));
           updated = {
             ...updated,
             isChanging: false,
-            lane: updated.targetLane,
-            x: finalX,
+            targetLane: updated.lane,  // Reset target to original lane
+            x: returnX,
             changeProgress: 0,
             z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
           };
-        } else {
+        } else if (isTargetLaneBlocked && newProgress >= 0.5) {
+          // Too late to abort - pause the lane change (don't advance progress)
+          // This creates a "hesitation" effect until the lane clears
           updated = {
             ...updated,
-            x: newX,
-            changeProgress: newProgress,
-            z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
+            x: THREE.MathUtils.lerp(startX, endX, updated.changeProgress), // Keep current position
+            z: e.z + (newSpeed - e.ownSpeed * 0.7) * clampedDelta  // Slow down a bit
           };
+        } else {
+          // Target lane is clear - continue normal lane change
+          let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
+
+          // SAFETY: Clamp X position to stay within safe road bounds (-7 to +7)
+          // Road is 20 units wide (-10 to +10), lanes centered at -4.5, 0, +4.5
+          // This ensures even the widest vehicles (3.1 units) stay well within road bounds
+          newX = Math.max(-7, Math.min(7, newX));
+
+          if (newProgress >= 1) {
+            // Clamp final position to safe road bounds
+            const finalX = Math.max(-7, Math.min(7, updated.targetLane * 4.5));
+
+            updated = {
+              ...updated,
+              isChanging: false,
+              lane: updated.targetLane,
+              x: finalX,
+              changeProgress: 0,
+              z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
+            };
+          } else {
+            updated = {
+              ...updated,
+              x: newX,
+              changeProgress: newProgress,
+              z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
+            };
+          }
         }
       } else {
         // ==================== NPC COLLISION AVOIDANCE ====================
