@@ -538,7 +538,7 @@ export const useGameStore = create((set, get) => ({
         const mySpeed = e.ownSpeed;
         let newZ = e.z + (newSpeed - mySpeed) * clampedDelta;
 
-        // Find NPCs ahead in the same lane (within 4 units X distance)
+        // Find NPCs ahead in the same lane (within 3.5 units X distance)
         const npcAhead = state.enemies.find(other =>
           other &&
           other.id !== e.id &&
@@ -550,13 +550,50 @@ export const useGameStore = create((set, get) => ({
         );
 
         if (npcAhead) {
-          // Match the speed of the car ahead to avoid collision
           const distanceToAhead = e.z - npcAhead.z;
-          if (distanceToAhead < 8) {
-            // Too close - slow down more aggressively
+
+          // Option 1: Try to change lane if blocked (only if distance 8-15m)
+          if (distanceToAhead >= 8 && distanceToAhead < 15 && !updated.isChanging) {
+            const currentLane = e.lane;
+            let possibleLanes = [];
+
+            if (currentLane === -1) possibleLanes = [0];
+            else if (currentLane === 0) possibleLanes = [-1, 1];
+            else if (currentLane === 1) possibleLanes = [0];
+
+            // Find a safe lane to change to (no vehicles within 20m in that lane)
+            const safeLane = possibleLanes.find(targetLane => {
+              const targetX = targetLane * 4.5;
+              const isLaneClear = !state.enemies.some(other =>
+                other &&
+                other.id !== e.id &&
+                typeof other.x !== 'undefined' &&
+                typeof other.z !== 'undefined' &&
+                Math.abs(other.x - targetX) < 3.5 &&
+                Math.abs(other.z - e.z) < 20
+              );
+              return isLaneClear;
+            });
+
+            if (safeLane !== undefined) {
+              // Safe lane found - initiate lane change
+              updated = {
+                ...updated,
+                isChanging: true,
+                targetLane: safeLane,
+                changeProgress: 0
+              };
+            } else {
+              // No safe lane - slow down to match speed
+              newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
+            }
+          }
+          // Option 2: Too close (< 8m) - must slow down aggressively
+          else if (distanceToAhead < 8) {
             newZ = e.z + (newSpeed - mySpeed * 0.5) * clampedDelta;
-          } else {
-            // Keep safe distance - match speed
+          }
+          // Option 3: Safe distance but following - match speed
+          else {
             newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
           }
         }
