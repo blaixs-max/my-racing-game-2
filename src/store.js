@@ -478,16 +478,29 @@ export const useGameStore = create((set, get) => ({
           possibleLanes = [0];
         }
 
+        // Determine player's current lane
+        const playerCurrentX = state.currentX;
+        let playerLane;
+        if (playerCurrentX < -2.25) playerLane = -1;
+        else if (playerCurrentX > 2.25) playerLane = 1;
+        else playerLane = 0;
+
         const safeLanes = possibleLanes.filter(l => {
           const targetX = l * 4.5;
-          const isSafe = !state.enemies.some(other =>
+
+          // Check no other NPC in target lane
+          const isLaneClearOfNPCs = !state.enemies.some(other =>
             other && other.id !== e.id &&
             typeof other.x !== 'undefined' &&
             typeof other.z !== 'undefined' &&
             Math.abs(other.x - targetX) < 4.5 &&
             Math.abs(other.z - e.z) < 25
           );
-          return isSafe;
+
+          // Don't block player's lane if within 50m
+          const wouldBlockPlayer = l === playerLane && distanceAheadOfPlayer < 50;
+
+          return isLaneClearOfNPCs && !wouldBlockPlayer;
         });
 
         if (safeLanes.length > 0) {
@@ -552,8 +565,9 @@ export const useGameStore = create((set, get) => ({
         if (npcAhead) {
           const distanceToAhead = e.z - npcAhead.z;
 
-          // Option 1: Try to change lane if blocked (only if distance 8-15m)
-          if (distanceToAhead >= 8 && distanceToAhead < 15 && !updated.isChanging) {
+          // Option 1: Try to change lane if blocked (only if distance 8-15m AND 35m ahead of player)
+          // Also ensure we don't block the player's path
+          if (distanceToAhead >= 8 && distanceToAhead < 15 && !updated.isChanging && canChangeLaneNow) {
             const currentLane = e.lane;
             let possibleLanes = [];
 
@@ -561,10 +575,21 @@ export const useGameStore = create((set, get) => ({
             else if (currentLane === 0) possibleLanes = [-1, 1];
             else if (currentLane === 1) possibleLanes = [0];
 
-            // Find a safe lane to change to (no vehicles within 20m in that lane)
+            // Determine player's current lane based on X position
+            const playerCurrentX = state.currentX;
+            let playerLane;
+            if (playerCurrentX < -2.25) playerLane = -1;
+            else if (playerCurrentX > 2.25) playerLane = 1;
+            else playerLane = 0;
+
+            // Find a safe lane to change to:
+            // 1. No NPC vehicles within 20m in that lane
+            // 2. Don't move into player's lane if NPC is close to player (within 50m)
             const safeLane = possibleLanes.find(targetLane => {
               const targetX = targetLane * 4.5;
-              const isLaneClear = !state.enemies.some(other =>
+
+              // Check if lane is clear of other NPCs
+              const isLaneClearOfNPCs = !state.enemies.some(other =>
                 other &&
                 other.id !== e.id &&
                 typeof other.x !== 'undefined' &&
@@ -572,7 +597,11 @@ export const useGameStore = create((set, get) => ({
                 Math.abs(other.x - targetX) < 3.5 &&
                 Math.abs(other.z - e.z) < 20
               );
-              return isLaneClear;
+
+              // Don't block player's lane if NPC is within 50m of player
+              const wouldBlockPlayer = targetLane === playerLane && distanceAheadOfPlayer < 50;
+
+              return isLaneClearOfNPCs && !wouldBlockPlayer;
             });
 
             if (safeLane !== undefined) {
