@@ -478,16 +478,68 @@ export const useGameStore = create((set, get) => ({
           possibleLanes = [0];
         }
 
+        // Determine player's current lane
+        const playerCurrentX = state.currentX;
+        let playerLane;
+        if (playerCurrentX < -2.25) playerLane = -1;
+        else if (playerCurrentX > 2.25) playerLane = 1;
+        else playerLane = 0;
+
+        // ==================== ALWAYS KEEP ONE LANE OPEN ====================
+        // Count how many lanes are blocked in the visible area (35m to 100m ahead of player)
+        const countBlockedLanes = (excludeNpcId, simulateLaneChange = null) => {
+          const allLanes = [-1, 0, 1];
+          let blockedCount = 0;
+
+          for (const lane of allLanes) {
+            const laneX = lane * 4.5;
+            // Check if any NPC blocks this lane in the visible range
+            const isBlocked = state.enemies.some(other => {
+              if (!other || other.id === excludeNpcId) return false;
+              if (typeof other.x === 'undefined' || typeof other.z === 'undefined') return false;
+
+              // Check NPC's effective lane (considering simulated lane change)
+              let effectiveLane = other.lane;
+              if (simulateLaneChange && other.id === simulateLaneChange.id) {
+                effectiveLane = simulateLaneChange.newLane;
+              }
+
+              const otherX = effectiveLane * 4.5;
+              const distFromPlayer = playerZ - other.z;
+
+              // Only check NPCs in visible range ahead (35m to 100m)
+              return Math.abs(otherX - laneX) < 3.5 &&
+                     distFromPlayer >= 35 &&
+                     distFromPlayer <= 100;
+            });
+
+            if (isBlocked) blockedCount++;
+          }
+          return blockedCount;
+        };
+
         const safeLanes = possibleLanes.filter(l => {
           const targetX = l * 4.5;
-          const isSafe = !state.enemies.some(other =>
+
+          // Check no other NPC in target lane
+          const isLaneClearOfNPCs = !state.enemies.some(other =>
             other && other.id !== e.id &&
             typeof other.x !== 'undefined' &&
             typeof other.z !== 'undefined' &&
             Math.abs(other.x - targetX) < 4.5 &&
             Math.abs(other.z - e.z) < 25
           );
-          return isSafe;
+
+          // Don't block player's lane if within 50m
+          const wouldBlockPlayer = l === playerLane && distanceAheadOfPlayer < 50;
+
+          // Check if this lane change would block all 3 lanes
+          // Simulate: this NPC moves from current lane to target lane l
+          const currentBlockedLanes = countBlockedLanes(e.id, null);
+          const simulatedBlockedLanes = countBlockedLanes(null, { id: e.id, newLane: l });
+          const wouldBlockAllLanes = simulatedBlockedLanes >= 3;
+
+          return isLaneClearOfNPCs && !wouldBlockPlayer && !wouldBlockAllLanes;
         });
 
         if (safeLanes.length > 0) {
@@ -505,35 +557,152 @@ export const useGameStore = create((set, get) => ({
         const newProgress = updated.changeProgress + clampedDelta * 2;
         const startX = updated.lane * 4.5; // Lane centers: -4.5, 0, +4.5
         const endX = updated.targetLane * 4.5; // Lane centers: -4.5, 0, +4.5
-        let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
 
-        // SAFETY: Clamp X position to stay within safe road bounds (-7 to +7)
-        // Road is 20 units wide (-10 to +10), lanes centered at -4.5, 0, +4.5
-        // This ensures even the widest vehicles (3.1 units) stay well within road bounds
-        newX = Math.max(-7, Math.min(7, newX));
+        // ==================== COLLISION CHECK DURING LANE CHANGE ====================
+        // Check if another NPC has entered the target lane during the lane change
+        const targetLaneX = updated.targetLane * 4.5;
+        const isTargetLaneBlocked = state.enemies.some(other =>
+          other &&
+          other.id !== e.id &&
+          typeof other.x !== 'undefined' &&
+          typeof other.z !== 'undefined' &&
+          Math.abs(other.x - targetLaneX) < 3.5 &&  // In target lane
+          Math.abs(other.z - e.z) < 12               // Within collision range
+        );
 
-        if (newProgress >= 1) {
-          // Clamp final position to safe road bounds
-          const finalX = Math.max(-7, Math.min(7, updated.targetLane * 4.5));
-
+        // If target lane became blocked, abort lane change and return to original lane
+        if (isTargetLaneBlocked && newProgress < 0.5) {
+          // Abort - return to original lane (only if less than halfway through change)
+          const returnX = Math.max(-7, Math.min(7, updated.lane * 4.5));
           updated = {
             ...updated,
             isChanging: false,
-            lane: updated.targetLane,
-            x: finalX,
+            targetLane: updated.lane,  // Reset target to original lane
+            x: returnX,
             changeProgress: 0,
             z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
           };
-        } else {
+        } else if (isTargetLaneBlocked && newProgress >= 0.5) {
+          // Too late to abort - pause the lane change (don't advance progress)
+          // This creates a "hesitation" effect until the lane clears
           updated = {
             ...updated,
-            x: newX,
-            changeProgress: newProgress,
-            z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
+            x: THREE.MathUtils.lerp(startX, endX, updated.changeProgress), // Keep current position
+            z: e.z + (newSpeed - e.ownSpeed * 0.7) * clampedDelta  // Slow down a bit
           };
+        } else {
+          // Target lane is clear - continue normal lane change
+          let newX = THREE.MathUtils.lerp(startX, endX, Math.min(newProgress, 1));
+
+          // SAFETY: Clamp X position to stay within safe road bounds (-7 to +7)
+          // Road is 20 units wide (-10 to +10), lanes centered at -4.5, 0, +4.5
+          // This ensures even the widest vehicles (3.1 units) stay well within road bounds
+          newX = Math.max(-7, Math.min(7, newX));
+
+          if (newProgress >= 1) {
+            // Clamp final position to safe road bounds
+            const finalX = Math.max(-7, Math.min(7, updated.targetLane * 4.5));
+
+            updated = {
+              ...updated,
+              isChanging: false,
+              lane: updated.targetLane,
+              x: finalX,
+              changeProgress: 0,
+              z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
+            };
+          } else {
+            updated = {
+              ...updated,
+              x: newX,
+              changeProgress: newProgress,
+              z: e.z + (newSpeed - e.ownSpeed) * clampedDelta
+            };
+          }
         }
       } else {
-        updated.z = e.z + (newSpeed - e.ownSpeed) * clampedDelta;
+        // ==================== NPC COLLISION AVOIDANCE ====================
+        // Check if there's another NPC directly ahead in the same lane
+        const mySpeed = e.ownSpeed;
+        let newZ = e.z + (newSpeed - mySpeed) * clampedDelta;
+
+        // Find NPCs ahead in the same lane (within 3.5 units X distance)
+        const npcAhead = state.enemies.find(other =>
+          other &&
+          other.id !== e.id &&
+          typeof other.z !== 'undefined' &&
+          typeof other.x !== 'undefined' &&
+          Math.abs(other.x - e.x) < 3.5 &&  // Same lane check
+          other.z < e.z &&                   // Other is ahead (more negative Z)
+          e.z - other.z < 15                 // Within 15 meters
+        );
+
+        if (npcAhead) {
+          const distanceToAhead = e.z - npcAhead.z;
+
+          // Option 1: Try to change lane if blocked (only if distance 8-15m AND 35m ahead of player)
+          // Also ensure we don't block the player's path
+          if (distanceToAhead >= 8 && distanceToAhead < 15 && !updated.isChanging && canChangeLaneNow) {
+            const currentLane = e.lane;
+            let possibleLanes = [];
+
+            if (currentLane === -1) possibleLanes = [0];
+            else if (currentLane === 0) possibleLanes = [-1, 1];
+            else if (currentLane === 1) possibleLanes = [0];
+
+            // Determine player's current lane based on X position
+            const playerCurrentX = state.currentX;
+            let playerLane;
+            if (playerCurrentX < -2.25) playerLane = -1;
+            else if (playerCurrentX > 2.25) playerLane = 1;
+            else playerLane = 0;
+
+            // Find a safe lane to change to:
+            // 1. No NPC vehicles within 20m in that lane
+            // 2. Don't move into player's lane if NPC is close to player (within 50m)
+            const safeLane = possibleLanes.find(targetLane => {
+              const targetX = targetLane * 4.5;
+
+              // Check if lane is clear of other NPCs
+              const isLaneClearOfNPCs = !state.enemies.some(other =>
+                other &&
+                other.id !== e.id &&
+                typeof other.x !== 'undefined' &&
+                typeof other.z !== 'undefined' &&
+                Math.abs(other.x - targetX) < 3.5 &&
+                Math.abs(other.z - e.z) < 20
+              );
+
+              // Don't block player's lane if NPC is within 50m of player
+              const wouldBlockPlayer = targetLane === playerLane && distanceAheadOfPlayer < 50;
+
+              return isLaneClearOfNPCs && !wouldBlockPlayer;
+            });
+
+            if (safeLane !== undefined) {
+              // Safe lane found - initiate lane change
+              updated = {
+                ...updated,
+                isChanging: true,
+                targetLane: safeLane,
+                changeProgress: 0
+              };
+            } else {
+              // No safe lane - slow down to match speed
+              newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
+            }
+          }
+          // Option 2: Too close (< 8m) - must slow down aggressively
+          else if (distanceToAhead < 8) {
+            newZ = e.z + (newSpeed - mySpeed * 0.5) * clampedDelta;
+          }
+          // Option 3: Safe distance but following - match speed
+          else {
+            newZ = e.z + (newSpeed - npcAhead.ownSpeed) * clampedDelta;
+          }
+        }
+
+        updated.z = newZ;
       }
 
       return updated;
@@ -547,42 +716,79 @@ export const useGameStore = create((set, get) => ({
 
     // FIX 7: Spawn rate zamana dayalı
     let newLastSpawnZ = state.lastSpawnZ;
-    const playerZ = state.totalDistance; // Approximate player Z for spawning logic relative to distance
+    const spawnPlayerZ = state.totalDistance; // Approximate player Z for spawning logic relative to distance
 
     // Spawn logic based on distance
-    if (Math.abs(newLastSpawnZ - (-playerZ)) > 30) {
-      newLastSpawnZ = -playerZ;
+    if (Math.abs(newLastSpawnZ - (-spawnPlayerZ)) > 30) {
+      newLastSpawnZ = -spawnPlayerZ;
 
       const lanes = [-1, 0, 1];
+
+      // ==================== ALWAYS KEEP ONE LANE OPEN (SPAWN CHECK) ====================
+      // Count blocked lanes in the VISIBLE area (35m to 150m ahead of player at Z=-2)
+      const countBlockedLanesForSpawn = () => {
+        const allLanes = [-1, 0, 1];
+        let blockedCount = 0;
+
+        for (const lane of allLanes) {
+          const laneX = lane * 4.5;
+          // Check if any NPC blocks this lane in the visible range
+          const isBlocked = newEnemies.some(npc => {
+            if (!npc || typeof npc.x === 'undefined' || typeof npc.z === 'undefined') return false;
+
+            const npcLaneX = npc.lane * 4.5;
+            const distFromPlayer = -2 - npc.z;  // Player at Z=-2
+
+            // Check NPCs in visible range ahead (35m to 150m)
+            return Math.abs(npcLaneX - laneX) < 3.5 &&
+                   distFromPlayer >= 35 &&
+                   distFromPlayer <= 150;
+          });
+
+          if (isBlocked) blockedCount++;
+        }
+        return blockedCount;
+      };
+
+      // Only spawn if at least 1 lane will remain open
+      const currentBlockedLanes = countBlockedLanesForSpawn();
+      const canSpawn = currentBlockedLanes < 2;  // Allow spawn only if max 1 lane is blocked (leaving 2 open)
+
       const availableLanes = lanes.filter(lane => {
-        return !newEnemies.some(e =>
+        // Check spawn point is clear
+        const spawnPointClear = !newEnemies.some(e =>
           e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' &&
           Math.abs(e.lane - lane) < 0.5 && Math.abs(e.z - -400) < 80
         );
+
+        // Check if this lane is already blocked in visible area
+        const laneX = lane * 4.5;
+        const laneAlreadyBlocked = newEnemies.some(npc => {
+          if (!npc || typeof npc.z === 'undefined') return false;
+          const npcLaneX = npc.lane * 4.5;
+          const distFromPlayer = -2 - npc.z;
+          return Math.abs(npcLaneX - laneX) < 3.5 &&
+                 distFromPlayer >= 35 &&
+                 distFromPlayer <= 150;
+        });
+
+        return spawnPointClear && laneAlreadyBlocked;  // Prefer lanes that are already blocked
       });
 
-      // Ensure at least 1 lane is always available (never block all 3 lanes)
+      // If no "already blocked" lanes available, use any clear spawn point but limit total
       let finalAvailableLanes = availableLanes;
-      if (availableLanes.length === 0 && newEnemies.length >= 2) {
-        // If all lanes are blocked, force at least one lane to be available
-        const occupiedLanes = newEnemies
-          .filter(e => e && typeof e.z !== 'undefined' && typeof e.lane !== 'undefined' && Math.abs(e.z - -400) < 80)
-          .map(e => e.lane);
-        const allLanes = [-1, 0, 1];
-        const freeLanes = allLanes.filter(l => !occupiedLanes.includes(l));
-        if (freeLanes.length > 0) {
-          finalAvailableLanes = freeLanes;
-        } else {
-          // All lanes occupied, pick the one with furthest vehicle
-          const laneDistances = allLanes.map(l => {
-            const enemiesInLane = newEnemies.filter(e => e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' && e.lane === l && Math.abs(e.z - -400) < 80);
-            // Safety check for empty array
-            const minZ = enemiesInLane.length > 0 ? Math.min(...enemiesInLane.map(e => e.z)) : -400;
-            return { lane: l, minZ: minZ };
-          });
-          const bestLane = laneDistances.reduce((a, b) => a.minZ < b.minZ ? a : b);
-          finalAvailableLanes = [bestLane.lane];
-        }
+      if (finalAvailableLanes.length === 0 && canSpawn) {
+        finalAvailableLanes = lanes.filter(lane => {
+          return !newEnemies.some(e =>
+            e && typeof e.lane !== 'undefined' && typeof e.z !== 'undefined' &&
+            Math.abs(e.lane - lane) < 0.5 && Math.abs(e.z - -400) < 80
+          );
+        });
+      }
+
+      // Skip spawn entirely if it would block all lanes
+      if (!canSpawn) {
+        finalAvailableLanes = [];
       }
 
       if (finalAvailableLanes.length > 0) {
