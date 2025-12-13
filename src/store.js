@@ -182,9 +182,6 @@ export const useGameStore = create((set, get) => ({
 
     const state = get();
 
-    // ==================== CREDIT CHECK DISABLED FOR TESTING ====================
-    // TODO: Re-enable before production!
-    /*
     // Credit kontrolü - Oyun başlamadan önce kontrol et
     if (!state.walletAddress) {
       console.error('❌ Wallet not connected');
@@ -197,12 +194,9 @@ export const useGameStore = create((set, get) => ({
       console.error('❌ Insufficient credits');
       const modeText = state.gameMode === 'doubleOrNothing' ? 'Double or Nothing requires 2 credits!' : '';
       alert(`❌ Insufficient credits!\n\n${modeText}\nPlease purchase more credits to play.`);
-      set({ gameState: 'launcher' }); // Launcher'a geri dön
+      set({ gameState: 'launcher' });
       return;
     }
-    */
-    console.log('⚠️ TESTING MODE: Credit check disabled');
-    // ==================== END DISABLED SECTION ====================
 
     if (state.countdownTimer) {
       clearInterval(state.countdownTimer);
@@ -210,7 +204,7 @@ export const useGameStore = create((set, get) => ({
 
     set({
       gameState: 'countdown',
-      countdown: 5, // Changed from 3 to 5 for longer warmup
+      countdown: 5,
       speed: 0,
       targetSpeed: 0,
       score: 0,
@@ -231,13 +225,13 @@ export const useGameStore = create((set, get) => ({
       nitro: 100,
       isNitroActive: false,
       updateCounter: 0,
-      startTime: 0, // Reset time
-      reachedLevel5: false, // Reset for Double or Nothing mode
+      startTime: 0,
+      reachedLevel5: false,
       cameraShake: 0,
       lastSpawnZ: -400
     });
 
-    let count = 5; // Changed from 3 to 5
+    let count = 5;
     const timer = setInterval(() => {
       count--;
       if (count > 0) {
@@ -246,20 +240,13 @@ export const useGameStore = create((set, get) => ({
         set({ countdown: "GO!" });
       } else {
         clearInterval(timer);
-        // Show "GO!" for 2.5 seconds to allow shader compilation
-        // This prevents the black screen/freeze when game starts
         setTimeout(async () => {
-          // ==================== CREDIT DEDUCTION DISABLED FOR TESTING ====================
-          // TODO: Re-enable before production!
-          /*
-          // Oyun başlarken credit düş (gameMode'a göre 1 veya 2 credit)
           const currentState = get();
           const creditsToDeduct = currentState.gameMode === 'doubleOrNothing' ? 2 : 1;
           try {
             console.log(`🎮 Starting race - deducting ${creditsToDeduct} credit(s)...`);
             await useCredit(currentState.walletAddress, creditsToDeduct);
 
-            // Güncel credit sayısını al
             const newCredits = await getUserCredits(currentState.walletAddress);
             console.log(`✅ Credit deducted. Remaining: ${newCredits}`);
 
@@ -270,7 +257,7 @@ export const useGameStore = create((set, get) => ({
               targetSpeed: 110,
               countdownTimer: null,
               startTime: Date.now(),
-              credits: newCredits // Store'u güncelle
+              credits: newCredits
             });
           } catch (error) {
             console.error('❌ Credit deduction failed:', error);
@@ -281,18 +268,7 @@ export const useGameStore = create((set, get) => ({
             });
             alert('Failed to start game. Please check your credits and try again.');
           }
-          */
-          console.log('⚠️ TESTING MODE: Credit deduction disabled - starting game directly');
-          set({
-            gameState: 'playing',
-            countdown: null,
-            speed: 0,
-            targetSpeed: 110,
-            countdownTimer: null,
-            startTime: Date.now()
-          });
-          // ==================== END DISABLED SECTION ====================
-        }, 2500); // Increased from 1300ms to 2500ms for shader compilation
+        }, 2500);
       }
     }, 1000);
 
