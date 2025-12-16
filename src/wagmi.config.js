@@ -7,7 +7,7 @@ import {
   coinbaseWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { createConfig, http, createStorage, fallback } from 'wagmi';
-import { bscTestnet } from 'wagmi/chains';
+import { bsc } from 'wagmi/chains';
 
 /**
  * WALLET CONFIGURATION - 2025 STABLE VERSION
@@ -137,17 +137,18 @@ const connectors = connectorsForWallets(
 );
 
 /**
- * BSC Testnet RPC Endpoints (Multiple for fallback)
+ * BSC Mainnet RPC Endpoints (Multiple for fallback)
  *
  * Using fallback transport for reliability:
  * - Primary: Official BNB Chain RPC
  * - Secondary: Alternative endpoints
  */
-const bscTestnetRpcUrls = [
-  'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
-  'https://data-seed-prebsc-2-s1.bnbchain.org:8545',
-  'https://data-seed-prebsc-1-s2.bnbchain.org:8545',
-  'https://bsc-testnet-rpc.publicnode.com',
+const bscMainnetRpcUrls = [
+  'https://bsc-dataseed1.bnbchain.org',
+  'https://bsc-dataseed2.bnbchain.org',
+  'https://bsc-dataseed3.bnbchain.org',
+  'https://bsc-dataseed4.bnbchain.org',
+  'https://bsc.publicnode.com',
 ];
 
 /**
@@ -155,18 +156,18 @@ const bscTestnetRpcUrls = [
  */
 export const config = createConfig({
   connectors,
-  chains: [bscTestnet],
+  chains: [bsc],
 
   // Persist wallet connection across sessions
   storage: createStorage({
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    key: 'lumexia-wagmi-v2',
+    key: 'lumexia-wagmi-v3', // Updated for mainnet
   }),
 
   // Transport configuration with fallbacks
   transports: {
-    [bscTestnet.id]: fallback(
-      bscTestnetRpcUrls.map(url => http(url, {
+    [bsc.id]: fallback(
+      bscMainnetRpcUrls.map(url => http(url, {
         // Retry failed requests
         retryCount: 3,
         retryDelay: 1000,
@@ -196,40 +197,115 @@ export const config = createConfig({
 
 // ==================== EXPORTS ====================
 
-// BSC Testnet Chain Configuration
-export const BSC_TESTNET = {
-  id: 97,
-  name: 'BSC Testnet',
-  network: 'bsc-testnet',
+// BSC Mainnet Chain Configuration
+export const BSC_MAINNET = {
+  id: 56,
+  name: 'BNB Smart Chain',
+  network: 'bsc',
   nativeCurrency: {
     decimals: 18,
     name: 'BNB',
-    symbol: 'tBNB',
+    symbol: 'BNB',
   },
   rpcUrls: {
-    default: { http: bscTestnetRpcUrls },
-    public: { http: bscTestnetRpcUrls },
+    default: { http: bscMainnetRpcUrls },
+    public: { http: bscMainnetRpcUrls },
   },
   blockExplorers: {
     default: {
       name: 'BscScan',
-      url: 'https://testnet.bscscan.com',
+      url: 'https://bscscan.com',
     },
   },
-  testnet: true,
+  testnet: false,
 };
 
-// Payment Receiver Address
-export const PAYMENT_RECEIVER_ADDRESS = '0x093fc78470f68abd7b058d781f4aba90cb634697';
-
-// Pricing Configuration (BNB amounts)
-export const PRICING = {
-  1: '0.001',
-  5: '0.005',
-  10: '0.01',
+// LMX Token Configuration
+export const LMX_TOKEN = {
+  address: '0xe5dbde6fc6771beafae21ae45ae9d6952c314444',
+  symbol: 'LMX',
+  decimals: 18,
+  name: 'Lumexia Token',
 };
 
-// Helper: Convert BNB to Wei
-export function bnbToWei(bnbAmount) {
-  return BigInt(Math.floor(parseFloat(bnbAmount) * 1e18));
+// ERC20 ABI (minimal - only what we need)
+export const ERC20_ABI = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'allowance',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'Transfer',
+    type: 'event',
+    inputs: [
+      { name: 'from', type: 'address', indexed: true },
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'value', type: 'uint256', indexed: false },
+    ],
+  },
+];
+
+// Token Payment Receiver Address
+export const TOKEN_RECEIVER_ADDRESS = '0xd9f15618745ce7a46da6fb321b6c2f0320b63e91';
+
+// Legacy BNB Payment Receiver (kept for reference)
+export const LEGACY_BNB_RECEIVER = '0x093fc78470f68abd7b058d781f4aba90cb634697';
+
+// Pricing Configuration (USDT values - LMX amount calculated dynamically)
+export const PRICING_USDT = {
+  1: 0.01,   // 1 credit = 0.01 USDT worth of LMX
+  5: 0.05,   // 5 credits = 0.05 USDT worth of LMX
+  10: 0.10,  // 10 credits = 0.10 USDT worth of LMX
+};
+
+// Helper: Convert token amount to Wei (18 decimals)
+export function tokenToWei(tokenAmount) {
+  return BigInt(Math.floor(parseFloat(tokenAmount) * 1e18));
+}
+
+// Helper: Convert Wei to token amount
+export function weiToToken(weiAmount) {
+  return Number(weiAmount) / 1e18;
+}
+
+// BSCScan link helper
+export function getBscScanTokenTxLink(txHash) {
+  return `https://bscscan.com/tx/${txHash}`;
+}
+
+export function getBscScanAddressLink(address) {
+  return `https://bscscan.com/address/${address}`;
 }

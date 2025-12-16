@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAccount, useBalance, useConfig, useSwitchChain, useChainId } from 'wagmi';
-import { bscTestnet } from 'wagmi/chains';
+import { bsc } from 'wagmi/chains';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import {
-  initiateBNBPayment,
-  waitForPaymentConfirmation,
-  hasEnoughBalance,
+  initiateTokenPayment,
+  waitForTokenPaymentConfirmation,
+  getLMXBalance,
   getBSCScanLink,
   isMobileDevice,
   openWalletOnMobile
 } from '../utils/realWallet';
 import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../utils/supabaseClient';
-import { PRICING } from '../wagmi.config';
+import { LMX_TOKEN, PRICING_USDT } from '../wagmi.config';
+import { getLMXPrice, calculateLMXAmount, getAllPackagePrices, formatLMXAmount } from '../utils/tokenPrice';
 
 const RealLauncherUI = ({ onStartGame }) => {
   const { address, isConnected, status: connectionStatus } = useAccount();
@@ -47,14 +48,14 @@ const RealLauncherUI = ({ onStartGame }) => {
     if (isInitialMount) return;
 
     let timeoutId;
-    if (isConnected && chainId && chainId !== bscTestnet.id) {
+    if (isConnected && chainId && chainId !== bsc.id) {
       // Delay showing wrong network to allow mobile wallet to settle connection
       timeoutId = setTimeout(() => {
         setShowWrongNetwork(true);
         console.log('⚠️ Network check: Wrong network detected (after delay)');
         // Auto-request switch after delay
         try {
-          switchChain({ chainId: bscTestnet.id });
+          switchChain({ chainId: bsc.id });
         } catch (e) {
           console.error("Auto-switch failed:", e);
         }
@@ -104,6 +105,11 @@ const RealLauncherUI = ({ onStartGame }) => {
       teamSelectionDate: null,
       // Game Mode System
       gameMode: 'classic', // 'classic' | 'doubleOrNothing'
+      // LMX Token System
+      lmxBalance: '0',
+      packagePrices: null, // { 1: { lmxAmount, usdtValue }, 5: {...}, 10: {...} }
+      currentLmxPrice: null,
+      pendingLmxAmount: null, // LMX amount for pending transaction
     };
   });
 
@@ -175,10 +181,32 @@ const RealLauncherUI = ({ onStartGame }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.pendingTxHash, state.isProcessing, isConnected, address]);
 
-  const { data: balanceData } = useBalance({
+  // BNB balance for gas fees
+  const { data: bnbBalanceData } = useBalance({
     address: address,
-    chainId: bscTestnet.id,
+    chainId: bsc.id,
   });
+
+  // Load LMX token prices periodically
+  useEffect(() => {
+    const loadPrices = async () => {
+      try {
+        const prices = await getAllPackagePrices();
+        setState(prev => ({
+          ...prev,
+          packagePrices: prices,
+          currentLmxPrice: prices[1]?.lmxPrice || null,
+        }));
+      } catch (error) {
+        console.warn('Failed to load LMX prices:', error);
+      }
+    };
+
+    loadPrices();
+    // Refresh prices every 60 seconds
+    const interval = setInterval(loadPrices, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Log connection status changes for debugging
   useEffect(() => {
@@ -223,7 +251,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     return () => { isMounted.current = false; };
   }, [isConnected, address]);
 
-  // Load user credits and team from database
+  // Load user credits, team, and LMX balance from database
   const loadUserData = async (walletAddress) => {
     try {
       setState(prev => ({ ...prev, isProcessing: true }));
@@ -234,6 +262,15 @@ const RealLauncherUI = ({ onStartGame }) => {
       // Load team selection
       const teamData = await getUserTeamSelection(walletAddress);
 
+      // Load LMX balance
+      let lmxBalance = '0';
+      try {
+        const lmxData = await getLMXBalance(config, walletAddress);
+        lmxBalance = lmxData.formatted;
+      } catch (e) {
+        console.warn('Failed to load LMX balance:', e);
+      }
+
       if (isMounted.current) {
         setState(prev => ({
           ...prev,
@@ -241,6 +278,7 @@ const RealLauncherUI = ({ onStartGame }) => {
           selectedTeam: teamData.team,
           canChangeTeam: teamData.canChange,
           teamSelectionDate: teamData.selectionDate,
+          lmxBalance,
           isProcessing: false,
           statusMessage: `Connected! You have ${user.credits || 0} credits`
         }));
@@ -248,6 +286,7 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       console.log('✅ User loaded:', user);
       console.log('✅ Team data:', teamData);
+      console.log('✅ LMX Balance:', lmxBalance);
     } catch (error) {
       console.error('Failed to load user data:', error);
       if (isMounted.current) {
@@ -267,29 +306,31 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    const bnbAmount = PRICING[amount];
+    const packagePrice = state.packagePrices?.[amount];
+    const lmxAmount = packagePrice?.lmxAmount || '...';
     setState(prev => ({
       ...prev,
       selectedPackage: amount,
-      statusMessage: `Selected: ${amount} credits for ${bnbAmount} BNB`
+      statusMessage: `Selected: ${amount} credits for ${lmxAmount} LMX`
     }));
   };
 
   // Helper to process transaction result
-  const processTransactionResult = async (hash, address, packageAmount) => {
+  const processTransactionResult = async (hash, address, packageAmount, lmxAmount) => {
     try {
       setState(prev => ({
         ...prev,
-        statusMessage: '⏳ Verifying payment on blockchain...',
+        statusMessage: '⏳ Verifying LMX payment on blockchain...',
         lastTransaction: hash,
-        pendingTxHash: hash // Mark as pending so we can resume if backgrounded
+        pendingTxHash: hash, // Mark as pending so we can resume if backgrounded
+        pendingLmxAmount: lmxAmount,
       }));
 
       // Wait for confirmation (Robust polling method)
-      await waitForPaymentConfirmation(config, hash);
+      await waitForTokenPaymentConfirmation(config, hash);
 
       // Verify payment via Supabase Edge Function
-      const verifyResult = await verifyPaymentOnChain(hash, address, packageAmount);
+      const verifyResult = await verifyPaymentOnChain(hash, address, packageAmount, lmxAmount);
 
       if (!verifyResult.success) {
         throw new Error(verifyResult.error || 'Payment verification failed');
@@ -300,19 +341,31 @@ const RealLauncherUI = ({ onStartGame }) => {
       // Clear localStorage on success
       localStorage.removeItem('lumexia-pending-tx');
 
+      // Reload LMX balance
+      let newLmxBalance = state.lmxBalance;
+      try {
+        const lmxData = await getLMXBalance(config, address);
+        newLmxBalance = lmxData.formatted;
+      } catch (e) {
+        console.warn('Failed to reload LMX balance:', e);
+      }
+
       // Update credits in state
       setState(prev => ({
         ...prev,
         credits: verifyResult.credits,
+        lmxBalance: newLmxBalance,
         isProcessing: false,
         selectedPackage: null,
         pendingTxHash: null, // Clear pending flag
+        pendingLmxAmount: null,
         statusMessage: `✅ Payment successful! +${packageAmount} credits`
       }));
 
       // Show success message with transaction link
       alert(
         `✅ Payment Successful!\n\n` +
+        `LMX Paid: ${lmxAmount} LMX\n` +
         `Credits added: ${packageAmount}\n` +
         `New balance: ${verifyResult.credits} credits\n\n` +
         `View transaction:\n${getBSCScanLink(hash)}\n\n` +
@@ -331,6 +384,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         isProcessing: false, // Always stop spinner
         // Keep pendingTxHash only if it's a timeout (allows manual retry)
         pendingTxHash: isTimeoutError ? prev.pendingTxHash : null,
+        pendingLmxAmount: isTimeoutError ? prev.pendingLmxAmount : null,
         statusMessage: `❌ ${error.message}`
       }));
 
@@ -359,7 +413,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
 
     console.log("Checking pending transaction...", hash);
-    await processTransactionResult(hash, address, state.selectedPackage);
+    await processTransactionResult(hash, address, state.selectedPackage, state.pendingLmxAmount);
   };
 
   // Purchase & Start Game Handler (Optimized for iOS Safari)
@@ -374,15 +428,32 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    // Check balance
-    const currentBalance = balanceData?.formatted || '0';
-    if (!hasEnoughBalance(currentBalance, state.selectedPackage)) {
-      const required = PRICING[state.selectedPackage];
+    // Check BNB balance for gas
+    const bnbBalance = bnbBalanceData?.formatted || '0';
+    if (parseFloat(bnbBalance) < 0.001) {
       alert(
-        `❌ Insufficient BNB!\n\n` +
-        `Required: ${required} BNB + gas fees\n` +
-        `Your balance: ${currentBalance} BNB\n\n` +
-        `Get test BNB from: https://www.bnbchain.org/en/testnet-faucet`
+        `❌ Insufficient BNB for gas!\n\n` +
+        `Required: ~0.001 BNB for gas fees\n` +
+        `Your BNB balance: ${bnbBalance} BNB\n\n` +
+        `You need a small amount of BNB to pay transaction fees.`
+      );
+      return;
+    }
+
+    // Check LMX balance
+    const packagePrice = state.packagePrices?.[state.selectedPackage];
+    if (!packagePrice) {
+      alert('Unable to calculate price. Please try again.');
+      return;
+    }
+
+    const lmxBalance = parseFloat(state.lmxBalance) || 0;
+    if (lmxBalance < packagePrice.lmxAmount) {
+      alert(
+        `❌ Insufficient LMX!\n\n` +
+        `Required: ${packagePrice.lmxAmount} LMX\n` +
+        `Your balance: ${lmxBalance.toFixed(2)} LMX\n\n` +
+        `Please get more LMX tokens to continue.`
       );
       return;
     }
@@ -394,8 +465,8 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
 
     // CRITICAL: Capture package value before any async operations
-    // This prevents closure issues where state.selectedPackage becomes stale
     const packageAmount = state.selectedPackage;
+    const lmxAmount = packagePrice.lmxAmount;
 
     if (!packageAmount) {
       console.log('⚠️ No package selected');
@@ -408,38 +479,35 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: true,
+        pendingLmxAmount: lmxAmount,
         statusMessage: isMobile
-          ? '⏳ Opening wallet... Confirm in MetaMask'
-          : '⏳ Opening wallet... Please confirm in your wallet app'
+          ? '⏳ Opening wallet... Confirm LMX transfer'
+          : '⏳ Opening wallet... Please confirm LMX transfer'
       }));
 
-      console.log('📱 Preparing to open wallet...', { isMobile });
+      console.log('📱 Preparing LMX payment...', { isMobile, lmxAmount });
       console.log('📱 Package:', packageAmount, 'Address:', address);
 
-      // Step 1: Initiate Transaction (Send only)
-      // IMPORTANT: This will open MetaMask app on mobile (with deep link)
-      // Now with retry logic and mobile deep linking built-in
-      const hash = await initiateBNBPayment(config, address, packageAmount);
+      // Step 1: Initiate Token Transfer
+      const result = await initiateTokenPayment(config, address, packageAmount);
 
-      console.log('✅ Payment initiated, hash:', hash);
+      console.log('✅ LMX Payment initiated:', result);
 
-      // CRITICAL: Save hash IMMEDIATELY to state (which triggers localStorage save)
-      // This ensures we don't lose the hash when switching to MetaMask app
+      // CRITICAL: Save hash IMMEDIATELY to state
       setState(prev => ({
         ...prev,
-        pendingTxHash: hash,
-        lastTransaction: hash,
+        pendingTxHash: result.hash,
+        lastTransaction: result.hash,
+        pendingLmxAmount: result.lmxAmount,
         statusMessage: isMobile
           ? '⏳ Transaction sent! Check your wallet...'
-          : '⏳ Transaction sent! Waiting for blockchain confirmation...'
+          : '⏳ LMX transfer sent! Waiting for confirmation...'
       }));
 
       console.log('📱 Hash saved, now processing confirmation...');
 
-      // Step 2: Process Confirmation (Separate step)
-      // This might be interrupted if user switches to MetaMask
-      // Use captured packageAmount instead of state.selectedPackage
-      await processTransactionResult(hash, address, packageAmount);
+      // Step 2: Process Confirmation
+      await processTransactionResult(result.hash, address, packageAmount, result.lmxAmount);
 
     } catch (error) {
       console.error('❌ Payment initiation failed:', error);
@@ -449,8 +517,8 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       if (error.message?.includes('rejected') || error.message?.includes('cancelled')) {
         errorMessage = 'Transaction rejected by user';
-      } else if (error.message?.includes('insufficient')) {
-        errorMessage = 'Insufficient BNB balance';
+      } else if (error.message?.includes('Insufficient LMX')) {
+        errorMessage = error.message;
       } else if (error.message?.includes('multiple attempts')) {
         errorMessage = 'Network connection failed. Please check your internet and try again.';
       } else if (error.message?.includes('disconnected') || error.message?.includes('reconnect')) {
@@ -461,7 +529,6 @@ const RealLauncherUI = ({ onStartGame }) => {
           : 'Wallet connection lost. Please refresh and try again.';
       } else {
         errorMessage = error.message || 'Unknown error occurred';
-        // On mobile, if generic error, suggest opening wallet manually
         if (isMobile) {
           showOpenWalletHint = true;
         }
@@ -470,17 +537,17 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: false,
-        pendingTxHash: null, // Clear pending on error
+        pendingTxHash: null,
+        pendingLmxAmount: null,
         statusMessage: `❌ ${errorMessage}`
       }));
 
-      // Clear localStorage on error
       localStorage.removeItem('lumexia-pending-tx');
 
       if (isMobile && showOpenWalletHint) {
         alert(
           `❌ Payment Failed\n\n${errorMessage}\n\n` +
-          `💡 Tip: Open your MetaMask app manually and check for pending transactions.`
+          `💡 Tip: Open your wallet app manually and check for pending transactions.`
         );
       } else {
         alert(`❌ Payment Failed\n\n${errorMessage}`);
@@ -489,7 +556,7 @@ const RealLauncherUI = ({ onStartGame }) => {
   };
 
   // Verify payment via Supabase Edge Function (with timeout and retry)
-  const verifyPaymentOnChain = async (transactionHash, userAddress, packageAmount, maxRetries = 3) => {
+  const verifyPaymentOnChain = async (transactionHash, userAddress, packageAmount, lmxAmount, maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🔄 Frontend verification attempt ${attempt}/${maxRetries}`);
@@ -509,7 +576,8 @@ const RealLauncherUI = ({ onStartGame }) => {
             body: JSON.stringify({
               transactionHash,
               userAddress,
-              packageAmount
+              packageAmount,
+              lmxAmount, // New: Include expected LMX amount for verification
             }),
             signal: controller.signal
           }
@@ -702,12 +770,12 @@ const RealLauncherUI = ({ onStartGame }) => {
             <div className="mb-6 p-6 bg-red-900/50 rounded-xl border border-red-500 text-center animate-pulse">
               <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
               <h3 className="text-xl font-bold text-white mb-2">Wrong Network!</h3>
-              <p className="text-gray-300 mb-4">Please switch to BSC Testnet to continue playing.</p>
+              <p className="text-gray-300 mb-4">Please switch to BNB Smart Chain to continue playing.</p>
               <button
-                onClick={() => switchChain({ chainId: bscTestnet.id })}
+                onClick={() => switchChain({ chainId: bsc.id })}
                 className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors shadow-lg"
               >
-                Switch Network (BSC Testnet)
+                Switch Network (BSC Mainnet)
               </button>
             </div>
           ) : (
@@ -866,9 +934,19 @@ const RealLauncherUI = ({ onStartGame }) => {
                   <div className="text-center">
                     <p className="text-gray-300 text-sm mb-1">Your Credits</p>
                     <p className="text-4xl font-bold text-white">{state.credits}</p>
-                    <p className="text-gray-400 text-xs mt-1">
-                      Balance: {balanceData?.formatted ? `${parseFloat(balanceData.formatted).toFixed(4)} BNB` : '0 BNB'}
-                    </p>
+                    <div className="mt-2 space-y-1">
+                      <p className="text-purple-300 text-sm font-semibold">
+                        {parseFloat(state.lmxBalance).toFixed(2)} LMX
+                      </p>
+                      <p className="text-gray-500 text-xs">
+                        {bnbBalanceData?.formatted ? `${parseFloat(bnbBalanceData.formatted).toFixed(4)} BNB (gas)` : '0 BNB'}
+                      </p>
+                    </div>
+                    {state.currentLmxPrice && (
+                      <p className="text-gray-500 text-xs mt-1">
+                        1 LMX ≈ ${state.currentLmxPrice.toFixed(6)}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -881,7 +959,8 @@ const RealLauncherUI = ({ onStartGame }) => {
                     <TicketCard
                       key={amount}
                       amount={amount}
-                      bnbPrice={PRICING[amount]}
+                      lmxPrice={state.packagePrices?.[amount]?.lmxAmount}
+                      usdtValue={PRICING_USDT[amount]}
                       selected={state.selectedPackage === amount}
                       onClick={() => handleSelectTicket(amount)}
                       disabled={!isConnected || state.isProcessing}
@@ -1057,9 +1136,12 @@ const RealLauncherUI = ({ onStartGame }) => {
             <ol className="text-gray-300 text-xs space-y-1 list-decimal list-inside">
               <li>Connect your wallet (MetaMask/Trust Wallet)</li>
               <li>Select a credit package</li>
-              <li>Purchase with BNB (BSC Testnet)</li>
+              <li>Purchase with LMX tokens (BSC Mainnet)</li>
               <li>Start racing!</li>
             </ol>
+            <p className="text-purple-400 text-xs text-center mt-3">
+              <i className="fas fa-coins mr-1"></i> Payments are made with LMX token
+            </p>
           </div>
         </div>
       </div>
@@ -1068,7 +1150,7 @@ const RealLauncherUI = ({ onStartGame }) => {
 };
 
 // Ticket Card Component
-const TicketCard = ({ amount, bnbPrice, selected, onClick, disabled }) => {
+const TicketCard = ({ amount, lmxPrice, usdtValue, selected, onClick, disabled }) => {
   return (
     <button
       onClick={onClick}
@@ -1087,7 +1169,10 @@ const TicketCard = ({ amount, bnbPrice, selected, onClick, disabled }) => {
           credit{amount > 1 ? 's' : ''}
         </p>
         <p className={`text-sm mt-2 font-semibold ${selected ? 'text-black' : 'text-purple-300'}`}>
-          {bnbPrice} BNB
+          {lmxPrice !== undefined ? `${lmxPrice} LMX` : '...'}
+        </p>
+        <p className={`text-xs mt-1 ${selected ? 'text-black/60' : 'text-gray-500'}`}>
+          ${usdtValue}
         </p>
       </div>
     </button>
