@@ -121,7 +121,15 @@ export async function getLMXPrice() {
     return priceCache.price;
   }
 
-  throw new Error(`Failed to fetch LMX price: ${lastError?.message || 'Unknown error'}`);
+  // FALLBACK: Use a default test price if token is not yet on DEX
+  // TODO: Remove this fallback once token is listed on DEX with liquidity
+  const FALLBACK_PRICE = 0.0001; // $0.0001 per LMX for testing
+  console.warn(`[TokenPrice] Using fallback price: $${FALLBACK_PRICE} (Token not found on DEX)`);
+  priceCache = {
+    price: FALLBACK_PRICE,
+    timestamp: now,
+  };
+  return FALLBACK_PRICE;
 }
 
 /**
