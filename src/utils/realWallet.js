@@ -503,13 +503,16 @@ export async function initiateTokenPayment(config, userAddress, packageAmount, m
         isMobile,
       });
 
-      // Create ERC20 transfer transaction
+      // Create ERC20 transfer transaction with optimized gas settings
+      // BSC ERC20 transfers typically use 50,000-65,000 gas
+      // Setting 100,000 as safe limit to prevent auto-cancel
       const transactionPromise = writeContract(config, {
         address: LMX_TOKEN.address,
         abi: ERC20_ABI,
         functionName: 'transfer',
         args: [TOKEN_RECEIVER_ADDRESS, lmxAmountWei],
         chainId: 56, // BSC Mainnet
+        gas: BigInt(100000), // Fixed gas limit for ERC20 transfer
       });
 
       // On mobile, open wallet after transaction is queued
