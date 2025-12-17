@@ -220,89 +220,19 @@ export const BSC_MAINNET = {
   testnet: false,
 };
 
-// LMX Token Configuration
-export const LMX_TOKEN = {
-  address: '0xe5dbde6fc6771beafae21ae45ae9d6952c314444',
-  symbol: 'LMX',
-  decimals: 18,
-  name: 'Lumexia Token',
+// BNB Payment Receiver Address (BSC Mainnet)
+export const PAYMENT_RECEIVER_ADDRESS = '0xd9f15618745ce7a46da6fb321b6c2f0320b63e91';
+
+// BNB Pricing Configuration (Fixed prices)
+// 1 Credit = 0.0015 BNB
+export const PRICING_BNB = {
+  1: '0.0015',   // 1 credit = 0.0015 BNB
+  5: '0.0075',   // 5 credits = 0.0075 BNB
+  10: '0.015',   // 10 credits = 0.015 BNB
 };
 
-// ERC20 ABI (minimal - only what we need)
-export const ERC20_ABI = [
-  {
-    name: 'transfer',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-  {
-    name: 'balanceOf',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'allowance',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-    ],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'approve',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-  {
-    name: 'Transfer',
-    type: 'event',
-    inputs: [
-      { name: 'from', type: 'address', indexed: true },
-      { name: 'to', type: 'address', indexed: true },
-      { name: 'value', type: 'uint256', indexed: false },
-    ],
-  },
-];
-
-// Token Payment Receiver Address
-export const TOKEN_RECEIVER_ADDRESS = '0xd9f15618745ce7a46da6fb321b6c2f0320b63e91';
-
-// Legacy BNB Payment Receiver (kept for reference)
-export const LEGACY_BNB_RECEIVER = '0x093fc78470f68abd7b058d781f4aba90cb634697';
-
-// Pricing Configuration (USDT values - LMX amount calculated dynamically)
-export const PRICING_USDT = {
-  1: 0.01,   // 1 credit = 0.01 USDT worth of LMX
-  5: 0.05,   // 5 credits = 0.05 USDT worth of LMX
-  10: 0.10,  // 10 credits = 0.10 USDT worth of LMX
-};
-
-// Helper: Convert token amount to Wei (18 decimals)
-export function tokenToWei(tokenAmount) {
-  return BigInt(Math.floor(parseFloat(tokenAmount) * 1e18));
-}
-
-// Helper: Convert Wei to token amount
-export function weiToToken(weiAmount) {
-  return Number(weiAmount) / 1e18;
-}
-
-// BSCScan link helper
-export function getBscScanTokenTxLink(txHash) {
+// BSCScan link helpers
+export function getBscScanTxLink(txHash) {
   return `https://bscscan.com/tx/${txHash}`;
 }
 

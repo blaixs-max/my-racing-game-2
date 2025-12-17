@@ -1,5 +1,5 @@
-// Supabase Edge Function: Verify LMX Token Payment
-// This function verifies LMX token transfer transactions and adds credits to users
+// Supabase Edge Function: Verify BNB Payment
+// This function verifies native BNB transfer transactions and adds credits to users
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -31,31 +31,23 @@ const BSC_MAINNET_RPCS = [
   'https://bsc.publicnode.com',
 ];
 
-// LMX Token Configuration
-const LMX_TOKEN_ADDRESS = '0xe5dbde6fc6771beafae21ae45ae9d6952c314444'.toLowerCase();
-const LMX_DECIMALS = 18;
+// BNB Payment Receiver Address
+const PAYMENT_RECEIVER = '0xd9f15618745ce7a46da6fb321b6c2f0320b63e91'.toLowerCase();
 
-// Token Payment Receiver - Must be set in Supabase Edge Function secrets
-const TOKEN_RECEIVER = (Deno.env.get('TOKEN_RECEIVER_ADDRESS') || '0xd9f15618745ce7a46da6fb321b6c2f0320b63e91').toLowerCase();
-
-// ERC20 Transfer event signature: Transfer(address,address,uint256)
-const TRANSFER_EVENT_SIGNATURE = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-
-// Pricing: USDT values for each package
-const PRICING_USDT: { [key: number]: number } = {
-  1: 0.01,   // 1 credit = 0.01 USDT
-  5: 0.05,   // 5 credits = 0.05 USDT
-  10: 0.10,  // 10 credits = 0.10 USDT
+// BNB Pricing Configuration (must match frontend)
+const PRICING_BNB: { [key: number]: string } = {
+  1: '0.0015',   // 1 credit = 0.0015 BNB
+  5: '0.0075',   // 5 credits = 0.0075 BNB
+  10: '0.015',   // 10 credits = 0.015 BNB
 };
 
-// Allow 5% tolerance for price fluctuation during transaction
+// Allow 5% tolerance for price fluctuation
 const PRICE_TOLERANCE = 0.05;
 
 interface TransactionData {
   transactionHash: string;
   userAddress: string;
   packageAmount: number;
-  lmxAmount: number; // Expected LMX amount (calculated by frontend)
 }
 
 // Validation helpers
@@ -85,7 +77,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { transactionHash, userAddress, packageAmount, lmxAmount }: TransactionData = await req.json();
+    const { transactionHash, userAddress, packageAmount }: TransactionData = await req.json();
 
     // INPUT VALIDATION
     if (!transactionHash || !isValidTxHash(transactionHash)) {
@@ -109,14 +101,7 @@ serve(async (req) => {
       );
     }
 
-    if (!lmxAmount || lmxAmount <= 0) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid LMX amount' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('🔍 Verifying LMX payment:', { transactionHash, userAddress, packageAmount, lmxAmount });
+    console.log('🔍 Verifying BNB payment:', { transactionHash, userAddress, packageAmount });
 
     // 1. CHECK IF TRANSACTION ALREADY PROCESSED
     const { data: existingTx } = await supabase
@@ -132,8 +117,8 @@ serve(async (req) => {
       );
     }
 
-    // 2. VERIFY TOKEN TRANSFER ON BLOCKCHAIN
-    const txData = await verifyTokenTransferOnChain(transactionHash, userAddress);
+    // 2. VERIFY BNB TRANSFER ON BLOCKCHAIN
+    const txData = await verifyBNBTransferOnChain(transactionHash, userAddress);
 
     if (!txData.valid) {
       return new Response(
@@ -142,17 +127,9 @@ serve(async (req) => {
       );
     }
 
-    // 3. VALIDATE TOKEN TRANSFER DETAILS
-    // Check if it's an LMX token transfer
-    if (txData.tokenAddress?.toLowerCase() !== LMX_TOKEN_ADDRESS) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid token. Expected LMX token transfer.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // 3. VALIDATE BNB TRANSFER DETAILS
     // Check receiver address
-    if (txData.to?.toLowerCase() !== TOKEN_RECEIVER) {
+    if (txData.to?.toLowerCase() !== PAYMENT_RECEIVER) {
       return new Response(
         JSON.stringify({ error: 'Invalid payment receiver' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -167,27 +144,27 @@ serve(async (req) => {
       );
     }
 
-    // Validate LMX amount with tolerance
-    const receivedLmx = txData.lmxAmount || 0;
-    const minExpected = lmxAmount * (1 - PRICE_TOLERANCE);
-    const maxExpected = lmxAmount * (1 + PRICE_TOLERANCE);
+    // Validate BNB amount with tolerance
+    const expectedBnb = parseFloat(PRICING_BNB[packageAmount]);
+    const receivedBnb = txData.bnbAmount || 0;
+    const minExpected = expectedBnb * (1 - PRICE_TOLERANCE);
 
-    if (receivedLmx < minExpected) {
+    if (receivedBnb < minExpected) {
       return new Response(
         JSON.stringify({
-          error: 'Insufficient LMX amount',
-          expected: lmxAmount,
-          received: receivedLmx,
+          error: 'Insufficient BNB amount',
+          expected: expectedBnb,
+          received: receivedBnb,
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('✅ Token transfer verified:', {
+    console.log('✅ BNB transfer verified:', {
       from: txData.from,
       to: txData.to,
-      lmxAmount: receivedLmx,
-      expectedLmx: lmxAmount,
+      bnbAmount: receivedBnb,
+      expectedBnb: expectedBnb,
     });
 
     // 4. GET OR CREATE USER
@@ -226,8 +203,6 @@ serve(async (req) => {
         credits_added: packageAmount,
         transaction_hash: transactionHash,
         status: 'pending',
-        token_amount: receivedLmx, // Store LMX amount
-        token_symbol: 'LMX',
       })
       .select()
       .single();
@@ -267,7 +242,7 @@ serve(async (req) => {
       user: userAddress,
       credits: packageAmount,
       newBalance: newCredits,
-      lmxPaid: receivedLmx,
+      bnbPaid: receivedBnb,
     });
 
     return new Response(
@@ -275,7 +250,7 @@ serve(async (req) => {
         success: true,
         credits: newCredits,
         transactionHash,
-        lmxAmount: receivedLmx,
+        bnbAmount: receivedBnb,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -331,27 +306,22 @@ async function rpcCall(method: string, params: unknown[], maxRetries = 3): Promi
   throw lastError || new Error('All RPC endpoints failed');
 }
 
-// Verify token transfer on BSC blockchain
-async function verifyTokenTransferOnChain(txHash: string, expectedSender: string, maxRetries = 5, delayMs = 3000) {
+// Verify native BNB transfer on BSC blockchain
+async function verifyBNBTransferOnChain(txHash: string, expectedSender: string, maxRetries = 5, delayMs = 3000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`🔄 Verification attempt ${attempt}/${maxRetries} for tx: ${txHash}`);
 
-      // Get transaction receipt (contains logs/events)
-      const receipt = await rpcCall('eth_getTransactionReceipt', [txHash]) as {
-        status: string;
-        logs: Array<{
-          address: string;
-          topics: string[];
-          data: string;
-        }>;
+      // Get transaction details
+      const tx = await rpcCall('eth_getTransactionByHash', [txHash]) as {
         from: string;
         to: string;
-        blockNumber: string;
+        value: string;
+        blockNumber: string | null;
       } | null;
 
-      if (!receipt) {
-        console.log(`⏳ Attempt ${attempt}: Transaction receipt not found yet`);
+      if (!tx) {
+        console.log(`⏳ Attempt ${attempt}: Transaction not found yet`);
         if (attempt < maxRetries) {
           await sleep(delayMs);
           continue;
@@ -359,45 +329,52 @@ async function verifyTokenTransferOnChain(txHash: string, expectedSender: string
         return { valid: false, error: 'Transaction not found after retries' };
       }
 
+      // Check if transaction is mined
+      if (!tx.blockNumber) {
+        console.log(`⏳ Attempt ${attempt}: Transaction pending (not mined)`);
+        if (attempt < maxRetries) {
+          await sleep(delayMs);
+          continue;
+        }
+        return { valid: false, error: 'Transaction still pending' };
+      }
+
+      // Get transaction receipt to check status
+      const receipt = await rpcCall('eth_getTransactionReceipt', [txHash]) as {
+        status: string;
+        blockNumber: string;
+      } | null;
+
+      if (!receipt) {
+        console.log(`⏳ Attempt ${attempt}: Receipt not found yet`);
+        if (attempt < maxRetries) {
+          await sleep(delayMs);
+          continue;
+        }
+        return { valid: false, error: 'Transaction receipt not found' };
+      }
+
       // Check if transaction succeeded
       if (receipt.status !== '0x1') {
         return { valid: false, error: 'Transaction failed/reverted' };
       }
 
-      // Find Transfer event from LMX token
-      const transferLog = receipt.logs.find(log =>
-        log.address.toLowerCase() === LMX_TOKEN_ADDRESS &&
-        log.topics[0] === TRANSFER_EVENT_SIGNATURE
-      );
+      // Parse BNB amount (value is in wei, hex format)
+      const valueWei = BigInt(tx.value);
+      const bnbAmount = Number(valueWei) / 1e18;
 
-      if (!transferLog) {
-        return { valid: false, error: 'No LMX Transfer event found in transaction' };
-      }
-
-      // Parse Transfer event
-      // topics[0] = event signature
-      // topics[1] = from address (padded to 32 bytes)
-      // topics[2] = to address (padded to 32 bytes)
-      // data = amount (uint256)
-      const fromAddress = '0x' + transferLog.topics[1].slice(26);
-      const toAddress = '0x' + transferLog.topics[2].slice(26);
-      const amountHex = transferLog.data;
-      const amountWei = BigInt(amountHex);
-      const amountLmx = Number(amountWei) / Math.pow(10, LMX_DECIMALS);
-
-      console.log(`✅ Token transfer found:`, {
-        from: fromAddress,
-        to: toAddress,
-        amount: amountLmx,
+      console.log(`✅ BNB transfer found:`, {
+        from: tx.from,
+        to: tx.to,
+        amount: bnbAmount,
         attempt,
       });
 
       return {
         valid: true,
-        from: fromAddress,
-        to: toAddress,
-        lmxAmount: amountLmx,
-        tokenAddress: LMX_TOKEN_ADDRESS,
+        from: tx.from,
+        to: tx.to,
+        bnbAmount: bnbAmount,
         blockNumber: parseInt(receipt.blockNumber, 16),
       };
     } catch (error) {

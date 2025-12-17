@@ -1,27 +1,17 @@
 /**
- * REAL WALLET UTILITIES - 2025 STABLE VERSION
- * BSC Mainnet - LMX Token Payment Integration
+ * REAL WALLET UTILITIES - BSC MAINNET BNB VERSION
  *
- * Key improvements:
- * 1. Universal links for iOS (more reliable than deep links)
- * 2. Android intent:// fallback
- * 3. Better error handling and retry logic
- * 4. Robust transaction confirmation
- * 5. ERC20 Token transfer support (LMX)
+ * Key features:
+ * 1. Native BNB payments on BSC Mainnet
+ * 2. Universal links for iOS (more reliable than deep links)
+ * 3. Android intent:// fallback
+ * 4. Better error handling and retry logic
+ * 5. Robust transaction confirmation
  */
 
-import { sendTransaction, waitForTransactionReceipt, getTransactionReceipt, reconnect, getAccount, writeContract, readContract } from '@wagmi/core';
-import { parseEther, parseUnits, formatUnits } from 'viem';
-import {
-  TOKEN_RECEIVER_ADDRESS,
-  LMX_TOKEN,
-  ERC20_ABI,
-  PRICING_USDT,
-  tokenToWei,
-  weiToToken,
-  getBscScanTokenTxLink,
-} from '../wagmi.config';
-import { calculateLMXAmount } from './tokenPrice';
+import { sendTransaction, waitForTransactionReceipt, getTransactionReceipt, reconnect, getAccount } from '@wagmi/core';
+import { parseEther } from 'viem';
+import { PAYMENT_RECEIVER_ADDRESS, PRICING_BNB, getBscScanTxLink } from '../wagmi.config';
 
 /**
  * Helper: Sleep function for delays
@@ -75,7 +65,6 @@ export function isAndroid() {
  */
 export function getMetaMaskDeepLink() {
   // Universal link - works on both iOS and Android
-  // This triggers MetaMask to check for pending WalletConnect requests
   return 'https://metamask.app.link/wc';
 }
 
@@ -117,11 +106,9 @@ export function openWalletOnMobile(walletType = 'metamask') {
 
     if (isIOS()) {
       // iOS: Use location.href for more reliable universal link handling
-      // This avoids the "Open in App?" confirmation dialog
       window.location.href = deepLink;
     } else if (isAndroid()) {
       // Android: Try universal link first
-      // If MetaMask is not installed, this will open browser
       const win = window.open(deepLink, '_blank');
       if (!win || win.closed || typeof win.closed === 'undefined') {
         // Popup blocked, try direct navigation
@@ -177,6 +164,33 @@ export async function ensureWalletConnected(config, maxRetries = 3) {
 }
 
 /**
+ * Get BNB price for a package
+ * @param {number} packageAmount - Package amount (1, 5, or 10)
+ * @returns {string} BNB amount as string
+ */
+export function getBNBPrice(packageAmount) {
+  const price = PRICING_BNB[packageAmount];
+  if (!price) {
+    throw new Error(`Invalid package amount: ${packageAmount}`);
+  }
+  return price;
+}
+
+/**
+ * Check if user has enough BNB for payment + gas
+ * @param {string} balance - User's BNB balance
+ * @param {number} packageAmount - Package amount (1, 5, or 10)
+ * @returns {boolean}
+ */
+export function hasEnoughBalance(balance, packageAmount) {
+  const gasBuffer = 0.0005; // ~0.0005 BNB for gas on BSC
+  const bnbPrice = parseFloat(getBNBPrice(packageAmount));
+  const required = bnbPrice + gasBuffer;
+  const current = parseFloat(balance);
+  return current >= required;
+}
+
+/**
  * Send BNB Payment (Step 1: Initiate Transaction)
  *
  * Enhanced for mobile with:
@@ -191,11 +205,7 @@ export async function ensureWalletConnected(config, maxRetries = 3) {
  * @returns {Promise<string>} Transaction Hash
  */
 export async function initiateBNBPayment(config, userAddress, packageAmount, maxRetries = 3) {
-  const bnbAmount = PRICING[packageAmount];
-  if (!bnbAmount) {
-    throw new Error(`Invalid package amount: ${packageAmount}`);
-  }
-
+  const bnbAmount = getBNBPrice(packageAmount);
   const valueInWei = parseEther(bnbAmount);
   let lastError = null;
   const isMobile = isMobileDevice();
@@ -217,7 +227,7 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
       const transactionPromise = sendTransaction(config, {
         to: PAYMENT_RECEIVER_ADDRESS,
         value: valueInWei,
-        chainId: 97, // BSC Testnet
+        chainId: 56, // BSC Mainnet
       });
 
       // On mobile, open wallet after transaction is queued in WalletConnect
@@ -253,7 +263,7 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
       // Insufficient funds - no retry
       if (errorMessage.includes('insufficient funds') ||
           errorMessage.includes('insufficient balance')) {
-        throw new Error('Insufficient BNB balance. Please get test BNB from faucet.');
+        throw new Error('Insufficient BNB balance. Please add more BNB to your wallet.');
       }
 
       // Connection issues - try to reconnect
@@ -372,7 +382,6 @@ export async function waitForPaymentConfirmation(config, hash, options = {}) {
 
 /**
  * Format transaction receipt for consistent response
- * @deprecated Use formatTokenReceipt for LMX payments
  */
 function formatReceipt(receipt) {
   return {
@@ -389,308 +398,26 @@ function formatReceipt(receipt) {
 }
 
 /**
- * Get BSCScan link for transaction (Mainnet)
+ * Get BSCScan link for transaction
  */
 export function getBSCScanLink(hash) {
-  return `https://bscscan.com/tx/${hash}`;
+  return getBscScanTxLink(hash);
 }
 
 /**
- * Check if user has enough BNB for gas fees
- * @deprecated Use hasEnoughTokenBalance for LMX payments
- */
-export function hasEnoughBalance(balance, packageAmount) {
-  const gasBuffer = 0.001; // ~0.001 BNB for gas on BSC
-  const current = parseFloat(balance);
-  return current >= gasBuffer;
-}
-
-// ==================== LMX TOKEN PAYMENT FUNCTIONS ====================
-
-/**
- * Get user's LMX token balance
- * @param {object} config - wagmi config
- * @param {string} userAddress - User's wallet address
- * @returns {Promise<{balance: bigint, formatted: string, decimals: number}>}
- */
-export async function getLMXBalance(config, userAddress) {
-  try {
-    const balance = await readContract(config, {
-      address: LMX_TOKEN.address,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [userAddress],
-      chainId: 56, // BSC Mainnet
-    });
-
-    return {
-      balance,
-      formatted: formatUnits(balance, LMX_TOKEN.decimals),
-      decimals: LMX_TOKEN.decimals,
-    };
-  } catch (error) {
-    console.error('Failed to get LMX balance:', error);
-    throw new Error('Failed to fetch LMX token balance');
-  }
-}
-
-/**
- * Check if user has enough LMX tokens for a package
- * @param {object} config - wagmi config
- * @param {string} userAddress - User's wallet address
- * @param {number} lmxAmount - Required LMX amount
- * @returns {Promise<{hasEnough: boolean, balance: string, required: number}>}
- */
-export async function hasEnoughTokenBalance(config, userAddress, lmxAmount) {
-  const { balance, formatted } = await getLMXBalance(config, userAddress);
-  const requiredWei = tokenToWei(lmxAmount);
-
-  return {
-    hasEnough: balance >= requiredWei,
-    balance: formatted,
-    required: lmxAmount,
-  };
-}
-
-/**
- * Initiate LMX Token Payment
- *
- * Sends LMX tokens to the payment receiver address
- *
- * @param {object} config - wagmi config
- * @param {string} userAddress - User's wallet address
- * @param {number} packageAmount - Package amount (1, 5, or 10 credits)
- * @param {number} maxRetries - Maximum retry attempts (default: 3)
- * @returns {Promise<{hash: string, lmxAmount: number, usdtValue: number}>}
- */
-export async function initiateTokenPayment(config, userAddress, packageAmount, maxRetries = 3) {
-  // Calculate LMX amount from dynamic price
-  const { lmxAmount, usdtValue, lmxPrice } = await calculateLMXAmount(packageAmount);
-
-  if (!lmxAmount || lmxAmount <= 0) {
-    throw new Error(`Invalid LMX amount calculated for ${packageAmount} credits`);
-  }
-
-  const lmxAmountWei = parseUnits(lmxAmount.toString(), LMX_TOKEN.decimals);
-  let lastError = null;
-  const isMobile = isMobileDevice();
-
-  // Step 0: Ensure wallet is connected
-  await ensureWalletConnected(config);
-
-  // Step 1: Check token balance
-  const { hasEnough, balance } = await hasEnoughTokenBalance(config, userAddress, lmxAmount);
-  if (!hasEnough) {
-    throw new Error(
-      `Insufficient LMX balance. Required: ${lmxAmount} LMX, Available: ${parseFloat(balance).toFixed(2)} LMX`
-    );
-  }
-
-  console.log(`💰 LMX Payment Details:`, {
-    credits: packageAmount,
-    usdtValue: `$${usdtValue}`,
-    lmxPrice: `$${lmxPrice.toFixed(8)}`,
-    lmxAmount: `${lmxAmount} LMX`,
-  });
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`🔄 Initiating LMX payment (attempt ${attempt}/${maxRetries})...`, {
-        from: userAddress,
-        to: TOKEN_RECEIVER_ADDRESS,
-        amount: `${lmxAmount} LMX`,
-        credits: packageAmount,
-        isMobile,
-      });
-
-      // Create ERC20 transfer transaction with optimized gas settings
-      // BSC ERC20 transfers typically use 50,000-65,000 gas
-      // Setting 100,000 as safe limit to prevent auto-cancel
-      const transactionPromise = writeContract(config, {
-        address: LMX_TOKEN.address,
-        abi: ERC20_ABI,
-        functionName: 'transfer',
-        args: [TOKEN_RECEIVER_ADDRESS, lmxAmountWei],
-        chainId: 56, // BSC Mainnet
-        gas: BigInt(100000), // Fixed gas limit for ERC20 transfer
-      });
-
-      // On mobile, open wallet after transaction is queued
-      if (isMobile) {
-        setTimeout(() => {
-          console.log('📱 Opening wallet app to show transaction...');
-          openWalletOnMobile();
-        }, 800);
-      }
-
-      // Wait for transaction hash
-      const hash = await transactionPromise;
-
-      console.log('📝 LMX Transaction initiated. Hash:', hash);
-      return {
-        hash,
-        lmxAmount,
-        usdtValue,
-        lmxPrice,
-      };
-
-    } catch (error) {
-      lastError = error;
-      console.error(`❌ Payment attempt ${attempt} failed:`, error);
-
-      // Categorize errors
-      const errorMessage = error.message?.toLowerCase() || '';
-
-      // User rejected - no retry
-      if (errorMessage.includes('user rejected') ||
-          errorMessage.includes('user denied') ||
-          errorMessage.includes('cancelled') ||
-          error.code === 4001) {
-        throw new Error('Transaction rejected by user');
-      }
-
-      // Insufficient token balance - no retry
-      if (errorMessage.includes('insufficient') ||
-          errorMessage.includes('exceeds balance') ||
-          errorMessage.includes('transfer amount exceeds')) {
-        throw new Error('Insufficient LMX token balance');
-      }
-
-      // Connection issues - try to reconnect
-      if (errorMessage.includes('connector') ||
-          errorMessage.includes('disconnected') ||
-          errorMessage.includes('no active connector') ||
-          errorMessage.includes('provider')) {
-        console.log('🔄 Connection issue detected, attempting reconnect...');
-        try {
-          await reconnect(config);
-          await sleep(1000);
-        } catch (reconnectError) {
-          console.warn('Reconnect failed:', reconnectError.message);
-        }
-      }
-
-      // Retry for network/transient errors
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`⏳ Retrying in ${delay / 1000}s...`);
-        await sleep(delay);
-      }
-    }
-  }
-
-  throw new Error(
-    lastError?.message ||
-    'LMX payment failed after multiple attempts. Please check your connection and try again.'
-  );
-}
-
-/**
- * Wait for LMX Token Transaction Confirmation
- *
- * @param {object} config - wagmi config
- * @param {string} hash - Transaction Hash
- * @param {object} options - Configuration options
- * @returns {Promise<object>} Transaction Receipt
- */
-export async function waitForTokenPaymentConfirmation(config, hash, options = {}) {
-  const {
-    maxPollingAttempts = 40,
-    pollingInterval = 3000,
-    initialWaitTimeout = 30000,
-  } = options;
-
-  console.log('⏳ Waiting for LMX transaction confirmation:', hash);
-
-  // Step 1: Try standard wait first
-  try {
-    const receipt = await waitForTransactionReceipt(config, {
-      hash,
-      confirmations: 1,
-      timeout: initialWaitTimeout,
-    });
-
-    if (receipt) {
-      console.log('✅ LMX Transaction confirmed (Standard wait):', receipt);
-      return formatTokenReceipt(receipt);
-    }
-  } catch (error) {
-    if (!error.message?.includes('timed out') && !error.message?.includes('timeout')) {
-      console.warn('⚠️ Standard wait error:', error.message);
-    }
-    console.log('🔄 Switching to polling mode...');
-  }
-
-  // Step 2: Polling mode
-  for (let attempt = 1; attempt <= maxPollingAttempts; attempt++) {
-    try {
-      if (attempt % 5 === 0) {
-        console.log(`📡 Polling attempt ${attempt}/${maxPollingAttempts}...`);
-      }
-
-      const receipt = await getTransactionReceipt(config, { hash });
-
-      if (receipt) {
-        if (receipt.status === 'success') {
-          console.log('✅ LMX Transaction confirmed (Polling):', receipt);
-          return formatTokenReceipt(receipt);
-        } else if (receipt.status === 'reverted') {
-          throw new Error('LMX transfer was reverted. Please check your token balance and try again.');
-        }
-      }
-    } catch (error) {
-      if (error.message?.includes('reverted')) {
-        throw error;
-      }
-      if (attempt % 10 === 0) {
-        console.warn(`Polling attempt ${attempt} error:`, error.message);
-      }
-    }
-
-    if (attempt < maxPollingAttempts) {
-      await sleep(pollingInterval);
-    }
-  }
-
-  throw new Error(
-    'LMX transaction confirmation timed out. ' +
-    'Your transaction may still be processing. ' +
-    'Please check BSCScan or use the "Check Status" button.'
-  );
-}
-
-/**
- * Format token transaction receipt
- */
-function formatTokenReceipt(receipt) {
-  return {
-    success: receipt.status === 'success',
-    hash: receipt.transactionHash,
-    from: receipt.from,
-    to: receipt.to,
-    blockNumber: receipt.blockNumber,
-    status: receipt.status,
-    gasUsed: receipt.gasUsed.toString(),
-    network: 'BSC Mainnet',
-    tokenSymbol: LMX_TOKEN.symbol,
-    timestamp: Date.now(),
-  };
-}
-
-/**
- * Check pending LMX transaction status
+ * Check pending transaction status
  * Useful for recovering from mobile browser backgrounding
  *
  * @param {object} config - wagmi config
  * @param {string} hash - Transaction Hash
  * @returns {Promise<object|null>} Receipt if confirmed, null if still pending
  */
-export async function checkPendingTokenTransaction(config, hash) {
+export async function checkPendingTransaction(config, hash) {
   try {
     const receipt = await getTransactionReceipt(config, { hash });
 
     if (receipt) {
-      return formatTokenReceipt(receipt);
+      return formatReceipt(receipt);
     }
 
     return null;
