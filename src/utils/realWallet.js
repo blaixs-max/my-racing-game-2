@@ -223,11 +223,13 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
         isMobile,
       });
 
-      // Create transaction promise
+      // Create transaction promise with explicit gas limit
+      // Gas limit 21000 is the exact cost for simple BNB transfer (no contract interaction)
       const transactionPromise = sendTransaction(config, {
         to: PAYMENT_RECEIVER_ADDRESS,
         value: valueInWei,
         chainId: 56, // BSC Mainnet
+        gas: BigInt(21000), // Explicit gas limit for simple transfer
       });
 
       // On mobile, open wallet after transaction is queued in WalletConnect
