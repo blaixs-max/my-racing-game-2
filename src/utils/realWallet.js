@@ -1,17 +1,17 @@
 /**
- * REAL WALLET UTILITIES - 2025 STABLE VERSION
- * BSC Testnet - Real Blockchain Integration
+ * REAL WALLET UTILITIES - BSC MAINNET BNB VERSION
  *
- * Key improvements:
- * 1. Universal links for iOS (more reliable than deep links)
- * 2. Android intent:// fallback
- * 3. Better error handling and retry logic
- * 4. Robust transaction confirmation
+ * Key features:
+ * 1. Native BNB payments on BSC Mainnet
+ * 2. Universal links for iOS (more reliable than deep links)
+ * 3. Android intent:// fallback
+ * 4. Better error handling and retry logic
+ * 5. Robust transaction confirmation
  */
 
 import { sendTransaction, waitForTransactionReceipt, getTransactionReceipt, reconnect, getAccount } from '@wagmi/core';
 import { parseEther } from 'viem';
-import { PAYMENT_RECEIVER_ADDRESS, PRICING } from '../wagmi.config';
+import { PAYMENT_RECEIVER_ADDRESS, PRICING_BNB, getBscScanTxLink } from '../wagmi.config';
 
 /**
  * Helper: Sleep function for delays
@@ -65,7 +65,6 @@ export function isAndroid() {
  */
 export function getMetaMaskDeepLink() {
   // Universal link - works on both iOS and Android
-  // This triggers MetaMask to check for pending WalletConnect requests
   return 'https://metamask.app.link/wc';
 }
 
@@ -107,11 +106,9 @@ export function openWalletOnMobile(walletType = 'metamask') {
 
     if (isIOS()) {
       // iOS: Use location.href for more reliable universal link handling
-      // This avoids the "Open in App?" confirmation dialog
       window.location.href = deepLink;
     } else if (isAndroid()) {
       // Android: Try universal link first
-      // If MetaMask is not installed, this will open browser
       const win = window.open(deepLink, '_blank');
       if (!win || win.closed || typeof win.closed === 'undefined') {
         // Popup blocked, try direct navigation
@@ -167,6 +164,33 @@ export async function ensureWalletConnected(config, maxRetries = 3) {
 }
 
 /**
+ * Get BNB price for a package
+ * @param {number} packageAmount - Package amount (1, 5, or 10)
+ * @returns {string} BNB amount as string
+ */
+export function getBNBPrice(packageAmount) {
+  const price = PRICING_BNB[packageAmount];
+  if (!price) {
+    throw new Error(`Invalid package amount: ${packageAmount}`);
+  }
+  return price;
+}
+
+/**
+ * Check if user has enough BNB for payment + gas
+ * @param {string} balance - User's BNB balance
+ * @param {number} packageAmount - Package amount (1, 5, or 10)
+ * @returns {boolean}
+ */
+export function hasEnoughBalance(balance, packageAmount) {
+  const gasBuffer = 0.0005; // ~0.0005 BNB for gas on BSC
+  const bnbPrice = parseFloat(getBNBPrice(packageAmount));
+  const required = bnbPrice + gasBuffer;
+  const current = parseFloat(balance);
+  return current >= required;
+}
+
+/**
  * Send BNB Payment (Step 1: Initiate Transaction)
  *
  * Enhanced for mobile with:
@@ -181,11 +205,7 @@ export async function ensureWalletConnected(config, maxRetries = 3) {
  * @returns {Promise<string>} Transaction Hash
  */
 export async function initiateBNBPayment(config, userAddress, packageAmount, maxRetries = 3) {
-  const bnbAmount = PRICING[packageAmount];
-  if (!bnbAmount) {
-    throw new Error(`Invalid package amount: ${packageAmount}`);
-  }
-
+  const bnbAmount = getBNBPrice(packageAmount);
   const valueInWei = parseEther(bnbAmount);
   let lastError = null;
   const isMobile = isMobileDevice();
@@ -207,7 +227,7 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
       const transactionPromise = sendTransaction(config, {
         to: PAYMENT_RECEIVER_ADDRESS,
         value: valueInWei,
-        chainId: 97, // BSC Testnet
+        chainId: 56, // BSC Mainnet
       });
 
       // On mobile, open wallet after transaction is queued in WalletConnect
@@ -243,7 +263,7 @@ export async function initiateBNBPayment(config, userAddress, packageAmount, max
       // Insufficient funds - no retry
       if (errorMessage.includes('insufficient funds') ||
           errorMessage.includes('insufficient balance')) {
-        throw new Error('Insufficient BNB balance. Please get test BNB from faucet.');
+        throw new Error('Insufficient BNB balance. Please add more BNB to your wallet.');
       }
 
       // Connection issues - try to reconnect
@@ -372,7 +392,7 @@ function formatReceipt(receipt) {
     blockNumber: receipt.blockNumber,
     status: receipt.status,
     gasUsed: receipt.gasUsed.toString(),
-    network: 'BSC Testnet',
+    network: 'BSC Mainnet',
     timestamp: Date.now(),
   };
 }
@@ -381,16 +401,28 @@ function formatReceipt(receipt) {
  * Get BSCScan link for transaction
  */
 export function getBSCScanLink(hash) {
-  return `https://testnet.bscscan.com/tx/${hash}`;
+  return getBscScanTxLink(hash);
 }
 
 /**
- * Check if user has enough BNB for package
- * Includes gas buffer for transaction fees
+ * Check pending transaction status
+ * Useful for recovering from mobile browser backgrounding
+ *
+ * @param {object} config - wagmi config
+ * @param {string} hash - Transaction Hash
+ * @returns {Promise<object|null>} Receipt if confirmed, null if still pending
  */
-export function hasEnoughBalance(balance, packageAmount) {
-  const required = parseFloat(PRICING[packageAmount]);
-  const current = parseFloat(balance);
-  const gasBuffer = 0.0005; // ~0.0005 BNB for gas on BSC
-  return current >= (required + gasBuffer);
+export async function checkPendingTransaction(config, hash) {
+  try {
+    const receipt = await getTransactionReceipt(config, { hash });
+
+    if (receipt) {
+      return formatReceipt(receipt);
+    }
+
+    return null;
+  } catch (error) {
+    console.warn('Error checking pending transaction:', error.message);
+    return null;
+  }
 }

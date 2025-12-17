@@ -1,5 +1,5 @@
-// Supabase Edge Function: Verify Payment
-// This function verifies blockchain transactions and adds credits to users
+// Supabase Edge Function: Verify BNB Payment
+// This function verifies native BNB transfer transactions and adds credits to users
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -23,23 +23,26 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-// BSC Testnet RPC endpoint
-const BSC_TESTNET_RPC = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545';
+// BSC Mainnet RPC endpoints (with fallbacks)
+const BSC_MAINNET_RPCS = [
+  'https://bsc-dataseed1.bnbchain.org',
+  'https://bsc-dataseed2.bnbchain.org',
+  'https://bsc-dataseed3.bnbchain.org',
+  'https://bsc.publicnode.com',
+];
 
-// Payment receiver address - Must be set in Supabase Edge Function secrets
-const PAYMENT_RECEIVER = Deno.env.get('PAYMENT_RECEIVER_ADDRESS') || '';
+// BNB Payment Receiver Address
+const PAYMENT_RECEIVER = '0xd9f15618745ce7a46da6fb321b6c2f0320b63e91'.toLowerCase();
 
-// Validate that payment receiver is configured
-if (!PAYMENT_RECEIVER) {
-  console.error('❌ PAYMENT_RECEIVER_ADDRESS environment variable is not set!');
-}
-
-// Pricing: amount in BNB -> credits
-const PRICING: { [key: string]: number } = {
-  '0.001': 1,
-  '0.005': 5,
-  '0.01': 10,
+// BNB Pricing Configuration (must match frontend)
+const PRICING_BNB: { [key: number]: string } = {
+  1: '0.0015',   // 1 credit = 0.0015 BNB
+  5: '0.0075',   // 5 credits = 0.0075 BNB
+  10: '0.015',   // 10 credits = 0.015 BNB
 };
+
+// Allow 5% tolerance for price fluctuation
+const PRICE_TOLERANCE = 0.05;
 
 interface TransactionData {
   transactionHash: string;
@@ -74,15 +77,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Validate payment receiver is configured
-    if (!PAYMENT_RECEIVER) {
-      console.error('❌ PAYMENT_RECEIVER_ADDRESS not configured');
-      return new Response(
-        JSON.stringify({ error: 'Payment system not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const { transactionHash, userAddress, packageAmount }: TransactionData = await req.json();
 
     // INPUT VALIDATION
@@ -107,7 +101,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('🔍 Verifying payment:', { transactionHash, userAddress, packageAmount });
+    console.log('🔍 Verifying BNB payment:', { transactionHash, userAddress, packageAmount });
 
     // 1. CHECK IF TRANSACTION ALREADY PROCESSED
     const { data: existingTx } = await supabase
@@ -123,8 +117,8 @@ serve(async (req) => {
       );
     }
 
-    // 2. VERIFY TRANSACTION ON BLOCKCHAIN
-    const txData = await verifyTransactionOnChain(transactionHash);
+    // 2. VERIFY BNB TRANSFER ON BLOCKCHAIN
+    const txData = await verifyBNBTransferOnChain(transactionHash, userAddress);
 
     if (!txData.valid) {
       return new Response(
@@ -133,32 +127,45 @@ serve(async (req) => {
       );
     }
 
-    // 3. VALIDATE TRANSACTION DETAILS
-    const expectedAmount = getExpectedAmount(packageAmount);
-    if (txData.value !== expectedAmount) {
-      return new Response(
-        JSON.stringify({
-          error: 'Invalid payment amount',
-          expected: expectedAmount,
-          received: txData.value
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (txData.to.toLowerCase() !== PAYMENT_RECEIVER.toLowerCase()) {
+    // 3. VALIDATE BNB TRANSFER DETAILS
+    // Check receiver address
+    if (txData.to?.toLowerCase() !== PAYMENT_RECEIVER) {
       return new Response(
         JSON.stringify({ error: 'Invalid payment receiver' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (txData.from.toLowerCase() !== userAddress.toLowerCase()) {
+    // Check sender address
+    if (txData.from?.toLowerCase() !== userAddress.toLowerCase()) {
       return new Response(
         JSON.stringify({ error: 'Sender address mismatch' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Validate BNB amount with tolerance
+    const expectedBnb = parseFloat(PRICING_BNB[packageAmount]);
+    const receivedBnb = txData.bnbAmount || 0;
+    const minExpected = expectedBnb * (1 - PRICE_TOLERANCE);
+
+    if (receivedBnb < minExpected) {
+      return new Response(
+        JSON.stringify({
+          error: 'Insufficient BNB amount',
+          expected: expectedBnb,
+          received: receivedBnb,
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('✅ BNB transfer verified:', {
+      from: txData.from,
+      to: txData.to,
+      bnbAmount: receivedBnb,
+      expectedBnb: expectedBnb,
+    });
 
     // 4. GET OR CREATE USER
     let { data: user } = await supabase
@@ -187,8 +194,7 @@ serve(async (req) => {
     const newCredits = (user.credits || 0) + packageAmount;
     const newTotalSpent = (user.total_spent || 0) + packageAmount;
 
-    // CRITICAL FIX: Insert transaction FIRST to prevent duplicate credit addition
-    // If this fails, we haven't modified user credits yet
+    // Insert transaction FIRST to prevent duplicate credit addition
     const { data: txRecord, error: txInsertError } = await supabase
       .from('transactions')
       .insert({
@@ -196,13 +202,12 @@ serve(async (req) => {
         amount: packageAmount,
         credits_added: packageAmount,
         transaction_hash: transactionHash,
-        status: 'pending', // Mark as pending until credits are added
+        status: 'pending',
       })
       .select()
       .single();
 
     if (txInsertError) {
-      // If duplicate key error (transaction already exists), return error
       if (txInsertError.code === '23505') {
         return new Response(
           JSON.stringify({ error: 'Transaction already processed' }),
@@ -237,6 +242,7 @@ serve(async (req) => {
       user: userAddress,
       credits: packageAmount,
       newBalance: newCredits,
+      bnbPaid: receivedBnb,
     });
 
     return new Response(
@@ -244,6 +250,7 @@ serve(async (req) => {
         success: true,
         credits: newCredits,
         transactionHash,
+        bnbAmount: receivedBnb,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -261,25 +268,57 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Verify transaction on BSC blockchain with retry mechanism
-async function verifyTransactionOnChain(txHash: string, maxRetries = 5, delayMs = 3000) {
+// RPC call with fallback
+async function rpcCall(method: string, params: unknown[], maxRetries = 3): Promise<unknown> {
+  let lastError: Error | null = null;
+
+  for (const rpcUrl of BSC_MAINNET_RPCS) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method,
+            params,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error.message || 'RPC error');
+        }
+
+        return data.result;
+      } catch (error) {
+        lastError = error as Error;
+        console.log(`RPC ${rpcUrl} attempt ${attempt} failed:`, error.message);
+        if (attempt < maxRetries) {
+          await sleep(1000 * attempt);
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error('All RPC endpoints failed');
+}
+
+// Verify native BNB transfer on BSC blockchain
+async function verifyBNBTransferOnChain(txHash: string, expectedSender: string, maxRetries = 5, delayMs = 3000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`🔄 Verification attempt ${attempt}/${maxRetries} for tx: ${txHash}`);
 
-      const response = await fetch(BSC_TESTNET_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_getTransactionByHash',
-          params: [txHash],
-        }),
-      });
-
-      const data = await response.json();
-      const tx = data.result;
+      // Get transaction details
+      const tx = await rpcCall('eth_getTransactionByHash', [txHash]) as {
+        from: string;
+        to: string;
+        value: string;
+        blockNumber: string | null;
+      } | null;
 
       if (!tx) {
         console.log(`⏳ Attempt ${attempt}: Transaction not found yet`);
@@ -290,29 +329,53 @@ async function verifyTransactionOnChain(txHash: string, maxRetries = 5, delayMs 
         return { valid: false, error: 'Transaction not found after retries' };
       }
 
-      // Check if transaction is confirmed (has blockNumber)
+      // Check if transaction is mined
       if (!tx.blockNumber) {
-        console.log(`⏳ Attempt ${attempt}: Transaction not confirmed yet`);
+        console.log(`⏳ Attempt ${attempt}: Transaction pending (not mined)`);
         if (attempt < maxRetries) {
           await sleep(delayMs);
           continue;
         }
-        return { valid: false, error: 'Transaction not confirmed after retries' };
+        return { valid: false, error: 'Transaction still pending' };
       }
 
-      // Transaction is confirmed!
-      console.log(`✅ Transaction confirmed on attempt ${attempt}`);
+      // Get transaction receipt to check status
+      const receipt = await rpcCall('eth_getTransactionReceipt', [txHash]) as {
+        status: string;
+        blockNumber: string;
+      } | null;
 
-      // Convert hex value to BNB (Wei to BNB: divide by 10^18)
-      const valueInWei = BigInt(tx.value);
-      const valueInBNB = Number(valueInWei) / 1e18;
+      if (!receipt) {
+        console.log(`⏳ Attempt ${attempt}: Receipt not found yet`);
+        if (attempt < maxRetries) {
+          await sleep(delayMs);
+          continue;
+        }
+        return { valid: false, error: 'Transaction receipt not found' };
+      }
+
+      // Check if transaction succeeded
+      if (receipt.status !== '0x1') {
+        return { valid: false, error: 'Transaction failed/reverted' };
+      }
+
+      // Parse BNB amount (value is in wei, hex format)
+      const valueWei = BigInt(tx.value);
+      const bnbAmount = Number(valueWei) / 1e18;
+
+      console.log(`✅ BNB transfer found:`, {
+        from: tx.from,
+        to: tx.to,
+        amount: bnbAmount,
+        attempt,
+      });
 
       return {
         valid: true,
         from: tx.from,
         to: tx.to,
-        value: valueInBNB.toFixed(3), // Format to 3 decimals
-        blockNumber: parseInt(tx.blockNumber, 16),
+        bnbAmount: bnbAmount,
+        blockNumber: parseInt(receipt.blockNumber, 16),
       };
     } catch (error) {
       console.log(`❌ Attempt ${attempt} error:`, error.message);
@@ -325,12 +388,4 @@ async function verifyTransactionOnChain(txHash: string, maxRetries = 5, delayMs 
   }
 
   return { valid: false, error: 'Max retries exceeded' };
-}
-
-// Get expected BNB amount for package
-function getExpectedAmount(packageAmount: number): string {
-  if (packageAmount === 1) return '0.001';
-  if (packageAmount === 5) return '0.005';
-  if (packageAmount === 10) return '0.010';
-  throw new Error(`Invalid package amount: ${packageAmount}`);
 }
