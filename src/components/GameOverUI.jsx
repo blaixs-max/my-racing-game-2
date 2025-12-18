@@ -85,64 +85,120 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
   }, []); // Run once on mount
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto" style={{ zIndex: 9999 }}>
-      {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-red-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-orange-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-yellow-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-500"></div>
-      </div>
-
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: '#0D0D12',
+      overflowY: 'auto',
+      zIndex: 9999
+    }}>
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 py-8">
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        padding: '40px 20px'
+      }}>
 
         {/* Title */}
-        <div className="mb-6 sm:mb-8 flex items-center gap-2 sm:gap-3">
-          <span className="text-4xl sm:text-6xl animate-bounce">💥</span>
-          <h1 className="text-4xl sm:text-6xl font-bold text-white tracking-wider drop-shadow-2xl text-center" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '15px',
+          marginBottom: '30px'
+        }}>
+          <span style={{ fontSize: '48px' }}>💥</span>
+          <h1 style={{
+            fontSize: '42px',
+            fontWeight: '900',
+            color: '#fff',
+            letterSpacing: '4px',
+            margin: 0,
+            textShadow: '0 0 30px rgba(255, 255, 255, 0.3)',
+            fontFamily: "'Inter', sans-serif"
+          }}>
             YOU CRASHED
           </h1>
-          <span className="text-4xl sm:text-6xl animate-bounce">💥</span>
+          <span style={{ fontSize: '48px' }}>💥</span>
         </div>
 
-        {/* Glassmorphism Card */}
-        <div className="w-full max-w-md backdrop-blur-lg bg-white/10 rounded-3xl p-4 sm:p-8 shadow-2xl border border-white/20">
+        {/* Main Card */}
+        <div style={{
+          width: '100%',
+          maxWidth: '450px',
+          background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+          borderRadius: '20px',
+          border: '2px solid rgba(100, 100, 120, 0.3)',
+          padding: '30px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+        }}>
 
           {/* Score Display */}
-          <div className={`mb-6 p-4 rounded-xl border text-center ${
-            gameMode === 'doubleOrNothing'
+          <div style={{
+            padding: '25px',
+            borderRadius: '16px',
+            marginBottom: '25px',
+            textAlign: 'center',
+            background: gameMode === 'doubleOrNothing'
               ? reachedLevel5
-                ? 'bg-gradient-to-r from-green-500/30 to-emerald-500/30 border-green-400/30'
-                : 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400/30'
-              : 'bg-gradient-to-r from-red-500/30 to-orange-500/30 border-red-400/30'
-          }`}>
-            <p className="text-gray-300 text-sm mb-1">FINAL SCORE</p>
-            <p className={`text-5xl font-bold drop-shadow-lg ${
-              gameMode === 'doubleOrNothing' && !reachedLevel5
-                ? 'text-red-400'
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.1))'
+                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(185, 28, 28, 0.1))'
+              : 'linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(184, 134, 11, 0.1))',
+            border: gameMode === 'doubleOrNothing'
+              ? reachedLevel5
+                ? '2px solid rgba(16, 185, 129, 0.4)'
+                : '2px solid rgba(239, 68, 68, 0.4)'
+              : '2px solid rgba(255, 215, 0, 0.3)'
+          }}>
+            <p style={{ color: '#888', fontSize: '14px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '2px' }}>
+              FINAL SCORE
+            </p>
+            <p style={{
+              fontSize: '56px',
+              fontWeight: '900',
+              margin: '0',
+              color: gameMode === 'doubleOrNothing' && !reachedLevel5
+                ? '#EF4444'
                 : gameMode === 'doubleOrNothing' && reachedLevel5
-                  ? 'text-green-400'
-                  : 'text-yellow-400'
-            }`}>{finalScore}</p>
+                  ? '#10B981'
+                  : '#FFD700',
+              textShadow: gameMode === 'doubleOrNothing' && !reachedLevel5
+                ? '0 0 30px rgba(239, 68, 68, 0.5)'
+                : gameMode === 'doubleOrNothing' && reachedLevel5
+                  ? '0 0 30px rgba(16, 185, 129, 0.5)'
+                  : '0 0 30px rgba(255, 215, 0, 0.5)'
+            }}>
+              {finalScore}
+            </p>
 
             {/* Double or Nothing Mode Info */}
             {gameMode === 'doubleOrNothing' && (
-              <div className={`mt-3 p-2 rounded-lg ${
-                reachedLevel5
-                  ? 'bg-green-500/20 border border-green-400/30'
-                  : 'bg-red-500/20 border border-red-400/30'
-              }`}>
+              <div style={{
+                marginTop: '15px',
+                padding: '12px',
+                borderRadius: '8px',
+                background: reachedLevel5
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : 'rgba(239, 68, 68, 0.15)',
+                border: `1px solid ${reachedLevel5 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+              }}>
                 {reachedLevel5 ? (
                   <>
-                    <p className="text-green-300 text-sm font-bold">🎰 DOUBLE OR NOTHING: SUCCESS!</p>
-                    <p className="text-green-200 text-xs mt-1">
+                    <p style={{ color: '#10B981', fontSize: '14px', fontWeight: 'bold', margin: '0 0 5px 0' }}>
+                      🎰 DOUBLE OR NOTHING: SUCCESS!
+                    </p>
+                    <p style={{ color: '#6EE7B7', fontSize: '12px', margin: 0 }}>
                       Level 5 reached! Original: {Math.floor(score)} → 2X = {finalScore}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="text-red-300 text-sm font-bold">🎰 DOUBLE OR NOTHING: FAILED!</p>
-                    <p className="text-red-200 text-xs mt-1">
+                    <p style={{ color: '#EF4444', fontSize: '14px', fontWeight: 'bold', margin: '0 0 5px 0' }}>
+                      🎰 DOUBLE OR NOTHING: FAILED!
+                    </p>
+                    <p style={{ color: '#FCA5A5', fontSize: '12px', margin: 0 }}>
                       Did not reach Level 5. Score: 0
                     </p>
                   </>
@@ -151,116 +207,211 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             )}
 
             {gameMode === 'classic' && (
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <span className="text-yellow-300 text-xs animate-pulse">⭐ Play more to score More ⭐</span>
-              </div>
+              <p style={{
+                color: '#FFD700',
+                fontSize: '12px',
+                marginTop: '10px',
+                marginBottom: 0
+              }}>
+                ⭐ Play more to score More ⭐
+              </p>
             )}
           </div>
 
           {/* Statistics Grid */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
-              <p className="text-gray-400 text-xs">Distance</p>
-              <p className="text-xl font-bold text-blue-300">{Math.floor(totalDistance)}m</p>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '15px',
+            marginBottom: '25px'
+          }}>
+            <div style={{
+              padding: '18px',
+              background: 'rgba(45, 45, 70, 0.4)',
+              borderRadius: '12px',
+              border: '1px solid rgba(100, 100, 120, 0.2)',
+              textAlign: 'center'
+            }}>
+              <p style={{ color: '#888', fontSize: '11px', marginBottom: '8px', textTransform: 'uppercase' }}>Distance</p>
+              <p style={{ color: '#60A5FA', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
+                {Math.floor(totalDistance)}m
+              </p>
             </div>
-            <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
-              <p className="text-gray-400 text-xs">Near Misses</p>
-              <p className="text-xl font-bold text-purple-300">{nearMissCount}</p>
+            <div style={{
+              padding: '18px',
+              background: 'rgba(45, 45, 70, 0.4)',
+              borderRadius: '12px',
+              border: '1px solid rgba(100, 100, 120, 0.2)',
+              textAlign: 'center'
+            }}>
+              <p style={{ color: '#888', fontSize: '11px', marginBottom: '8px', textTransform: 'uppercase' }}>Near Misses</p>
+              <p style={{ color: '#A78BFA', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
+                {nearMissCount}
+              </p>
             </div>
           </div>
 
-          {/* Database Info - Conditional Rendering */}
-          <div className={`mb-6 p-3 rounded-lg border flex items-center justify-center gap-2 ${
-            saveStatus === 'saved' ? 'bg-green-500/20 border-green-500/30' :
-            saveStatus === 'error' ? 'bg-red-500/20 border-red-500/30' :
-            'bg-blue-500/20 border-blue-500/30'
-          }`}>
+          {/* Database Save Status */}
+          <div style={{
+            padding: '14px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            background: saveStatus === 'saved'
+              ? 'rgba(16, 185, 129, 0.15)'
+              : saveStatus === 'error'
+                ? 'rgba(239, 68, 68, 0.15)'
+                : 'rgba(59, 130, 246, 0.15)',
+            border: `1px solid ${
+              saveStatus === 'saved'
+                ? 'rgba(16, 185, 129, 0.3)'
+                : saveStatus === 'error'
+                  ? 'rgba(239, 68, 68, 0.3)'
+                  : 'rgba(59, 130, 246, 0.3)'
+            }`
+          }}>
             {saveStatus === 'saved' && (
               <>
-                <i className="fas fa-check-circle text-green-400"></i>
-                <span className="text-green-200 text-sm">Score saved to database!</span>
+                <span style={{ color: '#10B981', fontSize: '16px' }}>✓</span>
+                <span style={{ color: '#6EE7B7', fontSize: '13px' }}>Score saved to database!</span>
               </>
             )}
             {saveStatus === 'saving' && (
-               <>
-                <i className="fas fa-spinner fa-spin text-blue-400"></i>
-                <span className="text-blue-200 text-sm">Saving score...</span>
+              <>
+                <span style={{ color: '#60A5FA', fontSize: '14px' }}>⏳</span>
+                <span style={{ color: '#93C5FD', fontSize: '13px' }}>Saving score...</span>
               </>
             )}
             {saveStatus === 'error' && (
-               <>
-                <i className="fas fa-exclamation-circle text-red-400"></i>
-                <span className="text-red-200 text-sm">{errorMessage || 'Failed to save score'}</span>
+              <>
+                <span style={{ color: '#EF4444', fontSize: '16px' }}>✗</span>
+                <span style={{ color: '#FCA5A5', fontSize: '13px' }}>{errorMessage || 'Failed to save score'}</span>
               </>
             )}
           </div>
 
           {/* Credits Info */}
-          <div className="mb-6 text-center">
-            <p className="text-gray-400 text-sm mb-1">Remaining Credits</p>
-            <p className={`text-3xl font-bold ${credits > 0 ? 'text-white' : 'text-red-400'}`}>
+          <div style={{
+            textAlign: 'center',
+            marginBottom: '25px'
+          }}>
+            <p style={{ color: '#888', fontSize: '12px', marginBottom: '8px' }}>Remaining Credits</p>
+            <p style={{
+              fontSize: '32px',
+              fontWeight: 'bold',
+              margin: 0,
+              color: credits > 0 ? '#FFD700' : '#EF4444'
+            }}>
               {credits}
             </p>
           </div>
 
           {/* Anti-Cheat Warning */}
-          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-500/30">
-            <div className="flex items-center justify-center gap-3">
-              <span className="text-2xl">🛡️</span>
-              <div className="text-center">
-                <p className="text-amber-300 text-sm font-semibold">
-                  Fair Play Protected
-                </p>
-                <p className="text-amber-200/70 text-xs mt-1">
-                  All scores are verified on-chain. Cheaters will be detected.
-                </p>
-              </div>
-              <span className="text-2xl">⚔️</span>
+          <div style={{
+            padding: '15px',
+            borderRadius: '12px',
+            marginBottom: '25px',
+            background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(184, 134, 11, 0.05))',
+            border: '1px solid rgba(255, 215, 0, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '15px'
+          }}>
+            <span style={{ fontSize: '24px' }}>🛡️</span>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ color: '#FFD700', fontSize: '13px', fontWeight: '600', margin: '0 0 4px 0' }}>
+                Fair Play Protected
+              </p>
+              <p style={{ color: '#B8860B', fontSize: '11px', margin: 0 }}>
+                All scores are verified on-chain. Cheaters will be detected.
+              </p>
             </div>
+            <span style={{ fontSize: '24px' }}>⚔️</span>
           </div>
 
           {/* Action Buttons */}
-          <div className="space-y-3">
-            {/* RACE AGAIN - Only enabled if user has credits */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* RACE AGAIN */}
             <button
               onClick={credits > 0 ? onRestart : undefined}
               disabled={credits <= 0}
-              className={`w-full py-4 rounded-xl font-bold text-xl transition-all duration-300 ${
-                credits > 0
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 animate-pulse cursor-pointer'
-                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              }`}
+              style={{
+                width: '100%',
+                padding: '18px',
+                borderRadius: '12px',
+                border: 'none',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                cursor: credits > 0 ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                transition: 'all 0.3s ease',
+                background: credits > 0
+                  ? 'linear-gradient(135deg, #10B981, #059669)'
+                  : '#3D3D5C',
+                color: credits > 0 ? '#fff' : '#666',
+                boxShadow: credits > 0 ? '0 0 25px rgba(16, 185, 129, 0.4)' : 'none'
+              }}
             >
-              <span className="flex items-center justify-center gap-2">
-                <i className="fas fa-flag-checkered"></i>
-                RACE AGAIN
-                {credits <= 0 && <span className="text-sm">(No Credits)</span>}
-              </span>
+              <span>🏁</span>
+              RACE AGAIN
+              {credits <= 0 && <span style={{ fontSize: '12px' }}>(No Credits)</span>}
             </button>
 
-            {/* CHECK SCORES - Opens Lumexia.net */}
+            {/* CHECK SCORES */}
             <button
               onClick={() => window.open('https://lumexia.net', '_blank')}
-              className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '12px',
+                border: 'none',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                transition: 'all 0.3s ease',
+                background: 'linear-gradient(135deg, #FFD700, #B8860B)',
+                color: '#000'
+              }}
             >
-              <span className="flex items-center justify-center gap-2">
-                <i className="fas fa-trophy"></i>
-                CHECK SCORES
-              </span>
+              <span>🏆</span>
+              CHECK SCORES
             </button>
 
-            {/* MAIN MENU - Always available */}
+            {/* MAIN MENU */}
             <button
               onClick={onMainMenu}
-              className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '12px',
+                border: '2px solid rgba(100, 100, 120, 0.4)',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                transition: 'all 0.3s ease',
+                background: 'rgba(45, 45, 70, 0.5)',
+                color: '#C4C4C4'
+              }}
             >
-              <span className="flex items-center justify-center gap-2">
-                <i className="fas fa-home"></i>
-                MAIN MENU
-              </span>
+              <span>🏠</span>
+              MAIN MENU
             </button>
           </div>
-
         </div>
       </div>
     </div>

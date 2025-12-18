@@ -14,6 +14,36 @@ import {
 import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../utils/supabaseClient';
 import { PRICING_BNB } from '../wagmi.config';
 
+// Agreement Text Content
+const AGREEMENT_TEXT = `Lumexia: Gameplay Participation Agreement & Risk Disclosure
+
+IMPORTANT: Please read the following terms carefully before participating in the Lumexia Racing Module. By clicking "ACCEPT", you acknowledge that you have read, understood, and agreed to be bound by these terms.
+
+1. Nature of the Game (Game of Skill)
+You acknowledge that the Lumexia Racing Module is a Game of Skill, not a game of chance or gambling. Your ranking on the leaderboard and eligibility for rewards are determined solely by your gameplay performance, reflexes, and strategy. The "Score" you achieve is the defining metric for reward distribution.
+
+2. Entry Fees and BNB Usage
+To participate, users utilize BNB to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The BNB collected form the "Reward Pool" for the daily cycle.
+
+3. Reward Distribution & Deductions
+The Reward Pool is distributed daily to the top 100 players based on their final scores. You explicitly agree to the following allocation of funds:
+
+Prize Pool: The majority of the pool is distributed to the winners via an automated algorithm.
+
+Operational Fee: A fixed deduction of 7.5% is taken from the total pool prior to distribution. This fee is allocated for Marketing activities and Weekly Token Burns to support the Lumexia ecosystem.
+
+4. No Guarantee of Winnings
+Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the daily cycle, you will not receive a share of the BNB pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
+
+5. Cryptocurrency Risks
+You acknowledge that the value of BNB and the LMX token can fluctuate significantly. Lumexia is not responsible for any value loss due to market volatility, blockchain network errors, or wallet security breaches on the user's end.
+
+6. Legal Compliance
+You represent and warrant that you are of legal age and that participating in skill-based crypto gaming is legal in your local jurisdiction. It is your sole responsibility to comply with the laws of your country of residence.
+
+7. Automated Execution
+Reward distributions are executed by smart contracts/automated algorithms. These transactions are irreversible. By playing, you accept the calculated results as final.`;
+
 const RealLauncherUI = ({ onStartGame }) => {
   const { address, isConnected, status: connectionStatus } = useAccount();
   const chainId = useChainId();
@@ -25,6 +55,19 @@ const RealLauncherUI = ({ onStartGame }) => {
 
   // Track connection attempts for mobile debugging
   const connectionAttemptRef = useRef(0);
+
+  // Phase Management
+  const [currentPhase, setCurrentPhase] = useState(1);
+  const [completedPhases, setCompletedPhases] = useState({
+    1: false, // Agreement
+    2: false, // Connect Wallet
+    3: false, // Game Mode & Team
+    4: false  // Purchase & Start
+  });
+
+  // Agreement State
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
+  const [agreementChecked, setAgreementChecked] = useState(false);
 
   // Debounced Network Check
   const [showWrongNetwork, setShowWrongNetwork] = useState(false);
@@ -206,6 +249,8 @@ const RealLauncherUI = ({ onStartGame }) => {
     isMounted.current = true;
     if (isConnected && address) {
       loadUserData(address);
+      // Mark phase 2 as complete when wallet connects
+      setCompletedPhases(prev => ({ ...prev, 2: true }));
     } else {
       setState(prev => ({
         ...prev,
@@ -215,9 +260,18 @@ const RealLauncherUI = ({ onStartGame }) => {
         canChangeTeam: true,
         statusMessage: 'Connect your wallet to get started'
       }));
+      // Reset phase 2 if wallet disconnects
+      setCompletedPhases(prev => ({ ...prev, 2: false }));
     }
     return () => { isMounted.current = false; };
   }, [isConnected, address]);
+
+  // Update phase 3 completion when team and mode are selected
+  useEffect(() => {
+    if (state.selectedTeam && state.gameMode) {
+      setCompletedPhases(prev => ({ ...prev, 3: true }));
+    }
+  }, [state.selectedTeam, state.gameMode]);
 
   // Load user credits and team from database
   const loadUserData = async (walletAddress) => {
@@ -570,6 +624,64 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
   };
 
+  // Accept Agreement Handler
+  const handleAcceptAgreement = () => {
+    if (!agreementChecked) {
+      alert('Please check the checkbox to accept the Terms & Conditions');
+      return;
+    }
+    setAgreementAccepted(true);
+    setCompletedPhases(prev => ({ ...prev, 1: true }));
+    setCurrentPhase(2);
+  };
+
+  // Phase Navigation
+  const handlePhaseClick = (phase) => {
+    // Can only go to a phase if previous phases are complete
+    if (phase === 1) {
+      setCurrentPhase(1);
+    } else if (phase === 2 && completedPhases[1]) {
+      setCurrentPhase(2);
+    } else if (phase === 3 && completedPhases[1] && completedPhases[2]) {
+      setCurrentPhase(3);
+    } else if (phase === 4 && completedPhases[1] && completedPhases[2] && completedPhases[3]) {
+      setCurrentPhase(4);
+    } else {
+      // Show warning about completing previous phases
+      const missingPhases = [];
+      if (!completedPhases[1]) missingPhases.push('Agreement');
+      if (!completedPhases[2] && phase > 2) missingPhases.push('Connect Wallet');
+      if (!completedPhases[3] && phase > 3) missingPhases.push('Game Mode & Team');
+
+      if (missingPhases.length > 0) {
+        alert(`Please complete the following first:\n- ${missingPhases.join('\n- ')}`);
+      }
+    }
+  };
+
+  // Next Phase Handler
+  const handleNextPhase = () => {
+    if (currentPhase === 1) {
+      if (!agreementAccepted) {
+        alert('Please accept the Terms & Conditions first');
+        return;
+      }
+      setCurrentPhase(2);
+    } else if (currentPhase === 2) {
+      if (!isConnected) {
+        alert('Please connect your wallet first');
+        return;
+      }
+      setCurrentPhase(3);
+    } else if (currentPhase === 3) {
+      if (!state.selectedTeam) {
+        alert('Please select a team first');
+        return;
+      }
+      setCurrentPhase(4);
+    }
+  };
+
   // Start game with existing credits
   const handleStartGameWithCredits = () => {
     if (!isConnected || !address) {
@@ -601,460 +713,908 @@ const RealLauncherUI = ({ onStartGame }) => {
     });
   };
 
+  // Timeline Component
+  const Timeline = () => (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px 10px',
+      marginBottom: '20px',
+      width: '100%',
+      maxWidth: '600px'
+    }}>
+      {[1, 2, 3, 4].map((phase, index) => (
+        <div key={phase} style={{ display: 'flex', alignItems: 'center', flex: index < 3 ? 1 : 'none' }}>
+          {/* Phase Circle */}
+          <div
+            onClick={() => handlePhaseClick(phase)}
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              background: completedPhases[phase]
+                ? 'linear-gradient(135deg, #10B981, #059669)'
+                : currentPhase === phase
+                  ? 'linear-gradient(135deg, #FFD700, #B8860B)'
+                  : '#1F1F2E',
+              border: completedPhases[phase]
+                ? '3px solid #10B981'
+                : currentPhase === phase
+                  ? '3px solid #FFD700'
+                  : '3px solid #3D3D5C',
+              boxShadow: currentPhase === phase
+                ? '0 0 20px rgba(255, 215, 0, 0.5)'
+                : completedPhases[phase]
+                  ? '0 0 15px rgba(16, 185, 129, 0.4)'
+                  : 'none',
+              position: 'relative'
+            }}
+          >
+            {completedPhases[phase] ? (
+              <span style={{ color: '#fff', fontSize: '20px' }}>✓</span>
+            ) : (
+              <span style={{
+                color: currentPhase === phase ? '#000' : '#888',
+                fontSize: '18px',
+                fontWeight: 'bold'
+              }}>
+                {phase}
+              </span>
+            )}
+          </div>
+
+          {/* Phase Label */}
+          <div style={{
+            position: 'absolute',
+            marginTop: '70px',
+            fontSize: '10px',
+            color: currentPhase === phase ? '#FFD700' : '#888',
+            textAlign: 'center',
+            width: '50px',
+            fontWeight: currentPhase === phase ? 'bold' : 'normal'
+          }}>
+            Phase
+          </div>
+
+          {/* Connecting Line */}
+          {index < 3 && (
+            <div style={{
+              flex: 1,
+              height: '3px',
+              background: completedPhases[phase]
+                ? 'linear-gradient(90deg, #10B981, #10B981)'
+                : '#3D3D5C',
+              margin: '0 5px',
+              transition: 'background 0.3s ease'
+            }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // Credits Display Component
+  const CreditsDisplay = () => (
+    <div style={{
+      position: 'absolute',
+      top: '15px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'linear-gradient(180deg, #1A1A2E 0%, #16162A 100%)',
+      border: '2px solid rgba(255, 215, 0, 0.3)',
+      borderRadius: '12px',
+      padding: '10px 25px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      zIndex: 10
+    }}>
+      <span style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase' }}>Your Credits</span>
+      <span style={{ color: '#FFD700', fontSize: '28px', fontWeight: 'bold' }}>{state.credits}</span>
+      <span style={{ color: '#4ADE80', fontSize: '11px' }}>
+        {bnbBalanceData?.formatted ? `${parseFloat(bnbBalanceData.formatted).toFixed(4)} BNB` : '0.0075 BNB'}
+      </span>
+    </div>
+  );
+
+  // Wallet Display Component
+  const WalletDisplay = () => {
+    if (!isConnected) return null;
+
+    return (
+      <div style={{
+        position: 'absolute',
+        top: '15px',
+        right: '15px',
+        background: 'linear-gradient(180deg, #1A1A2E 0%, #16162A 100%)',
+        border: '2px solid rgba(255, 215, 0, 0.3)',
+        borderRadius: '12px',
+        padding: '8px 15px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        zIndex: 10
+      }}>
+        <span style={{ color: '#FFD700', fontSize: '13px', fontWeight: '500' }}>
+          {bnbBalanceData?.formatted ? `${parseFloat(bnbBalanceData.formatted).toFixed(3)} BNB` : '0 BNB'}
+        </span>
+        <div style={{
+          width: '24px',
+          height: '24px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #FFD700, #B8860B)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <span style={{ fontSize: '12px' }}>⚡</span>
+        </div>
+        <span style={{ color: '#888', fontSize: '12px' }}>
+          {address?.slice(0, 6)}...{address?.slice(-4)}
+        </span>
+      </div>
+    );
+  };
+
+  // Phase 1: Agreement Content
+  const Phase1Content = () => (
+    <div style={{
+      width: '100%',
+      maxWidth: '700px',
+      background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+      borderRadius: '16px',
+      border: '2px solid rgba(100, 100, 120, 0.3)',
+      padding: '25px',
+      marginTop: '30px'
+    }}>
+      {/* Scrollable Agreement Text */}
+      <div style={{
+        height: '300px',
+        overflowY: 'auto',
+        background: '#0D0D14',
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '20px',
+        border: '1px solid rgba(100, 100, 120, 0.2)',
+        scrollbarWidth: 'thin',
+        scrollbarColor: '#3D3D5C #0D0D14'
+      }}>
+        <pre style={{
+          color: '#C4C4C4',
+          fontSize: '13px',
+          lineHeight: '1.6',
+          whiteSpace: 'pre-wrap',
+          fontFamily: 'Inter, sans-serif',
+          margin: 0
+        }}>
+          {AGREEMENT_TEXT}
+        </pre>
+      </div>
+
+      {/* Checkbox and Accept Button */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '15px'
+      }}>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          cursor: 'pointer',
+          color: '#C4C4C4',
+          fontSize: '14px'
+        }}>
+          <div
+            onClick={() => setAgreementChecked(!agreementChecked)}
+            style={{
+              width: '24px',
+              height: '24px',
+              border: '2px solid #FFD700',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: agreementChecked ? '#FFD700' : 'transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {agreementChecked && <span style={{ color: '#000', fontSize: '16px' }}>✓</span>}
+          </div>
+          I have read and accept the Terms & Conditions.
+        </label>
+
+        <button
+          onClick={handleAcceptAgreement}
+          disabled={!agreementChecked}
+          style={{
+            padding: '12px 30px',
+            background: agreementChecked
+              ? 'linear-gradient(135deg, #FFD700, #B8860B)'
+              : '#3D3D5C',
+            border: 'none',
+            borderRadius: '8px',
+            color: agreementChecked ? '#000' : '#666',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            cursor: agreementChecked ? 'pointer' : 'not-allowed',
+            transition: 'all 0.3s ease',
+            textTransform: 'uppercase',
+            letterSpacing: '1px'
+          }}
+        >
+          Accept
+        </button>
+      </div>
+    </div>
+  );
+
+  // Phase 2: Connect Wallet Content
+  const Phase2Content = () => (
+    <div style={{
+      width: '100%',
+      maxWidth: '500px',
+      background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+      borderRadius: '16px',
+      border: '2px solid rgba(100, 100, 120, 0.3)',
+      padding: '30px',
+      marginTop: '30px',
+      textAlign: 'center'
+    }}>
+      {/* Connect Wallet Button */}
+      <div style={{ marginBottom: '25px' }}>
+        <ConnectButton
+          label="Connect Wallet"
+          accountStatus={{
+            smallScreen: 'avatar',
+            largeScreen: 'full',
+          }}
+          chainStatus="icon"
+          showBalance={{
+            smallScreen: false,
+            largeScreen: true,
+          }}
+        />
+      </div>
+
+      {/* Connection Status */}
+      {connectionStatus === 'connecting' && (
+        <div style={{
+          padding: '15px',
+          background: 'rgba(255, 193, 7, 0.1)',
+          border: '1px solid rgba(255, 193, 7, 0.3)',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          <p style={{ color: '#FFC107', fontSize: '13px', margin: 0 }}>
+            ⏳ Connecting wallet...
+          </p>
+        </div>
+      )}
+
+      {/* Wrong Network Warning */}
+      {showWrongNetwork && (
+        <div style={{
+          padding: '20px',
+          background: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          <p style={{ color: '#EF4444', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>
+            ⚠️ Wrong Network!
+          </p>
+          <p style={{ color: '#C4C4C4', fontSize: '12px', marginBottom: '15px' }}>
+            Please switch to BNB Smart Chain to continue.
+          </p>
+          <button
+            onClick={() => switchChain({ chainId: bsc.id })}
+            style={{
+              padding: '10px 20px',
+              background: '#EF4444',
+              border: 'none',
+              borderRadius: '6px',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Switch to BSC
+          </button>
+        </div>
+      )}
+
+      {/* Info Box */}
+      <div style={{
+        background: 'rgba(139, 92, 246, 0.1)',
+        border: '1px solid rgba(139, 92, 246, 0.2)',
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '25px'
+      }}>
+        <p style={{ color: '#C4C4C4', fontSize: '13px', lineHeight: '1.6', margin: 0 }}>
+          Connect your MetaMask or Trust Wallet to continue. Make sure you are connected to the BNB Smart Chain (BSC) network.
+        </p>
+      </div>
+
+      {/* Next Button */}
+      {isConnected && !showWrongNetwork && (
+        <button
+          onClick={handleNextPhase}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            width: '100%',
+            padding: '15px',
+            background: 'linear-gradient(135deg, #FFD700, #B8860B)',
+            border: 'none',
+            borderRadius: '10px',
+            color: '#000',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          Next
+          <span style={{ fontSize: '20px' }}>→</span>
+        </button>
+      )}
+    </div>
+  );
+
+  // Phase 3: Game Mode & Team Selection
+  const Phase3Content = () => (
+    <div style={{
+      width: '100%',
+      maxWidth: '550px',
+      background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+      borderRadius: '16px',
+      border: '2px solid rgba(100, 100, 120, 0.3)',
+      padding: '25px',
+      marginTop: '30px'
+    }}>
+      {/* Game Mode Selection */}
+      <div style={{ marginBottom: '25px' }}>
+        <h3 style={{
+          color: '#fff',
+          fontSize: '16px',
+          marginBottom: '15px',
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px'
+        }}>
+          🎮 Select Game Mode
+        </h3>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+          {/* Classic Race */}
+          <div
+            onClick={() => setState(prev => ({ ...prev, gameMode: 'classic' }))}
+            style={{
+              padding: '20px 15px',
+              background: state.gameMode === 'classic'
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.2))'
+                : 'rgba(45, 45, 70, 0.5)',
+              border: state.gameMode === 'classic'
+                ? '2px solid #10B981'
+                : '2px solid rgba(100, 100, 120, 0.3)',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              textAlign: 'center',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ fontSize: '28px', marginBottom: '10px' }}>🏎️</div>
+            <p style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold', marginBottom: '5px' }}>CLASSIC RACE</p>
+            <p style={{ color: '#888', fontSize: '11px', marginBottom: '8px' }}>Normal scoring</p>
+            <p style={{ color: '#10B981', fontSize: '12px', fontWeight: '600' }}>1 Credit</p>
+            {state.gameMode === 'classic' && (
+              <p style={{ color: '#10B981', fontSize: '11px', marginTop: '5px' }}>✓ Selected</p>
+            )}
+          </div>
+
+          {/* Double or Nothing */}
+          <div
+            onClick={() => setState(prev => ({ ...prev, gameMode: 'doubleOrNothing' }))}
+            style={{
+              padding: '20px 15px',
+              background: state.gameMode === 'doubleOrNothing'
+                ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(202, 138, 4, 0.2))'
+                : 'rgba(45, 45, 70, 0.5)',
+              border: state.gameMode === 'doubleOrNothing'
+                ? '2px solid #EAB308'
+                : '2px solid rgba(100, 100, 120, 0.3)',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              textAlign: 'center',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <div style={{ fontSize: '28px', marginBottom: '10px' }}>🎰</div>
+            <p style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold', marginBottom: '5px' }}>DOUBLE OR NOTHING</p>
+            <p style={{ color: '#888', fontSize: '11px', marginBottom: '8px' }}>2X score or 0!</p>
+            <p style={{ color: '#EAB308', fontSize: '12px', fontWeight: '600' }}>2 Credits</p>
+            {state.gameMode === 'doubleOrNothing' && (
+              <p style={{ color: '#EAB308', fontSize: '11px', marginTop: '5px' }}>✓ Selected</p>
+            )}
+          </div>
+        </div>
+
+        {/* Game Mode Info */}
+        <div style={{
+          marginTop: '15px',
+          padding: '12px',
+          background: state.gameMode === 'classic' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)',
+          border: `1px solid ${state.gameMode === 'classic' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+          borderRadius: '8px',
+          textAlign: 'center'
+        }}>
+          <p style={{
+            color: state.gameMode === 'classic' ? '#10B981' : '#EAB308',
+            fontSize: '12px',
+            margin: 0
+          }}>
+            {state.gameMode === 'classic'
+              ? '🏎️ Classic Mode: Your score is saved as normal.'
+              : '🎰 Double or Nothing: Reach Level 5 for 2X score, or score becomes 0!'
+            }
+          </p>
+        </div>
+      </div>
+
+      {/* Team Selection */}
+      <div style={{ marginBottom: '25px' }}>
+        <h3 style={{
+          color: '#fff',
+          fontSize: '16px',
+          marginBottom: '15px',
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px'
+        }}>
+          ⚔️ Select Your Team (Daily)
+        </h3>
+
+        {state.selectedTeam && !state.canChangeTeam ? (
+          <div style={{
+            padding: '20px',
+            background: state.selectedTeam === 'blue'
+              ? 'rgba(59, 130, 246, 0.2)'
+              : 'rgba(239, 68, 68, 0.2)',
+            border: `2px solid ${state.selectedTeam === 'blue' ? '#3B82F6' : '#EF4444'}`,
+            borderRadius: '12px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '32px', marginBottom: '10px' }}>
+              {state.selectedTeam === 'blue' ? '🔵' : '🔴'}
+            </div>
+            <p style={{ color: '#fff', fontSize: '16px', fontWeight: 'bold', marginBottom: '5px' }}>
+              {state.selectedTeam.toUpperCase()} TEAM
+            </p>
+            <p style={{ color: '#888', fontSize: '11px' }}>✅ Selected for today</p>
+            <p style={{ color: '#666', fontSize: '10px', marginTop: '10px' }}>
+              You can change your team tomorrow at 00:00
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+            {/* Blue Team */}
+            <div
+              onClick={() => handleSelectTeam('blue')}
+              style={{
+                padding: '20px',
+                background: state.selectedTeam === 'blue'
+                  ? 'rgba(59, 130, 246, 0.3)'
+                  : 'rgba(45, 45, 70, 0.5)',
+                border: state.selectedTeam === 'blue'
+                  ? '2px solid #3B82F6'
+                  : '2px solid rgba(100, 100, 120, 0.3)',
+                borderRadius: '12px',
+                cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                textAlign: 'center',
+                opacity: state.isProcessing ? 0.5 : 1,
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔵</div>
+              <p style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>BLUE TEAM</p>
+              {state.selectedTeam === 'blue' && (
+                <p style={{ color: '#3B82F6', fontSize: '11px', marginTop: '5px' }}>✓ Selected</p>
+              )}
+            </div>
+
+            {/* Red Team */}
+            <div
+              onClick={() => handleSelectTeam('red')}
+              style={{
+                padding: '20px',
+                background: state.selectedTeam === 'red'
+                  ? 'rgba(239, 68, 68, 0.3)'
+                  : 'rgba(45, 45, 70, 0.5)',
+                border: state.selectedTeam === 'red'
+                  ? '2px solid #EF4444'
+                  : '2px solid rgba(100, 100, 120, 0.3)',
+                borderRadius: '12px',
+                cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                textAlign: 'center',
+                opacity: state.isProcessing ? 0.5 : 1,
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔴</div>
+              <p style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>RED TEAM</p>
+              {state.selectedTeam === 'red' && (
+                <p style={{ color: '#EF4444', fontSize: '11px', marginTop: '5px' }}>✓ Selected</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Team Info */}
+        <div style={{
+          marginTop: '15px',
+          padding: '12px',
+          background: 'rgba(234, 179, 8, 0.1)',
+          border: '1px solid rgba(234, 179, 8, 0.3)',
+          borderRadius: '8px',
+          textAlign: 'center'
+        }}>
+          <p style={{ color: '#EAB308', fontSize: '12px', margin: 0 }}>
+            🏆 Win bonus: Team with highest daily score gets +3 credits!
+          </p>
+        </div>
+      </div>
+
+      {/* Next Button */}
+      <button
+        onClick={handleNextPhase}
+        disabled={!state.selectedTeam || state.isProcessing}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          width: '100%',
+          padding: '15px',
+          background: state.selectedTeam && !state.isProcessing
+            ? 'linear-gradient(135deg, #FFD700, #B8860B)'
+            : '#3D3D5C',
+          border: 'none',
+          borderRadius: '10px',
+          color: state.selectedTeam && !state.isProcessing ? '#000' : '#666',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          cursor: state.selectedTeam && !state.isProcessing ? 'pointer' : 'not-allowed',
+          transition: 'all 0.3s ease'
+        }}
+      >
+        Next
+        <span style={{ fontSize: '20px' }}>→</span>
+      </button>
+    </div>
+  );
+
+  // Phase 4: Purchase & Start Game
+  const Phase4Content = () => (
+    <div style={{
+      width: '100%',
+      maxWidth: '500px',
+      background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+      borderRadius: '16px',
+      border: '2px solid rgba(100, 100, 120, 0.3)',
+      padding: '25px',
+      marginTop: '30px'
+    }}>
+      {/* Credit Package Selection */}
+      <h3 style={{
+        color: '#fff',
+        fontSize: '18px',
+        marginBottom: '20px',
+        textAlign: 'center'
+      }}>
+        Select Credit Package
+      </h3>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+        {[1, 5, 10].map((amount) => (
+          <div
+            key={amount}
+            onClick={() => !state.isProcessing && handleSelectTicket(amount)}
+            style={{
+              padding: '20px 10px',
+              background: state.selectedPackage === amount
+                ? 'linear-gradient(135deg, #FFD700, #B8860B)'
+                : 'rgba(45, 45, 70, 0.5)',
+              border: state.selectedPackage === amount
+                ? '2px solid #FFD700'
+                : '2px solid rgba(100, 100, 120, 0.3)',
+              borderRadius: '12px',
+              cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+              textAlign: 'center',
+              opacity: state.isProcessing ? 0.5 : 1,
+              transition: 'all 0.3s ease',
+              transform: state.selectedPackage === amount ? 'scale(1.05)' : 'scale(1)'
+            }}
+          >
+            <p style={{
+              color: state.selectedPackage === amount ? '#000' : '#fff',
+              fontSize: '28px',
+              fontWeight: 'bold',
+              marginBottom: '5px'
+            }}>
+              {amount}
+            </p>
+            <p style={{
+              color: state.selectedPackage === amount ? '#000' : '#888',
+              fontSize: '11px',
+              marginBottom: '8px'
+            }}>
+              credit{amount > 1 ? 's' : ''}
+            </p>
+            <p style={{
+              color: state.selectedPackage === amount ? '#000' : '#10B981',
+              fontSize: '13px',
+              fontWeight: '600'
+            }}>
+              {PRICING_BNB[amount]} BNB
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Or Purchase More */}
+      {state.credits > 0 && (
+        <p style={{
+          color: '#888',
+          fontSize: '13px',
+          textAlign: 'center',
+          marginBottom: '15px'
+        }}>
+          Or purchase more credits:
+        </p>
+      )}
+
+      {/* Purchase Button */}
+      {state.selectedPackage && (
+        <button
+          onClick={handlePurchaseAndStart}
+          disabled={state.isProcessing}
+          style={{
+            width: '100%',
+            padding: '14px',
+            background: state.isProcessing ? '#3D3D5C' : 'linear-gradient(135deg, #8B5CF6, #7C3AED)',
+            border: 'none',
+            borderRadius: '10px',
+            color: state.isProcessing ? '#666' : '#fff',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+            marginBottom: '15px',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          {state.isProcessing ? '⏳ Processing...' : 'Select a Package to Purchase'}
+        </button>
+      )}
+
+      {/* Pending Transaction */}
+      {state.pendingTxHash && (
+        <div style={{
+          padding: '15px',
+          background: 'rgba(234, 179, 8, 0.1)',
+          border: '1px solid rgba(234, 179, 8, 0.3)',
+          borderRadius: '8px',
+          marginBottom: '15px',
+          textAlign: 'center'
+        }}>
+          <p style={{ color: '#EAB308', fontSize: '12px', marginBottom: '10px' }}>
+            {state.isProcessing ? '⏳ Waiting for confirmation...' : '⚠️ Pending transaction'}
+          </p>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {isMobileDevice() && (
+              <button
+                onClick={() => openWalletOnMobile()}
+                style={{
+                  padding: '8px 15px',
+                  background: '#3B82F6',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Open Wallet
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setState(prev => ({ ...prev, isProcessing: true }));
+                checkPendingTransaction(state.pendingTxHash);
+              }}
+              disabled={state.isProcessing}
+              style={{
+                padding: '8px 15px',
+                background: state.isProcessing ? '#3D3D5C' : '#EAB308',
+                border: 'none',
+                borderRadius: '6px',
+                color: state.isProcessing ? '#666' : '#000',
+                fontSize: '12px',
+                cursor: state.isProcessing ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Check Status
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Credits Info */}
+      <div style={{
+        padding: '15px',
+        background: 'rgba(16, 185, 129, 0.1)',
+        border: '1px solid rgba(16, 185, 129, 0.3)',
+        borderRadius: '8px',
+        marginBottom: '15px',
+        textAlign: 'center'
+      }}>
+        <p style={{ color: '#10B981', fontSize: '14px', margin: 0 }}>
+          Connected! You have <strong>{state.credits}</strong> credits
+        </p>
+      </div>
+
+      {/* START GAME Button */}
+      <button
+        onClick={handleStartGameWithCredits}
+        disabled={state.credits < 1 || state.isProcessing || !state.selectedTeam}
+        style={{
+          width: '100%',
+          padding: '18px',
+          background: state.credits >= 1 && !state.isProcessing && state.selectedTeam
+            ? 'linear-gradient(135deg, #10B981, #059669)'
+            : '#3D3D5C',
+          border: 'none',
+          borderRadius: '12px',
+          color: state.credits >= 1 && !state.isProcessing && state.selectedTeam ? '#fff' : '#666',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          cursor: state.credits >= 1 && !state.isProcessing && state.selectedTeam ? 'pointer' : 'not-allowed',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          transition: 'all 0.3s ease',
+          boxShadow: state.credits >= 1 && !state.isProcessing && state.selectedTeam
+            ? '0 0 30px rgba(16, 185, 129, 0.4)'
+            : 'none'
+        }}
+      >
+        <span style={{ fontSize: '20px' }}>▶</span>
+        START GAME
+      </button>
+
+      {/* Status Message */}
+      <p style={{
+        color: '#888',
+        fontSize: '12px',
+        textAlign: 'center',
+        marginTop: '15px'
+      }}>
+        {state.statusMessage}
+      </p>
+    </div>
+  );
+
   // Render
   return (
     <div
-      className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto"
       style={{
+        position: 'fixed',
+        inset: 0,
+        background: '#0D0D12',
+        overflowY: 'auto',
         zIndex: 9999,
         touchAction: 'pan-y',
         WebkitOverflowScrolling: 'touch'
       }}
     >
-      {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-500"></div>
+      {/* Logo */}
+      <div style={{
+        position: 'absolute',
+        top: '15px',
+        left: '15px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        zIndex: 10
+      }}>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          borderRadius: '12px',
+          background: 'linear-gradient(135deg, #1E1E3F, #2D2D5A)',
+          border: '2px solid rgba(255, 215, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <span style={{ fontSize: '24px', color: '#FFD700' }}>⚡</span>
+        </div>
+        <div>
+          <p style={{
+            color: '#fff',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            margin: 0,
+            letterSpacing: '2px'
+          }}>
+            LUMEXIA
+          </p>
+          <p style={{ color: '#888', fontSize: '10px', margin: 0 }}>$LMX</p>
+        </div>
       </div>
+
+      {/* Credits Display - only show after phase 1 */}
+      {completedPhases[1] && <CreditsDisplay />}
+
+      {/* Wallet Display */}
+      <WalletDisplay />
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 py-8">
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        minHeight: '100vh',
+        padding: '100px 20px 40px',
+        boxSizing: 'border-box'
+      }}>
+        {/* Timeline */}
+        <Timeline />
 
-        {/* Logo */}
-        <div className="mb-6 sm:mb-8 flex items-center gap-2 sm:gap-3">
-          <i className="fas fa-bolt text-yellow-400 text-3xl sm:text-5xl drop-shadow-lg animate-pulse"></i>
-          <h1 className="text-4xl sm:text-6xl font-bold text-white tracking-wider drop-shadow-2xl" style={{ fontFamily: 'Inter, sans-serif' }}>
-            LUMEXIA
-          </h1>
-        </div>
-
-        {/* Glassmorphism Card */}
-        <div className="w-full max-w-md backdrop-blur-lg bg-white/10 rounded-3xl p-4 sm:p-8 shadow-2xl border border-white/20">
-
-          {/* Wallet Connect Button */}
-          <div className="mb-6">
-            <ConnectButton
-              label="Connect Wallet"
-              accountStatus={{
-                smallScreen: 'avatar',
-                largeScreen: 'full',
-              }}
-              chainStatus="icon"
-              showBalance={{
-                smallScreen: false,
-                largeScreen: true,
-              }}
-            />
-
-            {/* Connection Status Indicator */}
-            {connectionStatus === 'connecting' && (
-              <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg animate-pulse">
-                <p className="text-yellow-200 text-xs text-center font-semibold">
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Connecting wallet...
-                </p>
-                <p className="text-yellow-300 text-xs text-center mt-2">
-                  Click "Connect" in your MetaMask app
-                </p>
-              </div>
-            )}
-
-            {/* Mobile Connection Helper */}
-            {!isConnected && connectionStatus !== 'connecting' && (
-              <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <p className="text-blue-200 text-xs text-center">
-                  💡 On mobile, open your MetaMask app and click "Connect". <br />
-                  Then return to this app.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Wrong Network Warning */}
-          {showWrongNetwork ? (
-            <div className="mb-6 p-6 bg-red-900/50 rounded-xl border border-red-500 text-center animate-pulse">
-              <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
-              <h3 className="text-xl font-bold text-white mb-2">Wrong Network!</h3>
-              <p className="text-gray-300 mb-4">Please switch to BNB Smart Chain to continue playing.</p>
-              <button
-                onClick={() => switchChain({ chainId: bsc.id })}
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors shadow-lg"
-              >
-                Switch Network (BSC Mainnet)
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Game Mode Selection */}
-              {isConnected && (
-                <div className="mb-6">
-                  <h3 className="text-white text-lg font-semibold mb-3 text-center">
-                    🎮 Select Game Mode
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Classic Race */}
-                    <button
-                      onClick={() => setState(prev => ({ ...prev, gameMode: 'classic' }))}
-                      disabled={state.isProcessing}
-                      className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                        state.gameMode === 'classic'
-                          ? 'bg-green-500/30 border-green-400 scale-105'
-                          : 'bg-green-500/10 border-green-400/30 hover:bg-green-500/20 hover:border-green-400/50'
-                      } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    >
-                      <div className="text-center">
-                        <div className="text-3xl mb-2">🏎️</div>
-                        <p className="text-white font-bold text-sm">CLASSIC RACE</p>
-                        <p className="text-gray-300 text-xs mt-1">Normal scoring</p>
-                        <p className="text-green-400 text-xs mt-1 font-semibold">1 Credit</p>
-                        {state.gameMode === 'classic' && (
-                          <p className="text-green-300 text-xs mt-1">✓ Selected</p>
-                        )}
-                      </div>
-                    </button>
-
-                    {/* Double or Nothing */}
-                    <button
-                      onClick={() => setState(prev => ({ ...prev, gameMode: 'doubleOrNothing' }))}
-                      disabled={state.isProcessing}
-                      className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                        state.gameMode === 'doubleOrNothing'
-                          ? 'bg-yellow-500/30 border-yellow-400 scale-105'
-                          : 'bg-yellow-500/10 border-yellow-400/30 hover:bg-yellow-500/20 hover:border-yellow-400/50'
-                      } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    >
-                      <div className="text-center">
-                        <div className="text-3xl mb-2">🎰</div>
-                        <p className="text-white font-bold text-sm">DOUBLE OR NOTHING</p>
-                        <p className="text-gray-300 text-xs mt-1">2X score or 0!</p>
-                        <p className="text-yellow-400 text-xs mt-1 font-semibold">2 Credits</p>
-                        {state.gameMode === 'doubleOrNothing' && (
-                          <p className="text-yellow-300 text-xs mt-1">✓ Selected</p>
-                        )}
-                      </div>
-                    </button>
-                  </div>
-
-                  {/* Game Mode Info */}
-                  <div className={`mt-3 p-3 rounded-lg border ${
-                    state.gameMode === 'classic'
-                      ? 'bg-green-500/10 border-green-500/30'
-                      : 'bg-yellow-500/10 border-yellow-500/30'
-                  }`}>
-                    {state.gameMode === 'classic' ? (
-                      <p className="text-green-200 text-xs text-center">
-                        🏎️ Classic Mode: Your score is saved as normal.
-                      </p>
-                    ) : (
-                      <p className="text-yellow-200 text-xs text-center">
-                        🎰 Double or Nothing: Reach Level 5 for 2X score, or score becomes 0!
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Team Selection - MANDATORY */}
-              {isConnected && (
-                <div className="mb-6">
-                  <h3 className="text-white text-lg font-semibold mb-3 text-center">
-                    ⚔️ Select Your Team (Daily)
-                  </h3>
-
-                  {state.selectedTeam && !state.canChangeTeam ? (
-                    <div className={`p-4 rounded-xl border-2 text-center ${
-                      state.selectedTeam === 'blue'
-                        ? 'bg-blue-500/20 border-blue-400'
-                        : 'bg-red-500/20 border-red-400'
-                    }`}>
-                      <div className="text-2xl mb-2">
-                        {state.selectedTeam === 'blue' ? '🔵' : '🔴'}
-                      </div>
-                      <p className="text-white font-bold text-lg mb-1">
-                        {state.selectedTeam.toUpperCase()} TEAM
-                      </p>
-                      <p className="text-gray-300 text-xs">
-                        ✅ Selected for today
-                      </p>
-                      <p className="text-gray-400 text-xs mt-2">
-                        You can change your team tomorrow at 00:00
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* Blue Team */}
-                      <button
-                        onClick={() => handleSelectTeam('blue')}
-                        disabled={state.isProcessing}
-                        className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                          state.selectedTeam === 'blue'
-                            ? 'bg-blue-500/30 border-blue-400 scale-105'
-                            : 'bg-blue-500/10 border-blue-400/30 hover:bg-blue-500/20 hover:border-blue-400/50'
-                        } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                      >
-                        <div className="text-center">
-                          <div className="text-4xl mb-2">🔵</div>
-                          <p className="text-white font-bold text-sm">BLUE TEAM</p>
-                          {state.selectedTeam === 'blue' && (
-                            <p className="text-blue-300 text-xs mt-1">✓ Selected</p>
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Red Team */}
-                      <button
-                        onClick={() => handleSelectTeam('red')}
-                        disabled={state.isProcessing}
-                        className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                          state.selectedTeam === 'red'
-                            ? 'bg-red-500/30 border-red-400 scale-105'
-                            : 'bg-red-500/10 border-red-400/30 hover:bg-red-500/20 hover:border-red-400/50'
-                        } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                      >
-                        <div className="text-center">
-                          <div className="text-4xl mb-2">🔴</div>
-                          <p className="text-white font-bold text-sm">RED TEAM</p>
-                          {state.selectedTeam === 'red' && (
-                            <p className="text-red-300 text-xs mt-1">✓ Selected</p>
-                          )}
-                        </div>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Team Info */}
-                  <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                    <p className="text-yellow-200 text-xs text-center">
-                      🏆 Win bonus: Team with highest daily score gets +3 credits!
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Credit Display */}
-              {isConnected && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-purple-500/30 to-indigo-500/30 rounded-xl border border-purple-400/30">
-                  <div className="text-center">
-                    <p className="text-gray-300 text-sm mb-1">Your Credits</p>
-                    <p className="text-4xl font-bold text-white">{state.credits}</p>
-                    <div className="mt-2">
-                      <p className="text-yellow-300 text-sm font-semibold">
-                        {bnbBalanceData?.formatted ? `${parseFloat(bnbBalanceData.formatted).toFixed(4)} BNB` : '0 BNB'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Ticket Packages */}
-              <div className="mb-6">
-                <h3 className="text-white text-lg font-semibold mb-4 text-center">Select Credit Package</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {[1, 5, 10].map((amount) => (
-                    <TicketCard
-                      key={amount}
-                      amount={amount}
-                      bnbPrice={PRICING_BNB[amount]}
-                      selected={state.selectedPackage === amount}
-                      onClick={() => handleSelectTicket(amount)}
-                      disabled={!isConnected || state.isProcessing}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* MANUAL CHECK BUTTON - Visible only when pending */}
-              {state.pendingTxHash && (
-                <div className="mb-6 p-4 bg-orange-500/20 border border-orange-500/50 rounded-xl text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    {state.isProcessing ? (
-                      <i className="fas fa-spinner fa-spin mr-2 text-orange-400"></i>
-                    ) : (
-                      <i className="fas fa-clock mr-2 text-orange-400"></i>
-                    )}
-                    <p className="text-orange-200 text-sm font-semibold">
-                      {state.isProcessing ? 'Waiting for transaction confirmation...' : 'Pending transaction'}
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-300 mb-3">
-                    💡 If you confirmed payment in MetaMask, click the button below to check status.
-                  </p>
-                  <p className="text-xs text-gray-400 mb-3">
-                    TX Hash: {state.pendingTxHash.slice(0, 10)}...{state.pendingTxHash.slice(-8)}
-                  </p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {isMobileDevice() && (
-                      <button
-                         onClick={() => openWalletOnMobile()}
-                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
-                      >
-                        <i className="fas fa-wallet mr-2"></i>
-                        Open Wallet
-                      </button>
-                    )}
-                    <button
-                       onClick={() => {
-                         setState(prev => ({ ...prev, isProcessing: true }));
-                         checkPendingTransaction(state.pendingTxHash);
-                       }}
-                       disabled={state.isProcessing}
-                       className={`px-4 py-2 text-white text-sm font-bold rounded-lg shadow-lg transition-colors ${
-                         state.isProcessing
-                           ? 'bg-gray-600 cursor-not-allowed'
-                           : 'bg-orange-600 hover:bg-orange-700'
-                       }`}
-                    >
-                      <i className="fas fa-check-circle mr-2"></i>
-                      Check Status
-                    </button>
-                    <button
-                       onClick={() => {
-                         if (confirm('Are you sure you want to cancel?')) {
-                           setState(prev => ({
-                             ...prev,
-                             isProcessing: false,
-                             pendingTxHash: null,
-                             selectedPackage: null,
-                             statusMessage: 'Transaction cancelled'
-                           }));
-                           localStorage.removeItem('lumexia-pending-tx');
-                         }
-                       }}
-                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
-                    >
-                      <i className="fas fa-times-circle mr-2"></i>
-                      Cancel
-                    </button>
-                  </div>
-                  <a
-                    href={getBSCScanLink(state.pendingTxHash)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
-                  >
-                    View on BSCScan →
-                  </a>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              {isConnected && state.credits > 0 ? (
-                <>
-                  <button
-                    onClick={handleStartGameWithCredits}
-                    disabled={state.isProcessing}
-                    className={`w-full py-5 rounded-xl font-bold text-xl transition-all duration-300 mb-4 ${
-                      state.isProcessing
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 animate-pulse'
-                    }`}
-                  >
-                    {state.isProcessing ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <i className="fas fa-spinner fa-spin"></i>
-                        Processing...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <i className="fas fa-play-circle"></i>
-                        START GAME
-                      </span>
-                    )}
-                  </button>
-
-                  <div className="text-center mb-3">
-                    <p className="text-gray-400 text-sm">Or purchase more credits:</p>
-                  </div>
-                  <button
-                    onClick={handlePurchaseAndStart}
-                    disabled={!state.selectedPackage || state.isProcessing}
-                    className={`w-full py-3 rounded-xl font-semibold text-base transition-all duration-300 ${
-                      !state.selectedPackage || state.isProcessing
-                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-                    }`}
-                  >
-                    {!state.selectedPackage ? 'Select a Package to Purchase' : 'Purchase Credits'}
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={handlePurchaseAndStart}
-                  disabled={!isConnected || !state.selectedPackage || state.isProcessing}
-                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-                    !isConnected || !state.selectedPackage || state.isProcessing
-                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-                  }`}
-                >
-                  {state.isProcessing ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <i className="fas fa-spinner fa-spin"></i>
-                      Processing...
-                    </span>
-                  ) : !isConnected ? (
-                    'Connect Wallet First'
-                  ) : !state.selectedPackage ? (
-                    'Select a Package'
-                  ) : (
-                    `Purchase & Start Game`
-                  )}
-                </button>
-              )}
-            </>
-          )}
-
-          {/* Status Message */}
-          <p className="text-center text-sm text-gray-300 mt-4">
-            {state.statusMessage}
-          </p>
-
-          {/* How to start info */}
-          <div className="mt-6 p-4 bg-gray-800/50 rounded-xl">
-            <p className="text-gray-400 text-xs text-center mb-2">
-              <i className="fas fa-info-circle mr-1"></i> How to start game:
-            </p>
-            <ol className="text-gray-300 text-xs space-y-1 list-decimal list-inside">
-              <li>Connect your wallet (MetaMask/Trust Wallet)</li>
-              <li>Select a credit package</li>
-              <li>Purchase with BNB (BSC Mainnet)</li>
-              <li>Start racing!</li>
-            </ol>
-            <p className="text-yellow-400 text-xs text-center mt-3">
-              <i className="fas fa-coins mr-1"></i> Payments are made with BNB
-            </p>
-          </div>
-        </div>
+        {/* Phase Content */}
+        {currentPhase === 1 && <Phase1Content />}
+        {currentPhase === 2 && <Phase2Content />}
+        {currentPhase === 3 && <Phase3Content />}
+        {currentPhase === 4 && <Phase4Content />}
       </div>
+
+      {/* Custom Scrollbar Styles */}
+      <style>{`
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #0D0D14;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #3D3D5C;
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #5D5D8C;
+        }
+      `}</style>
     </div>
-  );
-};
-
-// Ticket Card Component
-const TicketCard = ({ amount, bnbPrice, selected, onClick, disabled }) => {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`p-4 rounded-xl transition-all duration-300 ${
-        selected
-          ? 'bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg scale-105'
-          : 'bg-white/10 hover:bg-white/20 border border-white/20'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <div className="text-center">
-        <p className={`text-2xl font-bold ${selected ? 'text-black' : 'text-white'}`}>
-          {amount}
-        </p>
-        <p className={`text-xs ${selected ? 'text-black/80' : 'text-gray-300'}`}>
-          credit{amount > 1 ? 's' : ''}
-        </p>
-        <p className={`text-sm mt-2 font-semibold ${selected ? 'text-black' : 'text-yellow-300'}`}>
-          {bnbPrice} BNB
-        </p>
-      </div>
-    </button>
   );
 };
 
