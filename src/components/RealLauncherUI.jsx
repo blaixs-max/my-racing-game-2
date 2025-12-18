@@ -14,6 +14,36 @@ import {
 import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../utils/supabaseClient';
 import { PRICING_BNB } from '../wagmi.config';
 
+// Agreement Text Content
+const AGREEMENT_TEXT = `Lumexia: Gameplay Participation Agreement & Risk Disclosure
+
+IMPORTANT: Please read the following terms carefully before participating in the Lumexia Racing Module. By clicking "ACCEPT", you acknowledge that you have read, understood, and agreed to be bound by these terms.
+
+1. Nature of the Game (Game of Skill)
+You acknowledge that the Lumexia Racing Module is a Game of Skill, not a game of chance or gambling. Your ranking on the leaderboard and eligibility for rewards are determined solely by your gameplay performance, reflexes, and strategy. The "Score" you achieve is the defining metric for reward distribution.
+
+2. Entry Fees and BNB Usage
+To participate, users utilize BNB to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The BNB collected form the "Reward Pool" for the daily cycle.
+
+3. Reward Distribution & Deductions
+The Reward Pool is distributed daily to the top 100 players based on their final scores. You explicitly agree to the following allocation of funds:
+
+Prize Pool: The majority of the pool is distributed to the winners via an automated algorithm.
+
+Operational Fee: A fixed deduction of 7.5% is taken from the total pool prior to distribution. This fee is allocated for Marketing activities and Weekly Token Burns to support the Lumexia ecosystem.
+
+4. No Guarantee of Winnings
+Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the daily cycle, you will not receive a share of the BNB pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
+
+5. Cryptocurrency Risks
+You acknowledge that the value of BNB and the LMX token can fluctuate significantly. Lumexia is not responsible for any value loss due to market volatility, blockchain network errors, or wallet security breaches on the user's end.
+
+6. Legal Compliance
+You represent and warrant that you are of legal age and that participating in skill-based crypto gaming is legal in your local jurisdiction. It is your sole responsibility to comply with the laws of your country of residence.
+
+7. Automated Execution
+Reward distributions are executed by smart contracts/automated algorithms. These transactions are irreversible. By playing, you accept the calculated results as final.`;
+
 const RealLauncherUI = ({ onStartGame }) => {
   const { address, isConnected, status: connectionStatus } = useAccount();
   const chainId = useChainId();
@@ -26,6 +56,10 @@ const RealLauncherUI = ({ onStartGame }) => {
   // Track connection attempts for mobile debugging
   const connectionAttemptRef = useRef(0);
 
+  // Agreement State - Show agreement on every visit
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
+  const [agreementChecked, setAgreementChecked] = useState(false);
+
   // Debounced Network Check
   const [showWrongNetwork, setShowWrongNetwork] = useState(false);
   const [isInitialMount, setIsInitialMount] = useState(true);
@@ -35,46 +69,39 @@ const RealLauncherUI = ({ onStartGame }) => {
     setShowWrongNetwork(false);
     setIsInitialMount(true);
 
-    // Give wallet time to stabilize after component mounts (e.g., returning from game)
     const mountDelay = setTimeout(() => {
       setIsInitialMount(false);
-    }, 2000); // 2s delay before allowing network checks
+    }, 2000);
 
     return () => clearTimeout(mountDelay);
   }, []);
 
   useEffect(() => {
-    // Don't check network during initial mount period
     if (isInitialMount) return;
 
     let timeoutId;
     if (isConnected && chainId && chainId !== bsc.id) {
-      // Delay showing wrong network to allow mobile wallet to settle connection
       timeoutId = setTimeout(() => {
         setShowWrongNetwork(true);
         console.log('⚠️ Network check: Wrong network detected (after delay)');
-        // Auto-request switch after delay
         try {
           switchChain({ chainId: bsc.id });
         } catch (e) {
           console.error("Auto-switch failed:", e);
         }
-      }, 1500); // 1.5s delay
+      }, 1500);
     } else {
       setShowWrongNetwork(false);
     }
     return () => clearTimeout(timeoutId);
   }, [isConnected, chainId, switchChain, isInitialMount]);
 
-
-  // State Management - with localStorage persistence for iOS Safari
+  // State Management
   const [state, setState] = useState(() => {
-    // Try to restore pending transaction from localStorage (iOS Safari recovery)
     try {
       const savedState = localStorage.getItem('lumexia-pending-tx');
       if (savedState) {
         const parsed = JSON.parse(savedState);
-        console.log('📦 Restored pending transaction from localStorage:', parsed);
         return {
           selectedPackage: parsed.selectedPackage || null,
           credits: 0,
@@ -82,10 +109,10 @@ const RealLauncherUI = ({ onStartGame }) => {
           statusMessage: parsed.statusMessage || 'Connect your wallet to get started',
           lastTransaction: parsed.lastTransaction || null,
           pendingTxHash: parsed.pendingTxHash || null,
-          // Team System
           selectedTeam: null,
           canChangeTeam: true,
           teamSelectionDate: null,
+          gameMode: 'classic',
         };
       }
     } catch (e) {
@@ -93,22 +120,20 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
 
     return {
-      selectedPackage: null, // 1, 5, or 10
+      selectedPackage: null,
       credits: 0,
       isProcessing: false,
       statusMessage: 'Connect your wallet to get started',
       lastTransaction: null,
-      pendingTxHash: null, // Track pending hash for mobile backgrounding
-      // Team System
-      selectedTeam: null, // 'blue' | 'red' | null
+      pendingTxHash: null,
+      selectedTeam: null,
       canChangeTeam: true,
       teamSelectionDate: null,
-      // Game Mode System
-      gameMode: 'classic', // 'classic' | 'doubleOrNothing'
+      gameMode: 'classic',
     };
   });
 
-  // Save pending transaction state to localStorage for iOS Safari recovery
+  // Save pending transaction state to localStorage
   useEffect(() => {
     if (state.pendingTxHash && state.isProcessing) {
       const toSave = {
@@ -119,9 +144,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         lastTransaction: state.lastTransaction,
       };
       localStorage.setItem('lumexia-pending-tx', JSON.stringify(toSave));
-      console.log('💾 Saved pending transaction to localStorage');
     } else {
-      // Clear when no longer pending
       localStorage.removeItem('lumexia-pending-tx');
     }
   }, [state.pendingTxHash, state.isProcessing, state.selectedPackage, state.statusMessage, state.lastTransaction]);
@@ -130,31 +153,23 @@ const RealLauncherUI = ({ onStartGame }) => {
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        console.log('📱 App returned to foreground (visibilitychange)');
         await handleAppForeground();
       }
     };
 
     const handleFocus = async () => {
-      console.log('📱 App gained focus (focus event)');
       await handleAppForeground();
     };
 
-    const handlePageShow = async (event) => {
-      console.log('📱 Page shown (pageshow event), persisted:', event.persisted);
+    const handlePageShow = async () => {
       await handleAppForeground();
     };
 
     const handleAppForeground = async () => {
-      // Check if wallet connection was established while in background
       if (isConnected && address) {
-        console.log('✅ Wallet connected:', address);
         await loadUserData(address);
       }
-
-      // Resume Pending Transaction Check
       if (state.pendingTxHash && state.isProcessing) {
-        console.log('⏳ Resuming check for pending TX:', state.pendingTxHash);
         await checkPendingTransaction(state.pendingTxHash);
       }
     };
@@ -177,22 +192,19 @@ const RealLauncherUI = ({ onStartGame }) => {
     chainId: bsc.id,
   });
 
-  // Log connection status changes for debugging
+  // Log connection status changes
   useEffect(() => {
     console.log('🔌 Connection status changed:', connectionStatus);
     if (connectionStatus === 'connecting') {
       connectionAttemptRef.current += 1;
-      console.log('📱 Connection attempt #', connectionAttemptRef.current);
     } else if (connectionStatus === 'connected') {
-      console.log('✅ Successfully connected after', connectionAttemptRef.current, 'attempts');
       connectionAttemptRef.current = 0;
     }
   }, [connectionStatus]);
 
-  // Check for pending transaction on mount (iOS Safari recovery)
+  // Check for pending transaction on mount
   useEffect(() => {
     if (isConnected && address && state.pendingTxHash && state.isProcessing) {
-      console.log('🔄 Found pending transaction on mount, resuming check...');
       const timer = setTimeout(() => {
         checkPendingTransaction(state.pendingTxHash);
       }, 2000);
@@ -224,26 +236,21 @@ const RealLauncherUI = ({ onStartGame }) => {
     try {
       setState(prev => ({ ...prev, isProcessing: true }));
 
-      // Load user credits
       const user = await getOrCreateUser(walletAddress);
-
-      // Load team selection
       const teamData = await getUserTeamSelection(walletAddress);
+      const canChange = teamData.team ? false : teamData.canChange;
 
       if (isMounted.current) {
         setState(prev => ({
           ...prev,
           credits: user.credits || 0,
           selectedTeam: teamData.team,
-          canChangeTeam: teamData.canChange,
+          canChangeTeam: canChange,
           teamSelectionDate: teamData.selectionDate,
           isProcessing: false,
           statusMessage: `Connected! You have ${user.credits || 0} credits`
         }));
       }
-
-      console.log('✅ User loaded:', user);
-      console.log('✅ Team data:', teamData);
     } catch (error) {
       console.error('Failed to load user data:', error);
       if (isMounted.current) {
@@ -281,22 +288,15 @@ const RealLauncherUI = ({ onStartGame }) => {
         pendingTxHash: hash,
       }));
 
-      // Wait for confirmation
       await waitForPaymentConfirmation(config, hash);
-
-      // Verify payment via Supabase Edge Function
       const verifyResult = await verifyPaymentOnChain(hash, address, packageAmount);
 
       if (!verifyResult.success) {
         throw new Error(verifyResult.error || 'Payment verification failed');
       }
 
-      console.log('✅ Payment verified:', verifyResult);
-
-      // Clear localStorage on success
       localStorage.removeItem('lumexia-pending-tx');
 
-      // Update credits in state
       setState(prev => ({
         ...prev,
         credits: verifyResult.credits,
@@ -345,13 +345,7 @@ const RealLauncherUI = ({ onStartGame }) => {
   // Check specific pending transaction
   const checkPendingTransaction = async (hash) => {
     if (!hash || !state.selectedPackage) return;
-
-    if (state.isProcessing) {
-      console.log("⚠️ Already checking transaction, ignoring duplicate call");
-      return;
-    }
-
-    console.log("Checking pending transaction...", hash);
+    if (state.isProcessing) return;
     await processTransactionResult(hash, address, state.selectedPackage);
   };
 
@@ -367,7 +361,6 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    // Check BNB balance
     const bnbBalance = bnbBalanceData?.formatted || '0';
     const bnbPrice = PRICING_BNB[state.selectedPackage];
 
@@ -381,18 +374,9 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    if (state.isProcessing) {
-      console.log('⚠️ Already processing, ignoring click');
-      return;
-    }
+    if (state.isProcessing) return;
 
     const packageAmount = state.selectedPackage;
-
-    if (!packageAmount) {
-      console.log('⚠️ No package selected');
-      return;
-    }
-
     const isMobile = isMobileDevice();
 
     try {
@@ -404,12 +388,7 @@ const RealLauncherUI = ({ onStartGame }) => {
           : '⏳ Opening wallet... Please confirm BNB transfer'
       }));
 
-      console.log('📱 Preparing BNB payment...', { isMobile, bnbPrice });
-
-      // Initiate BNB Transfer
       const hash = await initiateBNBPayment(config, address, packageAmount);
-
-      console.log('✅ BNB Payment initiated:', hash);
 
       setState(prev => ({
         ...prev,
@@ -420,32 +399,19 @@ const RealLauncherUI = ({ onStartGame }) => {
           : '⏳ BNB transfer sent! Waiting for confirmation...'
       }));
 
-      // Process Confirmation
       await processTransactionResult(hash, address, packageAmount);
 
     } catch (error) {
       console.error('❌ Payment initiation failed:', error);
 
       let errorMessage = 'Payment failed';
-      let showOpenWalletHint = false;
 
       if (error.message?.includes('rejected') || error.message?.includes('cancelled')) {
         errorMessage = 'Transaction rejected by user';
       } else if (error.message?.includes('Insufficient BNB')) {
         errorMessage = error.message;
-      } else if (error.message?.includes('multiple attempts')) {
-        errorMessage = 'Network connection failed. Please check your internet and try again.';
-      } else if (error.message?.includes('disconnected') || error.message?.includes('reconnect')) {
-        errorMessage = 'Wallet disconnected. Please reconnect and try again.';
-      } else if (error.message?.includes('connector')) {
-        errorMessage = isMobile
-          ? 'Wallet connection lost. Refresh and try again.'
-          : 'Wallet connection lost. Please refresh and try again.';
       } else {
         errorMessage = error.message || 'Unknown error occurred';
-        if (isMobile) {
-          showOpenWalletHint = true;
-        }
       }
 
       setState(prev => ({
@@ -456,15 +422,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       }));
 
       localStorage.removeItem('lumexia-pending-tx');
-
-      if (isMobile && showOpenWalletHint) {
-        alert(
-          `❌ Payment Failed\n\n${errorMessage}\n\n` +
-          `💡 Tip: Open your wallet app manually and check for pending transactions.`
-        );
-      } else {
-        alert(`❌ Payment Failed\n\n${errorMessage}`);
-      }
+      alert(`❌ Payment Failed\n\n${errorMessage}`);
     }
   };
 
@@ -472,8 +430,6 @@ const RealLauncherUI = ({ onStartGame }) => {
   const verifyPaymentOnChain = async (transactionHash, userAddress, packageAmount, maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 Frontend verification attempt ${attempt}/${maxRetries}`);
-
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -485,11 +441,7 @@ const RealLauncherUI = ({ onStartGame }) => {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
             },
-            body: JSON.stringify({
-              transactionHash,
-              userAddress,
-              packageAmount,
-            }),
+            body: JSON.stringify({ transactionHash, userAddress, packageAmount }),
             signal: controller.signal
           }
         );
@@ -501,19 +453,13 @@ const RealLauncherUI = ({ onStartGame }) => {
           throw new Error(error.error || 'Verification failed');
         }
 
-        const result = await response.json();
-        console.log(`✅ Verification successful on attempt ${attempt}`);
-        return result;
+        return await response.json();
       } catch (error) {
-        console.error(`❌ Verification attempt ${attempt} failed:`, error.message);
-
         const isRetryable = error.name === 'AbortError' ||
                            error.message.includes('Load failed') ||
-                           error.message.includes('network') ||
-                           error.message.includes('fetch');
+                           error.message.includes('network');
 
         if (isRetryable && attempt < maxRetries) {
-          console.log(`⏳ Waiting 3 seconds before retry...`);
           await new Promise(resolve => setTimeout(resolve, 3000));
           continue;
         }
@@ -532,17 +478,29 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    if (!state.canChangeTeam) {
+    if (!state.canChangeTeam || state.selectedTeam) {
       alert('⚠️ You have already selected a team today!\n\nYou can change your team tomorrow at 00:00.');
       return;
     }
 
     try {
-      setState(prev => ({ ...prev, isProcessing: true }));
+      setState(prev => ({
+        ...prev,
+        isProcessing: true,
+        canChangeTeam: false,
+        selectedTeam: team
+      }));
 
       const result = await updateTeamSelection(address, team);
 
       if (!result.success) {
+        setState(prev => ({
+          ...prev,
+          isProcessing: false,
+          canChangeTeam: true,
+          selectedTeam: null,
+          statusMessage: `❌ ${result.error || 'Failed to update team'}`
+        }));
         throw new Error(result.error || 'Failed to update team');
       }
 
@@ -551,7 +509,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         selectedTeam: teamData.team,
-        canChangeTeam: teamData.canChange,
+        canChangeTeam: false,
         teamSelectionDate: teamData.selectionDate,
         isProcessing: false,
         statusMessage: `✅ ${team.toUpperCase()} Team selected!`
@@ -564,10 +522,22 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         isProcessing: false,
+        canChangeTeam: true,
+        selectedTeam: null,
         statusMessage: `❌ ${error.message}`
       }));
       alert(`❌ Failed to select team\n\n${error.message}`);
     }
+  };
+
+  // Accept Agreement Handler
+  const handleAcceptAgreement = () => {
+    if (!agreementChecked) {
+      alert('Please check the checkbox to accept the Terms & Conditions');
+      return;
+    }
+    setAgreementAccepted(true);
+    // No localStorage - Agreement shows on every visit
   };
 
   // Start game with existing credits
@@ -601,71 +571,266 @@ const RealLauncherUI = ({ onStartGame }) => {
     });
   };
 
-  // Render
-  return (
-    <div
-      className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-900 to-black overflow-y-auto"
-      style={{
-        zIndex: 9999,
-        touchAction: 'pan-y',
-        WebkitOverflowScrolling: 'touch'
-      }}
-    >
-      {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-500"></div>
-      </div>
+  // ==================== AGREEMENT SCREEN ====================
+  if (!agreementAccepted) {
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        background: '#0D0D12',
+        overflowY: 'auto',
+        zIndex: 9999
+      }}>
+        {/* Logo */}
+        <div style={{
+          position: 'absolute',
+          top: '15px',
+          left: '15px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          zIndex: 10
+        }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, #1E1E3F, #2D2D5A)',
+            border: '2px solid rgba(255, 215, 0, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <span style={{ fontSize: '24px', color: '#FFD700' }}>⚡</span>
+          </div>
+          <div>
+            <p style={{ color: '#fff', fontSize: '16px', fontWeight: 'bold', margin: 0, letterSpacing: '2px' }}>
+              LUMEXIA
+            </p>
+            <p style={{ color: '#888', fontSize: '10px', margin: 0 }}>$LMX</p>
+          </div>
+        </div>
 
+        {/* Main Content */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '80px 20px 40px'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '700px',
+            background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+            borderRadius: '16px',
+            border: '2px solid rgba(100, 100, 120, 0.3)',
+            padding: '25px',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+          }}>
+            {/* Title */}
+            <h2 style={{
+              color: '#FFD700',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              marginBottom: '20px',
+              textAlign: 'center',
+              letterSpacing: '1px'
+            }}>
+              Gameplay Participation Agreement & Risk Disclosure
+            </h2>
+
+            {/* Scrollable Agreement Text */}
+            <div style={{
+              height: '350px',
+              overflowY: 'auto',
+              background: '#0D0D14',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px',
+              border: '1px solid rgba(100, 100, 120, 0.2)'
+            }}>
+              <pre style={{
+                color: '#C4C4C4',
+                fontSize: '13px',
+                lineHeight: '1.6',
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'Inter, sans-serif',
+                margin: 0
+              }}>
+                {AGREEMENT_TEXT}
+              </pre>
+            </div>
+
+            {/* Checkbox and Accept Button */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '15px'
+            }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                color: '#C4C4C4',
+                fontSize: '14px'
+              }}>
+                <div
+                  onClick={() => setAgreementChecked(!agreementChecked)}
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    border: '2px solid #FFD700',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: agreementChecked ? '#FFD700' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {agreementChecked && <span style={{ color: '#000', fontSize: '16px' }}>✓</span>}
+                </div>
+                I have read and accept the Terms & Conditions.
+              </label>
+
+              <button
+                onClick={handleAcceptAgreement}
+                disabled={!agreementChecked}
+                style={{
+                  padding: '12px 30px',
+                  background: agreementChecked
+                    ? 'linear-gradient(135deg, #FFD700, #B8860B)'
+                    : '#3D3D5C',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: agreementChecked ? '#000' : '#666',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  cursor: agreementChecked ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.3s ease',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px'
+                }}
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom Scrollbar Styles */}
+        <style>{`
+          ::-webkit-scrollbar { width: 8px; }
+          ::-webkit-scrollbar-track { background: #0D0D14; }
+          ::-webkit-scrollbar-thumb { background: #3D3D5C; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: #5D5D8C; }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ==================== MAIN LAUNCHER UI ====================
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: '#0D0D12',
+      overflowY: 'auto',
+      zIndex: 9999
+    }}>
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 py-8">
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        padding: '20px'
+      }}>
 
         {/* Logo */}
-        <div className="mb-6 sm:mb-8 flex items-center gap-2 sm:gap-3">
-          <i className="fas fa-bolt text-yellow-400 text-3xl sm:text-5xl drop-shadow-lg animate-pulse"></i>
-          <h1 className="text-4xl sm:text-6xl font-bold text-white tracking-wider drop-shadow-2xl" style={{ fontFamily: 'Inter, sans-serif' }}>
-            LUMEXIA
-          </h1>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '30px'
+        }}>
+          <div style={{
+            width: '60px',
+            height: '60px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, #1E1E3F, #2D2D5A)',
+            border: '2px solid rgba(255, 215, 0, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <span style={{ fontSize: '32px', color: '#FFD700' }}>⚡</span>
+          </div>
+          <div>
+            <h1 style={{
+              color: '#fff',
+              fontSize: '32px',
+              fontWeight: 'bold',
+              margin: 0,
+              letterSpacing: '3px'
+            }}>
+              LUMEXIA
+            </h1>
+            <p style={{ color: '#888', fontSize: '12px', margin: 0 }}>$LMX</p>
+          </div>
         </div>
 
         {/* Glassmorphism Card */}
-        <div className="w-full max-w-md backdrop-blur-lg bg-white/10 rounded-3xl p-4 sm:p-8 shadow-2xl border border-white/20">
+        <div style={{
+          width: '100%',
+          maxWidth: '420px',
+          background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+          borderRadius: '20px',
+          border: '2px solid rgba(100, 100, 120, 0.3)',
+          padding: '25px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+        }}>
 
           {/* Wallet Connect Button */}
-          <div className="mb-6">
+          <div style={{ marginBottom: '20px' }}>
             <ConnectButton
               label="Connect Wallet"
-              accountStatus={{
-                smallScreen: 'avatar',
-                largeScreen: 'full',
-              }}
+              accountStatus={{ smallScreen: 'avatar', largeScreen: 'full' }}
               chainStatus="icon"
-              showBalance={{
-                smallScreen: false,
-                largeScreen: true,
-              }}
+              showBalance={{ smallScreen: false, largeScreen: true }}
             />
 
-            {/* Connection Status Indicator */}
             {connectionStatus === 'connecting' && (
-              <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg animate-pulse">
-                <p className="text-yellow-200 text-xs text-center font-semibold">
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Connecting wallet...
-                </p>
-                <p className="text-yellow-300 text-xs text-center mt-2">
-                  Click "Connect" in your MetaMask app
+              <div style={{
+                marginTop: '12px',
+                padding: '12px',
+                background: 'rgba(255, 193, 7, 0.1)',
+                border: '1px solid rgba(255, 193, 7, 0.3)',
+                borderRadius: '8px'
+              }}>
+                <p style={{ color: '#FFC107', fontSize: '12px', margin: 0, textAlign: 'center' }}>
+                  ⏳ Connecting wallet...
                 </p>
               </div>
             )}
 
-            {/* Mobile Connection Helper */}
             {!isConnected && connectionStatus !== 'connecting' && (
-              <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <p className="text-blue-200 text-xs text-center">
-                  💡 On mobile, open your MetaMask app and click "Connect". <br />
-                  Then return to this app.
+              <div style={{
+                marginTop: '12px',
+                padding: '12px',
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+                borderRadius: '8px'
+              }}>
+                <p style={{ color: '#93C5FD', fontSize: '11px', margin: 0, textAlign: 'center' }}>
+                  💡 On mobile, open your MetaMask app and click "Connect".
                 </p>
               </div>
             )}
@@ -673,159 +838,202 @@ const RealLauncherUI = ({ onStartGame }) => {
 
           {/* Wrong Network Warning */}
           {showWrongNetwork ? (
-            <div className="mb-6 p-6 bg-red-900/50 rounded-xl border border-red-500 text-center animate-pulse">
-              <i className="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
-              <h3 className="text-xl font-bold text-white mb-2">Wrong Network!</h3>
-              <p className="text-gray-300 mb-4">Please switch to BNB Smart Chain to continue playing.</p>
+            <div style={{
+              padding: '20px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '12px',
+              marginBottom: '20px',
+              textAlign: 'center'
+            }}>
+              <p style={{ color: '#EF4444', fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>
+                ⚠️ Wrong Network!
+              </p>
+              <p style={{ color: '#C4C4C4', fontSize: '12px', marginBottom: '15px' }}>
+                Please switch to BNB Smart Chain to continue.
+              </p>
               <button
                 onClick={() => switchChain({ chainId: bsc.id })}
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors shadow-lg"
+                style={{
+                  padding: '10px 20px',
+                  background: '#EF4444',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
               >
-                Switch Network (BSC Mainnet)
+                Switch to BSC
               </button>
             </div>
           ) : (
             <>
               {/* Game Mode Selection */}
               {isConnected && (
-                <div className="mb-6">
-                  <h3 className="text-white text-lg font-semibold mb-3 text-center">
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ color: '#fff', fontSize: '14px', marginBottom: '12px', textAlign: 'center' }}>
                     🎮 Select Game Mode
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     {/* Classic Race */}
-                    <button
-                      onClick={() => setState(prev => ({ ...prev, gameMode: 'classic' }))}
-                      disabled={state.isProcessing}
-                      className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                        state.gameMode === 'classic'
-                          ? 'bg-green-500/30 border-green-400 scale-105'
-                          : 'bg-green-500/10 border-green-400/30 hover:bg-green-500/20 hover:border-green-400/50'
-                      } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    <div
+                      onClick={() => !state.isProcessing && setState(prev => ({ ...prev, gameMode: 'classic' }))}
+                      style={{
+                        padding: '15px 10px',
+                        background: state.gameMode === 'classic'
+                          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.2))'
+                          : 'rgba(45, 45, 70, 0.5)',
+                        border: state.gameMode === 'classic'
+                          ? '2px solid #10B981'
+                          : '2px solid rgba(100, 100, 120, 0.3)',
+                        borderRadius: '10px',
+                        cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                        textAlign: 'center',
+                        opacity: state.isProcessing ? 0.5 : 1,
+                        transition: 'all 0.3s ease'
+                      }}
                     >
-                      <div className="text-center">
-                        <div className="text-3xl mb-2">🏎️</div>
-                        <p className="text-white font-bold text-sm">CLASSIC RACE</p>
-                        <p className="text-gray-300 text-xs mt-1">Normal scoring</p>
-                        <p className="text-green-400 text-xs mt-1 font-semibold">1 Credit</p>
-                        {state.gameMode === 'classic' && (
-                          <p className="text-green-300 text-xs mt-1">✓ Selected</p>
-                        )}
-                      </div>
-                    </button>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>🏎️</div>
+                      <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>CLASSIC RACE</p>
+                      <p style={{ color: '#888', fontSize: '10px', marginBottom: '4px' }}>Normal scoring</p>
+                      <p style={{ color: '#10B981', fontSize: '11px', fontWeight: '600' }}>1 Credit</p>
+                      {state.gameMode === 'classic' && (
+                        <p style={{ color: '#10B981', fontSize: '10px', marginTop: '4px' }}>✓ Selected</p>
+                      )}
+                    </div>
 
                     {/* Double or Nothing */}
-                    <button
-                      onClick={() => setState(prev => ({ ...prev, gameMode: 'doubleOrNothing' }))}
-                      disabled={state.isProcessing}
-                      className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                        state.gameMode === 'doubleOrNothing'
-                          ? 'bg-yellow-500/30 border-yellow-400 scale-105'
-                          : 'bg-yellow-500/10 border-yellow-400/30 hover:bg-yellow-500/20 hover:border-yellow-400/50'
-                      } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    <div
+                      onClick={() => !state.isProcessing && setState(prev => ({ ...prev, gameMode: 'doubleOrNothing' }))}
+                      style={{
+                        padding: '15px 10px',
+                        background: state.gameMode === 'doubleOrNothing'
+                          ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(202, 138, 4, 0.2))'
+                          : 'rgba(45, 45, 70, 0.5)',
+                        border: state.gameMode === 'doubleOrNothing'
+                          ? '2px solid #EAB308'
+                          : '2px solid rgba(100, 100, 120, 0.3)',
+                        borderRadius: '10px',
+                        cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                        textAlign: 'center',
+                        opacity: state.isProcessing ? 0.5 : 1,
+                        transition: 'all 0.3s ease'
+                      }}
                     >
-                      <div className="text-center">
-                        <div className="text-3xl mb-2">🎰</div>
-                        <p className="text-white font-bold text-sm">DOUBLE OR NOTHING</p>
-                        <p className="text-gray-300 text-xs mt-1">2X score or 0!</p>
-                        <p className="text-yellow-400 text-xs mt-1 font-semibold">2 Credits</p>
-                        {state.gameMode === 'doubleOrNothing' && (
-                          <p className="text-yellow-300 text-xs mt-1">✓ Selected</p>
-                        )}
-                      </div>
-                    </button>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>🎰</div>
+                      <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>DOUBLE OR NOTHING</p>
+                      <p style={{ color: '#888', fontSize: '10px', marginBottom: '4px' }}>2X score or 0!</p>
+                      <p style={{ color: '#EAB308', fontSize: '11px', fontWeight: '600' }}>2 Credits</p>
+                      {state.gameMode === 'doubleOrNothing' && (
+                        <p style={{ color: '#EAB308', fontSize: '10px', marginTop: '4px' }}>✓ Selected</p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Game Mode Info */}
-                  <div className={`mt-3 p-3 rounded-lg border ${
-                    state.gameMode === 'classic'
-                      ? 'bg-green-500/10 border-green-500/30'
-                      : 'bg-yellow-500/10 border-yellow-500/30'
-                  }`}>
-                    {state.gameMode === 'classic' ? (
-                      <p className="text-green-200 text-xs text-center">
-                        🏎️ Classic Mode: Your score is saved as normal.
-                      </p>
-                    ) : (
-                      <p className="text-yellow-200 text-xs text-center">
-                        🎰 Double or Nothing: Reach Level 5 for 2X score, or score becomes 0!
-                      </p>
-                    )}
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '10px',
+                    background: state.gameMode === 'classic' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)',
+                    border: `1px solid ${state.gameMode === 'classic' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+                    borderRadius: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <p style={{ color: state.gameMode === 'classic' ? '#10B981' : '#EAB308', fontSize: '11px', margin: 0 }}>
+                      {state.gameMode === 'classic'
+                        ? '🏎️ Classic Mode: Your score is saved as normal.'
+                        : '🎰 Double or Nothing: Reach Level 5 for 2X score, or score becomes 0!'
+                      }
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* Team Selection - MANDATORY */}
+              {/* Team Selection */}
               {isConnected && (
-                <div className="mb-6">
-                  <h3 className="text-white text-lg font-semibold mb-3 text-center">
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ color: '#fff', fontSize: '14px', marginBottom: '12px', textAlign: 'center' }}>
                     ⚔️ Select Your Team (Daily)
                   </h3>
 
                   {state.selectedTeam && !state.canChangeTeam ? (
-                    <div className={`p-4 rounded-xl border-2 text-center ${
-                      state.selectedTeam === 'blue'
-                        ? 'bg-blue-500/20 border-blue-400'
-                        : 'bg-red-500/20 border-red-400'
-                    }`}>
-                      <div className="text-2xl mb-2">
+                    <div style={{
+                      padding: '15px',
+                      background: state.selectedTeam === 'blue'
+                        ? 'rgba(59, 130, 246, 0.2)'
+                        : 'rgba(239, 68, 68, 0.2)',
+                      border: `2px solid ${state.selectedTeam === 'blue' ? '#3B82F6' : '#EF4444'}`,
+                      borderRadius: '10px',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>
                         {state.selectedTeam === 'blue' ? '🔵' : '🔴'}
                       </div>
-                      <p className="text-white font-bold text-lg mb-1">
+                      <p style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>
                         {state.selectedTeam.toUpperCase()} TEAM
                       </p>
-                      <p className="text-gray-300 text-xs">
-                        ✅ Selected for today
-                      </p>
-                      <p className="text-gray-400 text-xs mt-2">
-                        You can change your team tomorrow at 00:00
-                      </p>
+                      <p style={{ color: '#888', fontSize: '10px' }}>✅ Selected for today</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       {/* Blue Team */}
-                      <button
+                      <div
                         onClick={() => handleSelectTeam('blue')}
-                        disabled={state.isProcessing}
-                        className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                          state.selectedTeam === 'blue'
-                            ? 'bg-blue-500/30 border-blue-400 scale-105'
-                            : 'bg-blue-500/10 border-blue-400/30 hover:bg-blue-500/20 hover:border-blue-400/50'
-                        } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        style={{
+                          padding: '15px',
+                          background: state.selectedTeam === 'blue'
+                            ? 'rgba(59, 130, 246, 0.3)'
+                            : 'rgba(45, 45, 70, 0.5)',
+                          border: state.selectedTeam === 'blue'
+                            ? '2px solid #3B82F6'
+                            : '2px solid rgba(100, 100, 120, 0.3)',
+                          borderRadius: '10px',
+                          cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                          textAlign: 'center',
+                          opacity: state.isProcessing ? 0.5 : 1,
+                          transition: 'all 0.3s ease'
+                        }}
                       >
-                        <div className="text-center">
-                          <div className="text-4xl mb-2">🔵</div>
-                          <p className="text-white font-bold text-sm">BLUE TEAM</p>
-                          {state.selectedTeam === 'blue' && (
-                            <p className="text-blue-300 text-xs mt-1">✓ Selected</p>
-                          )}
-                        </div>
-                      </button>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔵</div>
+                        <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}>BLUE TEAM</p>
+                      </div>
 
                       {/* Red Team */}
-                      <button
+                      <div
                         onClick={() => handleSelectTeam('red')}
-                        disabled={state.isProcessing}
-                        className={`p-4 rounded-xl transition-all duration-300 border-2 ${
-                          state.selectedTeam === 'red'
-                            ? 'bg-red-500/30 border-red-400 scale-105'
-                            : 'bg-red-500/10 border-red-400/30 hover:bg-red-500/20 hover:border-red-400/50'
-                        } ${state.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        style={{
+                          padding: '15px',
+                          background: state.selectedTeam === 'red'
+                            ? 'rgba(239, 68, 68, 0.3)'
+                            : 'rgba(45, 45, 70, 0.5)',
+                          border: state.selectedTeam === 'red'
+                            ? '2px solid #EF4444'
+                            : '2px solid rgba(100, 100, 120, 0.3)',
+                          borderRadius: '10px',
+                          cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                          textAlign: 'center',
+                          opacity: state.isProcessing ? 0.5 : 1,
+                          transition: 'all 0.3s ease'
+                        }}
                       >
-                        <div className="text-center">
-                          <div className="text-4xl mb-2">🔴</div>
-                          <p className="text-white font-bold text-sm">RED TEAM</p>
-                          {state.selectedTeam === 'red' && (
-                            <p className="text-red-300 text-xs mt-1">✓ Selected</p>
-                          )}
-                        </div>
-                      </button>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔴</div>
+                        <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}>RED TEAM</p>
+                      </div>
                     </div>
                   )}
 
                   {/* Team Info */}
-                  <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                    <p className="text-yellow-200 text-xs text-center">
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '10px',
+                    background: 'rgba(234, 179, 8, 0.1)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    borderRadius: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <p style={{ color: '#EAB308', fontSize: '11px', margin: 0 }}>
                       🏆 Win bonus: Team with highest daily score gets +3 credits!
                     </p>
                   </div>
@@ -834,107 +1042,124 @@ const RealLauncherUI = ({ onStartGame }) => {
 
               {/* Credit Display */}
               {isConnected && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-purple-500/30 to-indigo-500/30 rounded-xl border border-purple-400/30">
-                  <div className="text-center">
-                    <p className="text-gray-300 text-sm mb-1">Your Credits</p>
-                    <p className="text-4xl font-bold text-white">{state.credits}</p>
-                    <div className="mt-2">
-                      <p className="text-yellow-300 text-sm font-semibold">
-                        {bnbBalanceData?.formatted ? `${parseFloat(bnbBalanceData.formatted).toFixed(4)} BNB` : '0 BNB'}
-                      </p>
-                    </div>
-                  </div>
+                <div style={{
+                  marginBottom: '20px',
+                  padding: '15px',
+                  background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(184, 134, 11, 0.05))',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  borderRadius: '12px',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ color: '#888', fontSize: '12px', marginBottom: '5px' }}>Your Credits</p>
+                  <p style={{ color: '#FFD700', fontSize: '32px', fontWeight: 'bold', margin: '0 0 5px 0' }}>{state.credits}</p>
+                  <p style={{ color: '#4ADE80', fontSize: '12px', margin: 0 }}>
+                    {bnbBalanceData?.formatted ? `${parseFloat(bnbBalanceData.formatted).toFixed(4)} BNB` : '0 BNB'}
+                  </p>
                 </div>
               )}
 
               {/* Ticket Packages */}
-              <div className="mb-6">
-                <h3 className="text-white text-lg font-semibold mb-4 text-center">Select Credit Package</h3>
-                <div className="grid grid-cols-3 gap-3">
+              <div style={{ marginBottom: '20px' }}>
+                <h3 style={{ color: '#fff', fontSize: '14px', marginBottom: '12px', textAlign: 'center' }}>
+                  Select Credit Package
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
                   {[1, 5, 10].map((amount) => (
-                    <TicketCard
+                    <div
                       key={amount}
-                      amount={amount}
-                      bnbPrice={PRICING_BNB[amount]}
-                      selected={state.selectedPackage === amount}
-                      onClick={() => handleSelectTicket(amount)}
-                      disabled={!isConnected || state.isProcessing}
-                    />
+                      onClick={() => !state.isProcessing && isConnected && handleSelectTicket(amount)}
+                      style={{
+                        padding: '15px 10px',
+                        background: state.selectedPackage === amount
+                          ? 'linear-gradient(135deg, #FFD700, #B8860B)'
+                          : 'rgba(45, 45, 70, 0.5)',
+                        border: state.selectedPackage === amount
+                          ? '2px solid #FFD700'
+                          : '2px solid rgba(100, 100, 120, 0.3)',
+                        borderRadius: '10px',
+                        cursor: (!isConnected || state.isProcessing) ? 'not-allowed' : 'pointer',
+                        textAlign: 'center',
+                        opacity: (!isConnected || state.isProcessing) ? 0.5 : 1,
+                        transition: 'all 0.3s ease',
+                        transform: state.selectedPackage === amount ? 'scale(1.05)' : 'scale(1)'
+                      }}
+                    >
+                      <p style={{
+                        color: state.selectedPackage === amount ? '#000' : '#fff',
+                        fontSize: '24px',
+                        fontWeight: 'bold',
+                        marginBottom: '4px'
+                      }}>
+                        {amount}
+                      </p>
+                      <p style={{
+                        color: state.selectedPackage === amount ? '#000' : '#888',
+                        fontSize: '10px',
+                        marginBottom: '6px'
+                      }}>
+                        credit{amount > 1 ? 's' : ''}
+                      </p>
+                      <p style={{
+                        color: state.selectedPackage === amount ? '#000' : '#10B981',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}>
+                        {PRICING_BNB[amount]} BNB
+                      </p>
+                    </div>
                   ))}
                 </div>
               </div>
 
-              {/* MANUAL CHECK BUTTON - Visible only when pending */}
+              {/* Pending Transaction */}
               {state.pendingTxHash && (
-                <div className="mb-6 p-4 bg-orange-500/20 border border-orange-500/50 rounded-xl text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    {state.isProcessing ? (
-                      <i className="fas fa-spinner fa-spin mr-2 text-orange-400"></i>
-                    ) : (
-                      <i className="fas fa-clock mr-2 text-orange-400"></i>
-                    )}
-                    <p className="text-orange-200 text-sm font-semibold">
-                      {state.isProcessing ? 'Waiting for transaction confirmation...' : 'Pending transaction'}
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-300 mb-3">
-                    💡 If you confirmed payment in MetaMask, click the button below to check status.
+                <div style={{
+                  marginBottom: '15px',
+                  padding: '15px',
+                  background: 'rgba(234, 179, 8, 0.1)',
+                  border: '1px solid rgba(234, 179, 8, 0.3)',
+                  borderRadius: '10px',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ color: '#EAB308', fontSize: '12px', marginBottom: '10px' }}>
+                    {state.isProcessing ? '⏳ Waiting for confirmation...' : '⚠️ Pending transaction'}
                   </p>
-                  <p className="text-xs text-gray-400 mb-3">
-                    TX Hash: {state.pendingTxHash.slice(0, 10)}...{state.pendingTxHash.slice(-8)}
-                  </p>
-                  <div className="flex flex-wrap gap-2 justify-center">
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
                     {isMobileDevice() && (
                       <button
-                         onClick={() => openWalletOnMobile()}
-                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
+                        onClick={() => openWalletOnMobile()}
+                        style={{
+                          padding: '8px 15px',
+                          background: '#3B82F6',
+                          border: 'none',
+                          borderRadius: '6px',
+                          color: '#fff',
+                          fontSize: '11px',
+                          cursor: 'pointer'
+                        }}
                       >
-                        <i className="fas fa-wallet mr-2"></i>
                         Open Wallet
                       </button>
                     )}
                     <button
-                       onClick={() => {
-                         setState(prev => ({ ...prev, isProcessing: true }));
-                         checkPendingTransaction(state.pendingTxHash);
-                       }}
-                       disabled={state.isProcessing}
-                       className={`px-4 py-2 text-white text-sm font-bold rounded-lg shadow-lg transition-colors ${
-                         state.isProcessing
-                           ? 'bg-gray-600 cursor-not-allowed'
-                           : 'bg-orange-600 hover:bg-orange-700'
-                       }`}
+                      onClick={() => {
+                        setState(prev => ({ ...prev, isProcessing: true }));
+                        checkPendingTransaction(state.pendingTxHash);
+                      }}
+                      disabled={state.isProcessing}
+                      style={{
+                        padding: '8px 15px',
+                        background: state.isProcessing ? '#3D3D5C' : '#EAB308',
+                        border: 'none',
+                        borderRadius: '6px',
+                        color: state.isProcessing ? '#666' : '#000',
+                        fontSize: '11px',
+                        cursor: state.isProcessing ? 'not-allowed' : 'pointer'
+                      }}
                     >
-                      <i className="fas fa-check-circle mr-2"></i>
                       Check Status
                     </button>
-                    <button
-                       onClick={() => {
-                         if (confirm('Are you sure you want to cancel?')) {
-                           setState(prev => ({
-                             ...prev,
-                             isProcessing: false,
-                             pendingTxHash: null,
-                             selectedPackage: null,
-                             statusMessage: 'Transaction cancelled'
-                           }));
-                           localStorage.removeItem('lumexia-pending-tx');
-                         }
-                       }}
-                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-lg transition-colors"
-                    >
-                      <i className="fas fa-times-circle mr-2"></i>
-                      Cancel
-                    </button>
                   </div>
-                  <a
-                    href={getBSCScanLink(state.pendingTxHash)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
-                  >
-                    View on BSCScan →
-                  </a>
                 </div>
               )}
 
@@ -944,117 +1169,116 @@ const RealLauncherUI = ({ onStartGame }) => {
                   <button
                     onClick={handleStartGameWithCredits}
                     disabled={state.isProcessing}
-                    className={`w-full py-5 rounded-xl font-bold text-xl transition-all duration-300 mb-4 ${
-                      state.isProcessing
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 animate-pulse'
-                    }`}
+                    style={{
+                      width: '100%',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      marginBottom: '12px',
+                      cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                      background: state.isProcessing
+                        ? '#3D3D5C'
+                        : 'linear-gradient(135deg, #10B981, #059669)',
+                      color: state.isProcessing ? '#666' : '#fff',
+                      boxShadow: state.isProcessing ? 'none' : '0 0 25px rgba(16, 185, 129, 0.4)',
+                      transition: 'all 0.3s ease'
+                    }}
                   >
-                    {state.isProcessing ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <i className="fas fa-spinner fa-spin"></i>
-                        Processing...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <i className="fas fa-play-circle"></i>
-                        START GAME
-                      </span>
-                    )}
+                    {state.isProcessing ? '⏳ Processing...' : '▶ START GAME'}
                   </button>
 
-                  <div className="text-center mb-3">
-                    <p className="text-gray-400 text-sm">Or purchase more credits:</p>
-                  </div>
+                  <p style={{ color: '#888', fontSize: '12px', textAlign: 'center', marginBottom: '10px' }}>
+                    Or purchase more credits:
+                  </p>
+
                   <button
                     onClick={handlePurchaseAndStart}
                     disabled={!state.selectedPackage || state.isProcessing}
-                    className={`w-full py-3 rounded-xl font-semibold text-base transition-all duration-300 ${
-                      !state.selectedPackage || state.isProcessing
-                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-                    }`}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      cursor: (!state.selectedPackage || state.isProcessing) ? 'not-allowed' : 'pointer',
+                      background: (!state.selectedPackage || state.isProcessing)
+                        ? '#3D3D5C'
+                        : 'linear-gradient(135deg, #FFD700, #B8860B)',
+                      color: (!state.selectedPackage || state.isProcessing) ? '#666' : '#000',
+                      transition: 'all 0.3s ease'
+                    }}
                   >
-                    {!state.selectedPackage ? 'Select a Package to Purchase' : 'Purchase Credits'}
+                    {!state.selectedPackage ? 'Select a Package' : 'Purchase Credits'}
                   </button>
                 </>
               ) : (
                 <button
                   onClick={handlePurchaseAndStart}
                   disabled={!isConnected || !state.selectedPackage || state.isProcessing}
-                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-                    !isConnected || !state.selectedPackage || state.isProcessing
-                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-                  }`}
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: (!isConnected || !state.selectedPackage || state.isProcessing) ? 'not-allowed' : 'pointer',
+                    background: (!isConnected || !state.selectedPackage || state.isProcessing)
+                      ? '#3D3D5C'
+                      : 'linear-gradient(135deg, #FFD700, #B8860B)',
+                    color: (!isConnected || !state.selectedPackage || state.isProcessing) ? '#666' : '#000',
+                    transition: 'all 0.3s ease'
+                  }}
                 >
-                  {state.isProcessing ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <i className="fas fa-spinner fa-spin"></i>
-                      Processing...
-                    </span>
-                  ) : !isConnected ? (
-                    'Connect Wallet First'
-                  ) : !state.selectedPackage ? (
-                    'Select a Package'
-                  ) : (
-                    `Purchase & Start Game`
-                  )}
+                  {state.isProcessing ? '⏳ Processing...'
+                    : !isConnected ? 'Connect Wallet First'
+                    : !state.selectedPackage ? 'Select a Package'
+                    : 'Purchase & Start Game'}
                 </button>
               )}
             </>
           )}
 
           {/* Status Message */}
-          <p className="text-center text-sm text-gray-300 mt-4">
+          <p style={{ color: '#888', fontSize: '11px', textAlign: 'center', marginTop: '15px' }}>
             {state.statusMessage}
           </p>
 
           {/* How to start info */}
-          <div className="mt-6 p-4 bg-gray-800/50 rounded-xl">
-            <p className="text-gray-400 text-xs text-center mb-2">
-              <i className="fas fa-info-circle mr-1"></i> How to start game:
+          <div style={{
+            marginTop: '20px',
+            padding: '15px',
+            background: 'rgba(45, 45, 70, 0.3)',
+            borderRadius: '10px',
+            border: '1px solid rgba(100, 100, 120, 0.2)'
+          }}>
+            <p style={{ color: '#888', fontSize: '11px', textAlign: 'center', marginBottom: '8px' }}>
+              ℹ️ How to start game:
             </p>
-            <ol className="text-gray-300 text-xs space-y-1 list-decimal list-inside">
+            <ol style={{ color: '#C4C4C4', fontSize: '11px', margin: 0, paddingLeft: '20px' }}>
               <li>Connect your wallet (MetaMask/Trust Wallet)</li>
-              <li>Select a credit package</li>
-              <li>Purchase with BNB (BSC Mainnet)</li>
+              <li>Select game mode & team</li>
+              <li>Purchase credits with BNB</li>
               <li>Start racing!</li>
             </ol>
-            <p className="text-yellow-400 text-xs text-center mt-3">
-              <i className="fas fa-coins mr-1"></i> Payments are made with BNB
+            <p style={{ color: '#FFD700', fontSize: '11px', textAlign: 'center', marginTop: '10px' }}>
+              💰 Payments are made with BNB (BSC)
             </p>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
 
-// Ticket Card Component
-const TicketCard = ({ amount, bnbPrice, selected, onClick, disabled }) => {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`p-4 rounded-xl transition-all duration-300 ${
-        selected
-          ? 'bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg scale-105'
-          : 'bg-white/10 hover:bg-white/20 border border-white/20'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <div className="text-center">
-        <p className={`text-2xl font-bold ${selected ? 'text-black' : 'text-white'}`}>
-          {amount}
-        </p>
-        <p className={`text-xs ${selected ? 'text-black/80' : 'text-gray-300'}`}>
-          credit{amount > 1 ? 's' : ''}
-        </p>
-        <p className={`text-sm mt-2 font-semibold ${selected ? 'text-black' : 'text-yellow-300'}`}>
-          {bnbPrice} BNB
-        </p>
-      </div>
-    </button>
+      {/* Custom Scrollbar Styles */}
+      <style>{`
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0D0D14; }
+        ::-webkit-scrollbar-thumb { background: #3D3D5C; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #5D5D8C; }
+      `}</style>
+    </div>
   );
 };
 

@@ -2209,7 +2209,7 @@ const LoadingScreen = () => {
       position: 'fixed',
       inset: 0,
       zIndex: 9999,
-      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 50%, #0a0a0a 100%)',
+      background: '#0D0D12',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -2220,110 +2220,105 @@ const LoadingScreen = () => {
       pointerEvents: 'none',
       padding: isMobile ? '20px' : '40px'
     }}>
-      {/* Banner - Frame Design */}
+      {/* Banner - Frame Design with rounded corners */}
       <div style={{
-        maxWidth: isMobile ? '95%' : '85%',
-        maxHeight: '70vh',
-        marginBottom: isMobile ? '15px' : '25px',
-        borderRadius: '12px',
+        maxWidth: isMobile ? '95%' : '900px',
+        width: '100%',
+        marginBottom: isMobile ? '30px' : '50px',
+        borderRadius: '20px',
         overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 165, 0, 0.3)',
-        border: '4px solid #FFD700',
-        animation: 'pulse 3s ease-in-out infinite',
-        lineHeight: 0
+        boxShadow: '0 0 40px rgba(0, 0, 0, 0.5)',
+        border: '3px solid rgba(100, 100, 120, 0.3)',
+        background: '#15151D',
+        lineHeight: 0,
+        position: 'relative'
       }}>
         <img
           src="/Lumexia.jpg"
           alt="LUMEXIA Racing"
           style={{
-            maxWidth: '100%',
-            maxHeight: '70vh',
+            width: '100%',
+            maxHeight: '50vh',
+            objectFit: 'cover',
             display: 'block'
           }}
         />
       </div>
 
-      {/* Loading Game Text */}
+      {/* Loading Container */}
       <div style={{
-        fontSize: titleSize,
-        fontWeight: '900',
-        marginBottom: '12px',
-        background: 'linear-gradient(90deg, #FFD700, #FFA500, #FFD700)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text',
-        textShadow: '0 0 30px rgba(255, 215, 0, 0.5)',
-        letterSpacing: isMobile ? '2px' : '5px',
-        textTransform: 'uppercase',
-        fontFamily: "'Inter', 'Arial Black', sans-serif",
-        animation: 'glow 2s ease-in-out infinite alternate'
-      }}>
-        Loading Game
-      </div>
-
-      {/* Progress Bar */}
-      <div style={{
-        width: isMobile ? (isPortrait ? '80%' : '60%') : '400px',
+        width: isMobile ? '90%' : '450px',
         maxWidth: '500px',
-        height: isMobile ? '8px' : '12px',
-        background: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: '20px',
-        overflow: 'hidden',
-        border: '2px solid rgba(255, 215, 0, 0.3)',
-        boxShadow: '0 0 20px rgba(255, 215, 0, 0.2)',
-        position: 'relative'
+        padding: '25px 35px',
+        background: 'linear-gradient(180deg, #1A1A2E 0%, #16162A 100%)',
+        borderRadius: '16px',
+        border: '2px solid rgba(139, 92, 246, 0.3)',
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)'
       }}>
+        {/* Loading Game Text */}
         <div style={{
-          width: `${progress}%`,
-          height: '100%',
-          background: 'linear-gradient(90deg, #FFD700, #FFA500, #FF8C00)',
-          borderRadius: '20px',
-          transition: 'width 0.3s ease-out',
-          boxShadow: '0 0 20px rgba(255, 165, 0, 0.6)',
-          position: 'relative',
-          overflow: 'hidden'
+          fontSize: isMobile ? '18px' : '24px',
+          fontWeight: '800',
+          marginBottom: '20px',
+          color: '#FFD700',
+          textShadow: '0 0 20px rgba(255, 215, 0, 0.4)',
+          letterSpacing: isMobile ? '4px' : '8px',
+          textTransform: 'uppercase',
+          fontFamily: "'Inter', 'Arial Black', sans-serif",
+          textAlign: 'center'
         }}>
-          {/* Animated shine effect */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: '-100%',
-            width: '100%',
-            height: '100%',
-            background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent)',
-            animation: 'shine 1.5s infinite'
-          }} />
+          LOADING GAME
         </div>
-      </div>
 
-      {/* Percentage */}
-      <div style={{
-        marginTop: '15px',
-        fontSize: percentSize,
-        fontWeight: 'bold',
-        color: '#FFD700',
-        textShadow: '0 0 20px rgba(255, 215, 0, 0.6)',
-        fontFamily: "'Inter', sans-serif"
-      }}>
-        {Math.floor(progress)}%
+        {/* Progress Bar Container */}
+        <div style={{
+          width: '100%',
+          height: isMobile ? '12px' : '16px',
+          background: '#2A2A4A',
+          borderRadius: '10px',
+          overflow: 'hidden',
+          border: '2px solid rgba(139, 92, 246, 0.4)',
+          position: 'relative'
+        }}>
+          <div style={{
+            width: `${progress}%`,
+            height: '100%',
+            background: 'linear-gradient(90deg, #B8860B, #FFD700, #DAA520)',
+            borderRadius: '8px',
+            transition: 'width 0.3s ease-out',
+            boxShadow: '0 0 15px rgba(255, 215, 0, 0.5)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Animated shine effect */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: '-100%',
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent)',
+              animation: 'shine 1.5s infinite'
+            }} />
+          </div>
+        </div>
+
+        {/* Percentage */}
+        <div style={{
+          marginTop: '15px',
+          fontSize: isMobile ? '16px' : '20px',
+          fontWeight: 'bold',
+          color: '#FFD700',
+          textShadow: '0 0 15px rgba(255, 215, 0, 0.4)',
+          fontFamily: "'Inter', sans-serif",
+          textAlign: 'center'
+        }}>
+          {Math.floor(progress)}%
+        </div>
       </div>
 
       {/* CSS Animations */}
       <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.02); }
-        }
-
-        @keyframes glow {
-          from {
-            filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.4));
-          }
-          to {
-            filter: drop-shadow(0 0 40px rgba(255, 215, 0, 0.8));
-          }
-        }
-
         @keyframes shine {
           0% { left: -100%; }
           100% { left: 100%; }
