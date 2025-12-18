@@ -249,8 +249,13 @@ const RealLauncherUI = ({ onStartGame }) => {
     isMounted.current = true;
     if (isConnected && address) {
       loadUserData(address);
-      // Mark phase 2 as complete when wallet connects
-      setCompletedPhases(prev => ({ ...prev, 2: true }));
+      // Mark phase 2 as complete ONLY if phase 1 is already complete
+      setCompletedPhases(prev => {
+        if (prev[1]) {
+          return { ...prev, 2: true };
+        }
+        return prev;
+      });
     } else {
       setState(prev => ({
         ...prev,
@@ -260,16 +265,22 @@ const RealLauncherUI = ({ onStartGame }) => {
         canChangeTeam: true,
         statusMessage: 'Connect your wallet to get started'
       }));
-      // Reset phase 2 if wallet disconnects
-      setCompletedPhases(prev => ({ ...prev, 2: false }));
+      // Reset phase 2 and 3 if wallet disconnects
+      setCompletedPhases(prev => ({ ...prev, 2: false, 3: false }));
     }
     return () => { isMounted.current = false; };
   }, [isConnected, address]);
 
   // Update phase 3 completion when team and mode are selected
+  // ONLY if phase 1 and 2 are already complete
   useEffect(() => {
     if (state.selectedTeam && state.gameMode) {
-      setCompletedPhases(prev => ({ ...prev, 3: true }));
+      setCompletedPhases(prev => {
+        if (prev[1] && prev[2]) {
+          return { ...prev, 3: true };
+        }
+        return prev;
+      });
     }
   }, [state.selectedTeam, state.gameMode]);
 
@@ -284,12 +295,15 @@ const RealLauncherUI = ({ onStartGame }) => {
       // Load team selection
       const teamData = await getUserTeamSelection(walletAddress);
 
+      // If team is already selected, ALWAYS lock team change (safety check)
+      const canChange = teamData.team ? false : teamData.canChange;
+
       if (isMounted.current) {
         setState(prev => ({
           ...prev,
           credits: user.credits || 0,
           selectedTeam: teamData.team,
-          canChangeTeam: teamData.canChange,
+          canChangeTeam: canChange,
           teamSelectionDate: teamData.selectionDate,
           isProcessing: false,
           statusMessage: `Connected! You have ${user.credits || 0} credits`
@@ -297,7 +311,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       }
 
       console.log('✅ User loaded:', user);
-      console.log('✅ Team data:', teamData);
+      console.log('✅ Team data:', teamData, 'canChange:', canChange);
     } catch (error) {
       console.error('Failed to load user data:', error);
       if (isMounted.current) {
@@ -586,17 +600,32 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    if (!state.canChangeTeam) {
+    // Check if team is already selected (either from database or current session)
+    if (!state.canChangeTeam || state.selectedTeam) {
       alert('⚠️ You have already selected a team today!\n\nYou can change your team tomorrow at 00:00.');
       return;
     }
 
     try {
-      setState(prev => ({ ...prev, isProcessing: true }));
+      // IMMEDIATELY disable team change to prevent double selection
+      setState(prev => ({
+        ...prev,
+        isProcessing: true,
+        canChangeTeam: false,  // Lock immediately
+        selectedTeam: team     // Set team immediately for UI feedback
+      }));
 
       const result = await updateTeamSelection(address, team);
 
       if (!result.success) {
+        // Revert on failure - allow retry
+        setState(prev => ({
+          ...prev,
+          isProcessing: false,
+          canChangeTeam: true,
+          selectedTeam: null,
+          statusMessage: `❌ ${result.error || 'Failed to update team'}`
+        }));
         throw new Error(result.error || 'Failed to update team');
       }
 
@@ -605,7 +634,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       setState(prev => ({
         ...prev,
         selectedTeam: teamData.team,
-        canChangeTeam: teamData.canChange,
+        canChangeTeam: false,  // Keep locked after successful selection
         teamSelectionDate: teamData.selectionDate,
         isProcessing: false,
         statusMessage: `✅ ${team.toUpperCase()} Team selected!`
@@ -615,9 +644,12 @@ const RealLauncherUI = ({ onStartGame }) => {
 
     } catch (error) {
       console.error('Team selection error:', error);
+      // Revert state on error to allow retry
       setState(prev => ({
         ...prev,
         isProcessing: false,
+        canChangeTeam: true,
+        selectedTeam: null,
         statusMessage: `❌ ${error.message}`
       }));
       alert(`❌ Failed to select team\n\n${error.message}`);
