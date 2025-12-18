@@ -56,14 +56,8 @@ const RealLauncherUI = ({ onStartGame }) => {
   // Track connection attempts for mobile debugging
   const connectionAttemptRef = useRef(0);
 
-  // Agreement State - Check localStorage for persistence
-  const [agreementAccepted, setAgreementAccepted] = useState(() => {
-    try {
-      return localStorage.getItem('lumexia-agreement-accepted') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // Agreement State - Show agreement on every visit
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
 
   // Debounced Network Check
@@ -543,7 +537,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
     setAgreementAccepted(true);
-    localStorage.setItem('lumexia-agreement-accepted', 'true');
+    // No localStorage - Agreement shows on every visit
   };
 
   // Start game with existing credits
