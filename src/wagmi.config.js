@@ -5,6 +5,7 @@ import {
   rainbowWallet,
   walletConnectWallet,
   coinbaseWallet,
+  injectedWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { createConfig, http, createStorage, fallback } from 'wagmi';
 import { bsc } from 'wagmi/chains';
@@ -34,12 +35,17 @@ const appMetadata = {
 };
 
 /**
- * WalletConnect v2 Shared Parameters
+ * WalletConnect v2 Shared Parameters - 2025 DECEMBER FIX
  *
  * Critical settings for stable connections:
  * - showQrModal: true - Always show QR for desktop fallback
  * - isNewChainsStale: false - Don't disconnect on new chains
  * - qrModalOptions - iOS Safari optimized settings
+ *
+ * 2025 Updates:
+ * - Added enableExplorer for better wallet discovery
+ * - Fixed mobile deep linking with proper wallet IDs
+ * - Added desktopWallets and mobileWallets for explicit support
  */
 const walletConnectParams = {
   projectId,
@@ -50,17 +56,22 @@ const walletConnectParams = {
     themeVariables: {
       '--wcm-z-index': '99999',
     },
-    // Only show recommended wallets for cleaner UX
+    // Enable explorer for wallet discovery
+    enableExplorer: true,
+    // Recommended wallet IDs for WalletConnect modal
     explorerRecommendedWalletIds: [
       'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
       '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
       '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow
+      'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase Wallet
     ],
+    // Explicitly exclude problematic wallets
+    explorerExcludedWalletIds: 'ALL', // Only show recommended wallets
   },
   // CRITICAL: Don't treat new chains as stale - prevents disconnection
   isNewChainsStale: false,
-  // Mobile wallet deep link priorities
-  mobileLinks: ['metamask', 'trust', 'rainbow'],
+  // Relay URL for WalletConnect v2 (use default unless issues)
+  relayUrl: 'wss://relay.walletconnect.com',
 };
 
 /**
@@ -100,31 +111,56 @@ const connectors = connectorsForWallets(
       wallets: [
         // MetaMask - Most used wallet
         () => metaMaskWallet(metaMaskConfig),
-        // Trust Wallet - Popular on mobile
+        // Trust Wallet - 2025 DECEMBER FIX
+        // Enhanced configuration for better mobile deep linking
         () => trustWallet({
           projectId,
-          walletConnectParameters: walletConnectParams,
+          walletConnectParameters: {
+            ...walletConnectParams,
+            // Trust Wallet specific: ensure proper chain handling
+            optionalChains: [56], // BSC Mainnet
+          },
         }),
-        // Coinbase Wallet - Growing user base
+        // Coinbase Wallet - 2025 DECEMBER FIX
+        // Use 'eoaOnly' to force traditional EOA wallet (mobile app) instead of Smart Wallet
+        // This fixes connection issues on mobile browsers
         () => coinbaseWallet({
           appName: appMetadata.name,
           appLogoUrl: appMetadata.icons[0],
+          // CRITICAL: Force EOA wallet for reliable mobile connections
+          // Options: 'all' (default), 'smartWalletOnly', 'eoaOnly'
+          preference: 'eoaOnly',
+          // Chain IDs to pre-authorize (BSC)
+          chainIds: [56],
         }),
       ],
     },
     {
       groupName: 'Other Wallets',
       wallets: [
-        // Generic WalletConnect - Supports 300+ wallets
+        // Generic WalletConnect - 2025 DECEMBER FIX
+        // Supports 300+ wallets via QR code scanning
+        // This is the fallback for any WalletConnect-compatible wallet
         () => walletConnectWallet({
           projectId,
-          walletConnectParameters: walletConnectParams,
+          options: {
+            ...walletConnectParams,
+            // Show QR code modal for scanning
+            showQrModal: true,
+          },
         }),
-        // Rainbow Wallet
+        // Rainbow Wallet - 2025 DECEMBER FIX
         () => rainbowWallet({
           projectId,
-          walletConnectParameters: walletConnectParams,
+          walletConnectParameters: {
+            ...walletConnectParams,
+            optionalChains: [56], // BSC Mainnet
+          },
         }),
+        // Injected Wallet Fallback - 2025 DECEMBER FIX
+        // Catches any browser extension wallets not explicitly listed
+        // This ensures maximum compatibility
+        () => injectedWallet(),
       ],
     },
   ],

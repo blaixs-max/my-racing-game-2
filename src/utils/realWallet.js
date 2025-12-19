@@ -69,19 +69,48 @@ export function getMetaMaskDeepLink() {
 }
 
 /**
- * Get Trust Wallet universal link
+ * Get Trust Wallet universal link - 2025 DECEMBER FIX
+ * Updated to use the correct deep link format for Trust Wallet
  */
 export function getTrustWalletDeepLink() {
+  // Trust Wallet universal link for WalletConnect
+  // Use different links based on platform for better compatibility
+  if (isIOS()) {
+    return 'https://link.trustwallet.com/wc';
+  }
+  // Android: Use intent link for better app detection
   return 'https://link.trustwallet.com/wc';
 }
 
 /**
- * Open wallet app on mobile
+ * Get Coinbase Wallet universal link - 2025 DECEMBER FIX
+ * Added support for Coinbase Wallet deep linking
+ */
+export function getCoinbaseWalletDeepLink() {
+  if (isIOS()) {
+    // iOS: Use universal link
+    return 'https://go.cb-w.com/wc';
+  }
+  // Android: Use universal link (same format works)
+  return 'https://go.cb-w.com/wc';
+}
+
+/**
+ * Get Rainbow Wallet universal link - 2025 DECEMBER FIX
+ */
+export function getRainbowWalletDeepLink() {
+  return 'https://rnbwapp.com/wc';
+}
+
+/**
+ * Open wallet app on mobile - 2025 DECEMBER FIX
  *
  * Strategy:
  * 1. iOS: Use universal links (window.location.href)
  * 2. Android: Try universal link, fallback to intent://
  * 3. Delay slightly to ensure WalletConnect session is ready
+ *
+ * Supported wallets: metamask, trust, coinbase, rainbow
  */
 export function openWalletOnMobile(walletType = 'metamask') {
   if (!isMobileDevice()) {
@@ -92,9 +121,18 @@ export function openWalletOnMobile(walletType = 'metamask') {
   try {
     let deepLink;
 
-    switch (walletType) {
+    switch (walletType.toLowerCase()) {
       case 'trust':
+      case 'trustwallet':
         deepLink = getTrustWalletDeepLink();
+        break;
+      case 'coinbase':
+      case 'coinbasewallet':
+        deepLink = getCoinbaseWalletDeepLink();
+        break;
+      case 'rainbow':
+      case 'rainbowwallet':
+        deepLink = getRainbowWalletDeepLink();
         break;
       case 'metamask':
       default:

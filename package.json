@@ -12,7 +12,7 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@metamask/sdk": "^0.34.0",
-    "@rainbow-me/rainbowkit": "^2.2.9",
+    "@rainbow-me/rainbowkit": "^2.2.10",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.0",
     "@react-three/postprocessing": "^3.0.4",
