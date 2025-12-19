@@ -635,11 +635,16 @@ export const useGameStore = create((set, get) => ({
       });
     }
 
-    // Safety: Filter out any undefined/null coins first
-    let newCoins = state.coins.filter(c => c && typeof c === 'object' && typeof c.z !== 'undefined').map(c => ({
-      ...c,
-      z: c.z + newSpeed * clampedDelta * 0.5
-    })).filter(c => c.z < 50);
+    // PERFORMANCE FIX: Single pass coin update instead of filter/map/filter chain
+    const newCoins = [];
+    for (let i = 0; i < state.coins.length; i++) {
+      const c = state.coins[i];
+      if (!c || typeof c !== 'object' || typeof c.z === 'undefined') continue;
+      const newZ = c.z + newSpeed * clampedDelta * 0.5;
+      if (newZ < 50) {
+        newCoins.push({ id: c.id, x: c.x, z: newZ });
+      }
+    }
 
     // FIX 7: Spawn rate zamana dayalı
     let newLastSpawnZ = state.lastSpawnZ;
