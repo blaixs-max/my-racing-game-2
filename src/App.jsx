@@ -139,6 +139,8 @@ const ParticleSystem = memo(() => {
   // Pre-allocated matrices for GPU instancing
   const tempMatrix = useMemo(() => new THREE.Matrix4(), []);
   const tempColor = useMemo(() => new THREE.Color(), []);
+  // PERFORMANCE FIX: Cache Vector3 to prevent garbage collection in render loop
+  const tempScale = useMemo(() => new THREE.Vector3(), []);
 
   // Shared geometries and materials (created once)
   const sparkGeometry = useMemo(() => new THREE.SphereGeometry(0.1, 4, 4), []);
@@ -166,7 +168,9 @@ const ParticleSystem = memo(() => {
       if (p.type === 'spark') {
         if (sparkIdx < 50) {
           tempMatrix.makeTranslation(p.x, p.y, p.z);
-          tempMatrix.scale(new THREE.Vector3(p.life, p.life, p.life));
+          // PERFORMANCE FIX: Reuse cached Vector3 instead of creating new one
+          tempScale.set(p.life, p.life, p.life);
+          tempMatrix.scale(tempScale);
           sparkInstanceRef.current.setMatrixAt(sparkIdx, tempMatrix);
           sparkIdx++;
         }
@@ -174,7 +178,9 @@ const ParticleSystem = memo(() => {
         if (explosionIdx < 50) {
           const scale = (p.size || 0.3) * p.life;
           tempMatrix.makeTranslation(p.x, p.y, p.z);
-          tempMatrix.scale(new THREE.Vector3(scale, scale, scale));
+          // PERFORMANCE FIX: Reuse cached Vector3 instead of creating new one
+          tempScale.set(scale, scale, scale);
+          tempMatrix.scale(tempScale);
           explosionInstanceRef.current.setMatrixAt(explosionIdx, tempMatrix);
 
           // Color transition: orange -> dark
@@ -1739,6 +1745,28 @@ function Game() {
   const { isMobile, isPortrait } = useResponsive();
   const isLandscape = isMobile && !isPortrait;
 
+  // PERFORMANCE FIX: Platform-specific DPR detection
+  const optimalDpr = useMemo(() => {
+    const ua = navigator.userAgent.toLowerCase();
+    const isAndroid = ua.includes('android');
+    const isIOS = /iphone|ipad|ipod/.test(ua);
+
+    if (isAndroid) {
+      // Android devices struggle with high DPR - use lower value
+      return [1, 1];
+    } else if (isIOS) {
+      // iOS Safari handles DPR well
+      return [1, 1.5];
+    } else {
+      // PC - use moderate DPR based on screen size
+      const screenWidth = window.innerWidth;
+      if (screenWidth > 1920) {
+        return [1, 1.25]; // High-res monitors
+      }
+      return [1, 1.5];
+    }
+  }, []);
+
   // FIX 4: Component unmount'ta timer cleanup
   useEffect(() => {
     return () => {
@@ -2113,7 +2141,7 @@ function Game() {
       {!gameOver && (
         <Canvas
           shadows={{ type: THREE.PCFSoftShadowMap, shadowMapSize: [512, 512] }}
-          dpr={[1, 1.5]}
+          dpr={optimalDpr}
           gl={{
             antialias: false,
             powerPreference: "high-performance",

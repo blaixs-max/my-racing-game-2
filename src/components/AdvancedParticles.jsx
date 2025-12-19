@@ -15,6 +15,10 @@ export function NitroBoostParticles({ isActive = false, position = [0, 0, 0] }) 
   const particles = useRef([]);
   const maxParticles = 50;
 
+  // PERFORMANCE FIX: Cache objects outside render loop to prevent garbage collection
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const tempColor = useMemo(() => new THREE.Color(), []);
+
   // Initialize particle pool (only once on mount)
   useEffect(() => {
     if (particles.current.length === 0) {
@@ -33,7 +37,7 @@ export function NitroBoostParticles({ isActive = false, position = [0, 0, 0] }) 
     if (!particlesRef.current) return;
 
     const clampedDelta = Math.min(delta, 0.1);
-    const dummy = new THREE.Object3D();
+    // PERFORMANCE FIX: Using cached dummy object instead of creating new one each frame
 
     particles.current.forEach((particle, i) => {
       // Spawn new particles when nitro is active
@@ -78,11 +82,9 @@ export function NitroBoostParticles({ isActive = false, position = [0, 0, 0] }) 
         dummy.updateMatrix();
 
         particlesRef.current.setMatrixAt(i, dummy.matrix);
-        particlesRef.current.setColorAt(i, new THREE.Color(
-          1.0,
-          0.5 + lifeFactor * 0.5,
-          0.0
-        ));
+        // PERFORMANCE FIX: Reuse cached color object instead of creating new one each frame
+        tempColor.setRGB(1.0, 0.5 + lifeFactor * 0.5, 0.0);
+        particlesRef.current.setColorAt(i, tempColor);
       } else {
         // Hide inactive particles
         dummy.position.set(0, -1000, 0);
