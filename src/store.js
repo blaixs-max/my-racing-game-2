@@ -134,11 +134,6 @@ export const useGameStore = create((set, get) => ({
   walletAddress: null,
   credits: 0,
 
-  // Team System
-  selectedTeam: null, // 'blue' | 'red' | null
-  teamSelectionDate: null,
-  canChangeTeam: true,
-
   // Game Mode System
   gameMode: 'classic', // 'classic' | 'doubleOrNothing'
   reachedLevel5: false, // Track if player reached level 5 (for Double or Nothing)
@@ -155,13 +150,6 @@ export const useGameStore = create((set, get) => ({
   setWalletData: (address, credits) => set({
     walletAddress: address,
     credits: credits
-  }),
-
-  // Set team data
-  setTeamData: (team, selectionDate, canChange) => set({
-    selectedTeam: team,
-    teamSelectionDate: selectionDate,
-    canChangeTeam: canChange
   }),
 
   // Set game mode
