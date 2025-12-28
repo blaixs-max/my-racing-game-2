@@ -11,7 +11,7 @@ import {
   isMobileDevice,
   openWalletOnMobile
 } from '../utils/realWallet';
-import { getOrCreateUser, getUserTeamSelection, updateTeamSelection } from '../utils/supabaseClient';
+import { getOrCreateUser } from '../utils/supabaseClient';
 import { PRICING_BNB } from '../wagmi.config';
 
 // Agreement Text Content
@@ -109,9 +109,6 @@ const RealLauncherUI = ({ onStartGame }) => {
           statusMessage: parsed.statusMessage || 'Connect your wallet to get started',
           lastTransaction: parsed.lastTransaction || null,
           pendingTxHash: parsed.pendingTxHash || null,
-          selectedTeam: null,
-          canChangeTeam: true,
-          teamSelectionDate: null,
           gameMode: 'classic',
         };
       }
@@ -126,9 +123,6 @@ const RealLauncherUI = ({ onStartGame }) => {
       statusMessage: 'Connect your wallet to get started',
       lastTransaction: null,
       pendingTxHash: null,
-      selectedTeam: null,
-      canChangeTeam: true,
-      teamSelectionDate: null,
       gameMode: 'classic',
     };
   });
@@ -213,7 +207,7 @@ const RealLauncherUI = ({ onStartGame }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, address]);
 
-  // Load user credits and team when wallet connects
+  // Load user credits when wallet connects
   useEffect(() => {
     isMounted.current = true;
     if (isConnected && address) {
@@ -223,30 +217,23 @@ const RealLauncherUI = ({ onStartGame }) => {
         ...prev,
         credits: 0,
         selectedPackage: null,
-        selectedTeam: null,
-        canChangeTeam: true,
         statusMessage: 'Connect your wallet to get started'
       }));
     }
     return () => { isMounted.current = false; };
   }, [isConnected, address]);
 
-  // Load user credits and team from database
+  // Load user credits from database
   const loadUserData = async (walletAddress) => {
     try {
       setState(prev => ({ ...prev, isProcessing: true }));
 
       const user = await getOrCreateUser(walletAddress);
-      const teamData = await getUserTeamSelection(walletAddress);
-      const canChange = teamData.team ? false : teamData.canChange;
 
       if (isMounted.current) {
         setState(prev => ({
           ...prev,
           credits: user.credits || 0,
-          selectedTeam: teamData.team,
-          canChangeTeam: canChange,
-          teamSelectionDate: teamData.selectionDate,
           isProcessing: false,
           statusMessage: `Connected! You have ${user.credits || 0} credits`
         }));
@@ -471,65 +458,6 @@ const RealLauncherUI = ({ onStartGame }) => {
     return { success: false, error: 'Verification failed after multiple attempts' };
   };
 
-  // Team Selection Handler
-  const handleSelectTeam = async (team) => {
-    if (!isConnected || !address) {
-      alert('Please connect your wallet first');
-      return;
-    }
-
-    if (!state.canChangeTeam || state.selectedTeam) {
-      alert('⚠️ You have already selected a team today!\n\nYou can change your team tomorrow at 00:00.');
-      return;
-    }
-
-    try {
-      setState(prev => ({
-        ...prev,
-        isProcessing: true,
-        canChangeTeam: false,
-        selectedTeam: team
-      }));
-
-      const result = await updateTeamSelection(address, team);
-
-      if (!result.success) {
-        setState(prev => ({
-          ...prev,
-          isProcessing: false,
-          canChangeTeam: true,
-          selectedTeam: null,
-          statusMessage: `❌ ${result.error || 'Failed to update team'}`
-        }));
-        throw new Error(result.error || 'Failed to update team');
-      }
-
-      const teamData = await getUserTeamSelection(address);
-
-      setState(prev => ({
-        ...prev,
-        selectedTeam: teamData.team,
-        canChangeTeam: false,
-        teamSelectionDate: teamData.selectionDate,
-        isProcessing: false,
-        statusMessage: `✅ ${team.toUpperCase()} Team selected!`
-      }));
-
-      alert(`✅ Successfully joined ${team.toUpperCase()} Team!\n\nYour scores will count towards ${team} team's daily total.`);
-
-    } catch (error) {
-      console.error('Team selection error:', error);
-      setState(prev => ({
-        ...prev,
-        isProcessing: false,
-        canChangeTeam: true,
-        selectedTeam: null,
-        statusMessage: `❌ ${error.message}`
-      }));
-      alert(`❌ Failed to select team\n\n${error.message}`);
-    }
-  };
-
   // Accept Agreement Handler
   const handleAcceptAgreement = () => {
     if (!agreementChecked) {
@@ -558,15 +486,9 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    if (!state.selectedTeam) {
-      alert('⚠️ Team Selection Required!\n\nPlease select Blue Team or Red Team before starting the game.');
-      return;
-    }
-
     onStartGame({
       walletAddress: address,
       credits: state.credits,
-      selectedTeam: state.selectedTeam,
       gameMode: state.gameMode
     });
   };
@@ -951,95 +873,6 @@ const RealLauncherUI = ({ onStartGame }) => {
                 </div>
               )}
 
-              {/* Team Selection */}
-              {isConnected && (
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ color: '#fff', fontSize: '14px', marginBottom: '12px', textAlign: 'center' }}>
-                    ⚔️ Select Your Team (Daily)
-                  </h3>
-
-                  {state.selectedTeam && !state.canChangeTeam ? (
-                    <div style={{
-                      padding: '15px',
-                      background: state.selectedTeam === 'blue'
-                        ? 'rgba(59, 130, 246, 0.2)'
-                        : 'rgba(239, 68, 68, 0.2)',
-                      border: `2px solid ${state.selectedTeam === 'blue' ? '#3B82F6' : '#EF4444'}`,
-                      borderRadius: '10px',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>
-                        {state.selectedTeam === 'blue' ? '🔵' : '🔴'}
-                      </div>
-                      <p style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>
-                        {state.selectedTeam.toUpperCase()} TEAM
-                      </p>
-                      <p style={{ color: '#888', fontSize: '10px' }}>✅ Selected for today</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      {/* Blue Team */}
-                      <div
-                        onClick={() => handleSelectTeam('blue')}
-                        style={{
-                          padding: '15px',
-                          background: state.selectedTeam === 'blue'
-                            ? 'rgba(59, 130, 246, 0.3)'
-                            : 'rgba(45, 45, 70, 0.5)',
-                          border: state.selectedTeam === 'blue'
-                            ? '2px solid #3B82F6'
-                            : '2px solid rgba(100, 100, 120, 0.3)',
-                          borderRadius: '10px',
-                          cursor: state.isProcessing ? 'not-allowed' : 'pointer',
-                          textAlign: 'center',
-                          opacity: state.isProcessing ? 0.5 : 1,
-                          transition: 'all 0.3s ease'
-                        }}
-                      >
-                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔵</div>
-                        <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}>BLUE TEAM</p>
-                      </div>
-
-                      {/* Red Team */}
-                      <div
-                        onClick={() => handleSelectTeam('red')}
-                        style={{
-                          padding: '15px',
-                          background: state.selectedTeam === 'red'
-                            ? 'rgba(239, 68, 68, 0.3)'
-                            : 'rgba(45, 45, 70, 0.5)',
-                          border: state.selectedTeam === 'red'
-                            ? '2px solid #EF4444'
-                            : '2px solid rgba(100, 100, 120, 0.3)',
-                          borderRadius: '10px',
-                          cursor: state.isProcessing ? 'not-allowed' : 'pointer',
-                          textAlign: 'center',
-                          opacity: state.isProcessing ? 0.5 : 1,
-                          transition: 'all 0.3s ease'
-                        }}
-                      >
-                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔴</div>
-                        <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}>RED TEAM</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Team Info */}
-                  <div style={{
-                    marginTop: '10px',
-                    padding: '10px',
-                    background: 'rgba(234, 179, 8, 0.1)',
-                    border: '1px solid rgba(234, 179, 8, 0.3)',
-                    borderRadius: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <p style={{ color: '#EAB308', fontSize: '11px', margin: 0 }}>
-                      🏆 Win bonus: Team with highest daily score gets +3 credits!
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Credit Display */}
               {isConnected && (
                 <div style={{
@@ -1260,7 +1093,7 @@ const RealLauncherUI = ({ onStartGame }) => {
             </p>
             <ol style={{ color: '#C4C4C4', fontSize: '11px', margin: 0, paddingLeft: '20px' }}>
               <li>Connect your wallet (MetaMask/Trust Wallet)</li>
-              <li>Select game mode & team</li>
+              <li>Select game mode</li>
               <li>Purchase credits with BNB</li>
               <li>Start racing!</li>
             </ol>

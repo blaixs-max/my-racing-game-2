@@ -6,7 +6,6 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
   const credits = useGameStore(state => state.credits);
   const walletAddress = useGameStore(state => state.walletAddress);
   const startTime = useGameStore(state => state.startTime);
-  const selectedTeam = useGameStore(state => state.selectedTeam);
   const gameMode = useGameStore(state => state.gameMode);
   const reachedLevel5 = useGameStore(state => state.reachedLevel5);
 
@@ -52,8 +51,7 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             p_wallet: walletAddress,
             p_score: finalScore,
             p_duration: duration,
-            p_distance: Math.floor(totalDistance),
-            p_team: selectedTeam || 'none' // Add team parameter
+            p_distance: Math.floor(totalDistance)
         });
 
         if (!error) {

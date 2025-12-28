@@ -2361,7 +2361,6 @@ export default function App() {
   const gameState = useGameStore(state => state.gameState);
   const setGameState = useGameStore(state => state.setGameState);
   const setWalletData = useGameStore(state => state.setWalletData);
-  const setTeamData = useGameStore(state => state.setTeamData);
   const setGameMode = useGameStore(state => state.setGameMode);
   const startGame = useGameStore(state => state.startGame);
 
@@ -2428,11 +2427,6 @@ export default function App() {
   const handleLauncherStart = (data) => {
     // Launcher'dan gelen wallet ve credit bilgilerini kaydet
     setWalletData(data.walletAddress, data.credits);
-
-    // Team bilgisini kaydet
-    if (data.selectedTeam) {
-      setTeamData(data.selectedTeam, null, false);
-    }
 
     // Game mode bilgisini kaydet
     if (data.gameMode) {
