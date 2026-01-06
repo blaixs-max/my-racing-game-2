@@ -8,7 +8,7 @@ export default defineConfig({
     host: true
   },
   optimizeDeps: {
-    include: ['@metamask/sdk', 'three', '@react-three/fiber', '@react-three/drei'],
+    include: ['three', '@react-three/fiber', '@react-three/drei'],
     esbuildOptions: {
       target: 'esnext'
     }
@@ -28,12 +28,13 @@ export default defineConfig({
             '@react-three/drei',
             '@react-three/postprocessing'
           ],
-          // Wallet libraries in separate chunk
-          'wallet-vendor': [
-            '@rainbow-me/rainbowkit',
-            'wagmi',
-            'viem',
-            '@metamask/sdk'
+          // Solana wallet libraries in separate chunk
+          'solana-vendor': [
+            '@solana/web3.js',
+            '@solana/wallet-adapter-react',
+            '@solana/wallet-adapter-react-ui',
+            '@solana/wallet-adapter-wallets',
+            '@solana/spl-token'
           ],
           // Supabase in separate chunk
           'supabase-vendor': [
