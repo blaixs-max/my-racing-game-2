@@ -176,12 +176,14 @@ const RealLauncherUI = ({ onStartGame }) => {
   // Fetch balances when wallet connects
   useEffect(() => {
     const fetchBalances = async () => {
-      if (connected && publicKey) {
+      if (connected && publicKey && connection) {
         try {
+          console.log('[UI] Fetching balances with connection from provider');
           const [coal, sol] = await Promise.all([
-            getCoalBalance(publicKey),
-            getSolBalance(publicKey)
+            getCoalBalance(publicKey, connection),
+            getSolBalance(publicKey, connection)
           ]);
+          console.log('[UI] Balances fetched - COAL:', coal, 'SOL:', sol);
           setCoalBalance(coal);
           setSolBalance(sol);
         } catch (error) {
@@ -198,7 +200,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     const interval = connected ? setInterval(fetchBalances, 10000) : null;
 
     return () => interval && clearInterval(interval);
-  }, [connected, publicKey]);
+  }, [connected, publicKey, connection]);
 
   // Re-check connection and pending transactions when app comes to foreground
   useEffect(() => {
@@ -217,15 +219,19 @@ const RealLauncherUI = ({ onStartGame }) => {
     };
 
     const handleAppForeground = async () => {
-      if (connected && publicKey) {
+      if (connected && publicKey && connection) {
         await loadUserData(publicKey.toString());
         // Refresh balances
-        const [coal, sol] = await Promise.all([
-          getCoalBalance(publicKey),
-          getSolBalance(publicKey)
-        ]);
-        setCoalBalance(coal);
-        setSolBalance(sol);
+        try {
+          const [coal, sol] = await Promise.all([
+            getCoalBalance(publicKey, connection),
+            getSolBalance(publicKey, connection)
+          ]);
+          setCoalBalance(coal);
+          setSolBalance(sol);
+        } catch (error) {
+          console.error('[UI] Error refreshing balances on foreground:', error);
+        }
       }
       if (state.pendingTxHash && state.isProcessing) {
         await checkPendingTransaction(state.pendingTxHash);
@@ -360,13 +366,17 @@ const RealLauncherUI = ({ onStartGame }) => {
       );
 
       // Refresh balances
-      if (publicKey) {
-        const [coal, sol] = await Promise.all([
-          getCoalBalance(publicKey),
-          getSolBalance(publicKey)
-        ]);
-        setCoalBalance(coal);
-        setSolBalance(sol);
+      if (publicKey && connection) {
+        try {
+          const [coal, sol] = await Promise.all([
+            getCoalBalance(publicKey, connection),
+            getSolBalance(publicKey, connection)
+          ]);
+          setCoalBalance(coal);
+          setSolBalance(sol);
+        } catch (error) {
+          console.error('[UI] Error refreshing balances after payment:', error);
+        }
       }
 
     } catch (error) {
