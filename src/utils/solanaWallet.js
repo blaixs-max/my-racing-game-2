@@ -61,28 +61,35 @@ export function switchRpcEndpoint() {
 /**
  * Get SOL balance of wallet
  * @param {PublicKey} publicKey - Wallet public key
+ * @param {Connection} conn - Optional connection instance (uses default if not provided)
  * @returns {Promise<number>} SOL balance
  */
-export async function getSolBalance(publicKey) {
+export async function getSolBalance(publicKey, conn = null) {
   try {
-    const conn = getConnection();
-    const balance = await conn.getBalance(publicKey);
+    const connection = conn || getConnection();
+    console.log('[Solana] Fetching SOL balance for:', publicKey.toString());
+    const balance = await connection.getBalance(publicKey);
+    console.log('[Solana] SOL balance raw:', balance);
     return balance / LAMPORTS_PER_SOL;
   } catch (error) {
     console.error('[Solana] Error getting SOL balance:', error);
-    throw error;
+    return 0;
   }
 }
 
 /**
  * Get COAL token balance of wallet
  * @param {PublicKey} publicKey - Wallet public key
+ * @param {Connection} conn - Optional connection instance (uses default if not provided)
  * @returns {Promise<number>} COAL token balance
  */
-export async function getCoalBalance(publicKey) {
+export async function getCoalBalance(publicKey, conn = null) {
   try {
-    const conn = getConnection();
+    const connection = conn || getConnection();
     const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
+
+    console.log('[Solana] Fetching COAL balance for:', publicKey.toString());
+    console.log('[Solana] COAL mint address:', TOKEN_CONFIG.mint);
 
     // Get associated token account address
     const ata = await getAssociatedTokenAddress(
@@ -93,12 +100,17 @@ export async function getCoalBalance(publicKey) {
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
+    console.log('[Solana] Token ATA:', ata.toString());
+
     try {
-      const tokenAccount = await getAccount(conn, ata);
-      return fromRawAmount(Number(tokenAccount.amount));
+      const tokenAccount = await getAccount(connection, ata);
+      const balance = fromRawAmount(Number(tokenAccount.amount));
+      console.log('[Solana] COAL balance:', balance);
+      return balance;
     } catch (e) {
       // Account doesn't exist, balance is 0
       if (e.name === 'TokenAccountNotFoundError') {
+        console.log('[Solana] No token account found, balance is 0');
         return 0;
       }
       throw e;
