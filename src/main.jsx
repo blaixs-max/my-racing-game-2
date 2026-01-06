@@ -1,45 +1,52 @@
-import { StrictMode } from 'react'
+import { StrictMode, useMemo } from 'react'
 import { createRoot } from 'react-dom/client'
-import { WagmiProvider } from 'wagmi'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
-import { bsc } from 'wagmi/chains'
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui'
+import {
+  PhantomWalletAdapter,
+  SolflareWalletAdapter,
+  CoinbaseWalletAdapter,
+  TrustWalletAdapter
+} from '@solana/wallet-adapter-wallets'
 import './index.css'
+import '@solana/wallet-adapter-react-ui/styles.css'
 import App from './App.jsx'
-import { config } from './wagmi.config'
+import { DEFAULT_RPC_ENDPOINT, WALLET_CONFIG } from './solana.config.js'
 
-const queryClient = new QueryClient()
+// Solana Wallet Provider Component
+function SolanaWalletProvider({ children }) {
+  // Configure wallets
+  const wallets = useMemo(() => [
+    new PhantomWalletAdapter(),
+    new SolflareWalletAdapter(),
+    new CoinbaseWalletAdapter(),
+    new TrustWalletAdapter()
+  ], []);
+
+  return (
+    <ConnectionProvider
+      endpoint={DEFAULT_RPC_ENDPOINT}
+      config={{
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000
+      }}
+    >
+      <WalletProvider
+        wallets={wallets}
+        autoConnect={WALLET_CONFIG.autoConnect}
+      >
+        <WalletModalProvider>
+          {children}
+        </WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
+  );
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <WagmiProvider config={config} reconnectOnMount={true}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          initialChain={bsc}
-          theme={darkTheme({
-            accentColor: '#6366f1',
-            accentColorForeground: 'white',
-            borderRadius: 'medium',
-          })}
-          showRecentTransactions={true}
-          modalSize="compact" // Better for mobile
-          appInfo={{
-            appName: 'LUMEXIA Racing',
-            learnMoreUrl: 'https://game.lumexia.net/',
-            disclaimer: ({ Text, Link }) => (
-              <Text>
-                After MetaMask opens, click "Connect", then return to this app.
-              </Text>
-            ),
-          }}
-          // Mobile wallet connection configuration
-          coolMode={false} // Disable confetti to reduce interference
-          // iOS Safari: Keep modal open after connection initiated
-          // to help users return to the app after confirming in wallet
-        >
-          <App />
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <SolanaWalletProvider>
+      <App />
+    </SolanaWalletProvider>
   </StrictMode>,
 )

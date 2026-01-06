@@ -1,5 +1,5 @@
-// Supabase Edge Function: Verify BNB Payment
-// This function verifies native BNB transfer transactions and adds credits to users
+// Supabase Edge Function: Verify COAL Token Payment on Solana
+// This function verifies SPL token transfer transactions and adds credits to users
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -23,40 +23,42 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-// BSC Mainnet RPC endpoints (with fallbacks)
-const BSC_MAINNET_RPCS = [
-  'https://bsc-dataseed1.bnbchain.org',
-  'https://bsc-dataseed2.bnbchain.org',
-  'https://bsc-dataseed3.bnbchain.org',
-  'https://bsc.publicnode.com',
+// Solana Mainnet RPC endpoints (with fallbacks)
+const SOLANA_MAINNET_RPCS = [
+  'https://api.mainnet-beta.solana.com',
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
+  'https://rpc.ankr.com/solana',
 ];
 
-// BNB Payment Receiver Address
-const PAYMENT_RECEIVER = '0xd9f15618745ce7a46da6fb321b6c2f0320b63e91'.toLowerCase();
+// COAL Token Configuration
+const COAL_TOKEN_MINT = '7Ta87bq49cgWdTBiJRCH33kxqe7ZDwnsxescTjNmpump';
+const TOKEN_DECIMALS = 6;
 
-// BNB Pricing Configuration (must match frontend)
-const PRICING_BNB: { [key: number]: string } = {
-  1: '0.0015',   // 1 credit = 0.0015 BNB
-  5: '0.0075',   // 5 credits = 0.0075 BNB
-  10: '0.015',   // 10 credits = 0.015 BNB
-};
+// Payment Receiver Wallet Address (Solana)
+const PAYMENT_RECEIVER = 'T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg';
 
-// Allow 5% tolerance for price fluctuation
-const PRICE_TOLERANCE = 0.05;
+// Jupiter Price API for dynamic pricing
+const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price';
+
+// Allow 10% tolerance for price fluctuation (crypto is volatile)
+const PRICE_TOLERANCE = 0.10;
 
 interface TransactionData {
-  transactionHash: string;
+  transactionSignature: string;
   userAddress: string;
   packageAmount: number;
+  blockchain?: string;
 }
 
 // Validation helpers
-const isValidEthAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+const isValidSolanaAddress = (address: string): boolean => {
+  // Solana addresses are base58 encoded, 32-44 characters
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
 };
 
-const isValidTxHash = (hash: string): boolean => {
-  return /^0x[a-fA-F0-9]{64}$/.test(hash);
+const isValidSolanaSignature = (signature: string): boolean => {
+  // Solana signatures are base58 encoded, typically 87-88 characters
+  return /^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(signature);
 };
 
 const isValidPackageAmount = (amount: number): boolean => {
@@ -77,17 +79,17 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { transactionHash, userAddress, packageAmount }: TransactionData = await req.json();
+    const { transactionSignature, userAddress, packageAmount, blockchain }: TransactionData = await req.json();
 
     // INPUT VALIDATION
-    if (!transactionHash || !isValidTxHash(transactionHash)) {
+    if (!transactionSignature || !isValidSolanaSignature(transactionSignature)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid transaction hash format' }),
+        JSON.stringify({ error: 'Invalid transaction signature format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!userAddress || !isValidEthAddress(userAddress)) {
+    if (!userAddress || !isValidSolanaAddress(userAddress)) {
       return new Response(
         JSON.stringify({ error: 'Invalid wallet address format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -101,13 +103,13 @@ serve(async (req) => {
       );
     }
 
-    console.log('🔍 Verifying BNB payment:', { transactionHash, userAddress, packageAmount });
+    console.log('🔍 Verifying COAL payment on Solana:', { transactionSignature, userAddress, packageAmount });
 
     // 1. CHECK IF TRANSACTION ALREADY PROCESSED
     const { data: existingTx } = await supabase
       .from('transactions')
       .select('id')
-      .eq('transaction_hash', transactionHash)
+      .eq('transaction_hash', transactionSignature)
       .single();
 
     if (existingTx) {
@@ -117,8 +119,28 @@ serve(async (req) => {
       );
     }
 
-    // 2. VERIFY BNB TRANSFER ON BLOCKCHAIN
-    const txData = await verifyBNBTransferOnChain(transactionHash, userAddress);
+    // 2. GET CURRENT COAL PRICE FROM JUPITER
+    const coalPrice = await getCoalPrice();
+    if (!coalPrice) {
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch COAL token price' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Calculate expected COAL amount for the package (USD value)
+    const expectedCoalAmount = packageAmount / coalPrice;
+    const minExpectedCoal = expectedCoalAmount * (1 - PRICE_TOLERANCE);
+
+    console.log('💰 Price calculation:', {
+      packageUsd: packageAmount,
+      coalPrice: coalPrice,
+      expectedCoal: expectedCoalAmount,
+      minExpectedCoal: minExpectedCoal,
+    });
+
+    // 3. VERIFY SOLANA TRANSACTION ON BLOCKCHAIN
+    const txData = await verifySolanaTransaction(transactionSignature, userAddress);
 
     if (!txData.valid) {
       return new Response(
@@ -127,9 +149,17 @@ serve(async (req) => {
       );
     }
 
-    // 3. VALIDATE BNB TRANSFER DETAILS
+    // 4. VALIDATE TOKEN TRANSFER DETAILS
+    // Check if it's a COAL token transfer
+    if (!txData.isCoalTransfer) {
+      return new Response(
+        JSON.stringify({ error: 'Transaction is not a COAL token transfer' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Check receiver address
-    if (txData.to?.toLowerCase() !== PAYMENT_RECEIVER) {
+    if (txData.receiver !== PAYMENT_RECEIVER) {
       return new Response(
         JSON.stringify({ error: 'Invalid payment receiver' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -137,37 +167,37 @@ serve(async (req) => {
     }
 
     // Check sender address
-    if (txData.from?.toLowerCase() !== userAddress.toLowerCase()) {
+    if (txData.sender !== userAddress) {
       return new Response(
         JSON.stringify({ error: 'Sender address mismatch' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validate BNB amount with tolerance
-    const expectedBnb = parseFloat(PRICING_BNB[packageAmount]);
-    const receivedBnb = txData.bnbAmount || 0;
-    const minExpected = expectedBnb * (1 - PRICE_TOLERANCE);
+    // Validate COAL amount with tolerance
+    const receivedCoal = txData.tokenAmount || 0;
 
-    if (receivedBnb < minExpected) {
+    if (receivedCoal < minExpectedCoal) {
       return new Response(
         JSON.stringify({
-          error: 'Insufficient BNB amount',
-          expected: expectedBnb,
-          received: receivedBnb,
+          error: 'Insufficient COAL amount',
+          expected: expectedCoalAmount,
+          minimum: minExpectedCoal,
+          received: receivedCoal,
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('✅ BNB transfer verified:', {
-      from: txData.from,
-      to: txData.to,
-      bnbAmount: receivedBnb,
-      expectedBnb: expectedBnb,
+    console.log('✅ COAL transfer verified:', {
+      sender: txData.sender,
+      receiver: txData.receiver,
+      coalAmount: receivedCoal,
+      expectedCoal: expectedCoalAmount,
+      coalPrice: coalPrice,
     });
 
-    // 4. GET OR CREATE USER
+    // 5. GET OR CREATE USER
     let { data: user } = await supabase
       .from('users')
       .select('*')
@@ -190,7 +220,7 @@ serve(async (req) => {
       user = newUser;
     }
 
-    // 5. ADD CREDITS AND LOG TRANSACTION
+    // 6. ADD CREDITS AND LOG TRANSACTION
     const newCredits = (user.credits || 0) + packageAmount;
     const newTotalSpent = (user.total_spent || 0) + packageAmount;
 
@@ -201,8 +231,10 @@ serve(async (req) => {
         user_id: user.id,
         amount: packageAmount,
         credits_added: packageAmount,
-        transaction_hash: transactionHash,
+        transaction_hash: transactionSignature,
         status: 'pending',
+        token_amount: receivedCoal,
+        token_symbol: 'COAL',
       })
       .select()
       .single();
@@ -242,15 +274,17 @@ serve(async (req) => {
       user: userAddress,
       credits: packageAmount,
       newBalance: newCredits,
-      bnbPaid: receivedBnb,
+      coalPaid: receivedCoal,
+      coalPrice: coalPrice,
     });
 
     return new Response(
       JSON.stringify({
         success: true,
         credits: newCredits,
-        transactionHash,
-        bnbAmount: receivedBnb,
+        transactionSignature,
+        coalAmount: receivedCoal,
+        coalPrice: coalPrice,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -268,11 +302,50 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// RPC call with fallback
-async function rpcCall(method: string, params: unknown[], maxRetries = 3): Promise<unknown> {
+// Get COAL token price from Jupiter API
+async function getCoalPrice(): Promise<number | null> {
+  try {
+    const response = await fetch(`${JUPITER_PRICE_API}?ids=${COAL_TOKEN_MINT}`);
+    const data = await response.json();
+
+    if (data.data && data.data[COAL_TOKEN_MINT]) {
+      return data.data[COAL_TOKEN_MINT].price;
+    }
+
+    // Fallback to DexScreener if Jupiter doesn't have data
+    return await getCoalPriceFromDexScreener();
+  } catch (error) {
+    console.error('Failed to fetch COAL price from Jupiter:', error);
+    return await getCoalPriceFromDexScreener();
+  }
+}
+
+// Fallback price source: DexScreener
+async function getCoalPriceFromDexScreener(): Promise<number | null> {
+  try {
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${COAL_TOKEN_MINT}`);
+    const data = await response.json();
+
+    if (data.pairs && data.pairs.length > 0) {
+      // Get the pair with highest liquidity
+      const bestPair = data.pairs.reduce((best: any, pair: any) =>
+        (pair.liquidity?.usd || 0) > (best.liquidity?.usd || 0) ? pair : best
+      );
+      return parseFloat(bestPair.priceUsd);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Failed to fetch COAL price from DexScreener:', error);
+    return null;
+  }
+}
+
+// Solana RPC call with fallback
+async function solanaRpcCall(method: string, params: unknown[], maxRetries = 3): Promise<unknown> {
   let lastError: Error | null = null;
 
-  for (const rpcUrl of BSC_MAINNET_RPCS) {
+  for (const rpcUrl of SOLANA_MAINNET_RPCS) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await fetch(rpcUrl, {
@@ -306,18 +379,55 @@ async function rpcCall(method: string, params: unknown[], maxRetries = 3): Promi
   throw lastError || new Error('All RPC endpoints failed');
 }
 
-// Verify native BNB transfer on BSC blockchain
-async function verifyBNBTransferOnChain(txHash: string, expectedSender: string, maxRetries = 5, delayMs = 3000) {
+// Verify Solana transaction
+async function verifySolanaTransaction(signature: string, expectedSender: string, maxRetries = 5, delayMs = 3000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🔄 Verification attempt ${attempt}/${maxRetries} for tx: ${txHash}`);
+      console.log(`🔄 Verification attempt ${attempt}/${maxRetries} for signature: ${signature}`);
 
-      // Get transaction details
-      const tx = await rpcCall('eth_getTransactionByHash', [txHash]) as {
-        from: string;
-        to: string;
-        value: string;
-        blockNumber: string | null;
+      // Get transaction details with parsed instructions
+      const tx = await solanaRpcCall('getTransaction', [
+        signature,
+        {
+          encoding: 'jsonParsed',
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        }
+      ]) as {
+        slot: number;
+        meta: {
+          err: unknown | null;
+          preTokenBalances: Array<{
+            accountIndex: number;
+            mint: string;
+            owner: string;
+            uiTokenAmount: { uiAmount: number };
+          }>;
+          postTokenBalances: Array<{
+            accountIndex: number;
+            mint: string;
+            owner: string;
+            uiTokenAmount: { uiAmount: number };
+          }>;
+        };
+        transaction: {
+          message: {
+            accountKeys: Array<{ pubkey: string; signer: boolean }>;
+            instructions: Array<{
+              programId: string;
+              parsed?: {
+                type: string;
+                info: {
+                  source?: string;
+                  destination?: string;
+                  authority?: string;
+                  amount?: string;
+                  tokenAmount?: { uiAmount: number };
+                };
+              };
+            }>;
+          };
+        };
       } | null;
 
       if (!tx) {
@@ -329,53 +439,115 @@ async function verifyBNBTransferOnChain(txHash: string, expectedSender: string, 
         return { valid: false, error: 'Transaction not found after retries' };
       }
 
-      // Check if transaction is mined
-      if (!tx.blockNumber) {
-        console.log(`⏳ Attempt ${attempt}: Transaction pending (not mined)`);
-        if (attempt < maxRetries) {
-          await sleep(delayMs);
-          continue;
-        }
-        return { valid: false, error: 'Transaction still pending' };
-      }
-
-      // Get transaction receipt to check status
-      const receipt = await rpcCall('eth_getTransactionReceipt', [txHash]) as {
-        status: string;
-        blockNumber: string;
-      } | null;
-
-      if (!receipt) {
-        console.log(`⏳ Attempt ${attempt}: Receipt not found yet`);
-        if (attempt < maxRetries) {
-          await sleep(delayMs);
-          continue;
-        }
-        return { valid: false, error: 'Transaction receipt not found' };
-      }
-
       // Check if transaction succeeded
-      if (receipt.status !== '0x1') {
+      if (tx.meta.err) {
         return { valid: false, error: 'Transaction failed/reverted' };
       }
 
-      // Parse BNB amount (value is in wei, hex format)
-      const valueWei = BigInt(tx.value);
-      const bnbAmount = Number(valueWei) / 1e18;
+      // Find COAL token transfer in the transaction
+      let isCoalTransfer = false;
+      let sender = '';
+      let receiver = '';
+      let tokenAmount = 0;
 
-      console.log(`✅ BNB transfer found:`, {
-        from: tx.from,
-        to: tx.to,
-        amount: bnbAmount,
+      // Method 1: Check parsed instructions for SPL Token transfer
+      for (const instruction of tx.transaction.message.instructions) {
+        if (instruction.parsed?.type === 'transfer' || instruction.parsed?.type === 'transferChecked') {
+          const info = instruction.parsed.info;
+
+          // Get authority (sender wallet)
+          sender = info.authority || '';
+
+          // We need to find the receiver from token balances
+          // The destination is an ATA, not the wallet address
+        }
+      }
+
+      // Method 2: Analyze token balance changes to find COAL transfer
+      const preBalances = tx.meta.preTokenBalances || [];
+      const postBalances = tx.meta.postTokenBalances || [];
+
+      // Find COAL token balance changes
+      for (const postBalance of postBalances) {
+        if (postBalance.mint === COAL_TOKEN_MINT) {
+          const preBalance = preBalances.find(
+            pb => pb.owner === postBalance.owner && pb.mint === COAL_TOKEN_MINT
+          );
+
+          const preBal = preBalance?.uiTokenAmount.uiAmount || 0;
+          const postBal = postBalance.uiTokenAmount.uiAmount || 0;
+          const change = postBal - preBal;
+
+          // Receiver (balance increased)
+          if (change > 0 && postBalance.owner === PAYMENT_RECEIVER) {
+            isCoalTransfer = true;
+            receiver = postBalance.owner;
+            tokenAmount = change;
+          }
+        }
+      }
+
+      // Find sender (balance decreased)
+      for (const preBalance of preBalances) {
+        if (preBalance.mint === COAL_TOKEN_MINT) {
+          const postBalance = postBalances.find(
+            pb => pb.owner === preBalance.owner && pb.mint === COAL_TOKEN_MINT
+          );
+
+          const preBal = preBalance.uiTokenAmount.uiAmount || 0;
+          const postBal = postBalance?.uiTokenAmount.uiAmount || 0;
+          const change = postBal - preBal;
+
+          // Sender (balance decreased)
+          if (change < 0) {
+            sender = preBalance.owner;
+          }
+        }
+      }
+
+      if (!isCoalTransfer) {
+        // Alternative: Check if any COAL was received by payment address
+        for (const postBalance of postBalances) {
+          if (postBalance.mint === COAL_TOKEN_MINT && postBalance.owner === PAYMENT_RECEIVER) {
+            const preBalance = preBalances.find(
+              pb => pb.owner === PAYMENT_RECEIVER && pb.mint === COAL_TOKEN_MINT
+            );
+            const preBal = preBalance?.uiTokenAmount.uiAmount || 0;
+            const postBal = postBalance.uiTokenAmount.uiAmount || 0;
+
+            if (postBal > preBal) {
+              isCoalTransfer = true;
+              receiver = PAYMENT_RECEIVER;
+              tokenAmount = postBal - preBal;
+            }
+          }
+        }
+      }
+
+      // If still no sender, use the first signer
+      if (!sender) {
+        const signers = tx.transaction.message.accountKeys.filter(ak => ak.signer);
+        if (signers.length > 0) {
+          sender = signers[0].pubkey;
+        }
+      }
+
+      console.log(`✅ Solana transaction analysis:`, {
+        isCoalTransfer,
+        sender,
+        receiver,
+        tokenAmount,
+        slot: tx.slot,
         attempt,
       });
 
       return {
         valid: true,
-        from: tx.from,
-        to: tx.to,
-        bnbAmount: bnbAmount,
-        blockNumber: parseInt(receipt.blockNumber, 16),
+        isCoalTransfer,
+        sender,
+        receiver,
+        tokenAmount,
+        slot: tx.slot,
       };
     } catch (error) {
       console.log(`❌ Attempt ${attempt} error:`, error.message);
