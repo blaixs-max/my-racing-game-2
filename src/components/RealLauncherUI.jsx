@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useWalletMultiButton } from '@solana/wallet-adapter-base-ui';
 import {
   getCoalBalance,
   getSolBalance,
@@ -45,20 +45,53 @@ You represent and warrant that you are of legal age and that participating in sk
 Reward distributions are executed by smart contracts/automated algorithms. These transactions are irreversible. By playing, you accept the calculated results as final.`;
 
 const RealLauncherUI = ({ onStartGame }) => {
-  const { publicKey, connected, connecting, disconnect, select, wallets, wallet } = useWallet();
+  const { publicKey, connected, connecting, wallets, select } = useWallet();
   const { connection } = useConnection();
   const walletAdapter = useWallet();
-  const { setVisible } = useWalletModal();
+
+  // Wallet selection modal state
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [walletModalConfig, setWalletModalConfig] = useState(null);
+
+  // useWalletMultiButton for reliable wallet connection
+  const { buttonState, onConnect, onDisconnect, onSelectWallet } = useWalletMultiButton({
+    onSelectWallet: (config) => {
+      console.log('onSelectWallet called with config:', config);
+      setWalletModalConfig(config);
+      setWalletModalOpen(true);
+    },
+  });
+
+  // Handle wallet selection from modal
+  const handleWalletSelect = useCallback((walletName) => {
+    console.log('Selecting wallet:', walletName);
+    if (walletModalConfig?.onSelectWallet) {
+      walletModalConfig.onSelectWallet(walletName);
+    } else {
+      select(walletName);
+    }
+    setWalletModalOpen(false);
+    setWalletModalConfig(null);
+  }, [walletModalConfig, select]);
 
   // Handle wallet connect button click
   const handleConnectClick = useCallback(() => {
-    console.log('Connect button clicked');
-    if (connected) {
-      disconnect();
-    } else {
-      setVisible(true);
+    console.log('Connect button clicked, state:', buttonState);
+
+    switch (buttonState) {
+      case 'connected':
+        onDisconnect?.();
+        break;
+      case 'has-wallet':
+        onConnect?.();
+        break;
+      case 'no-wallet':
+        onSelectWallet?.();
+        break;
+      default:
+        onSelectWallet?.();
     }
-  }, [connected, disconnect, setVisible]);
+  }, [buttonState, onConnect, onDisconnect, onSelectWallet]);
 
   // Track mounting to prevent strict mode double-firing issues
   const isMounted = useRef(false);
@@ -1202,6 +1235,127 @@ const RealLauncherUI = ({ onStartGame }) => {
           </div>
         </div>
       </div>
+
+      {/* Wallet Selection Modal */}
+      {walletModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px'
+          }}
+          onClick={() => setWalletModalOpen(false)}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
+              borderRadius: '16px',
+              border: '2px solid rgba(153, 69, 255, 0.3)',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{ color: '#fff', fontSize: '18px', margin: 0 }}>
+                Select Wallet
+              </h3>
+              <button
+                onClick={() => setWalletModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#888',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '0',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {(walletModalConfig?.wallets || wallets || []).map((wallet) => (
+                <button
+                  key={wallet.adapter.name}
+                  onClick={() => handleWalletSelect(wallet.adapter.name)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '14px 16px',
+                    background: 'rgba(45, 45, 70, 0.5)',
+                    border: '1px solid rgba(100, 100, 120, 0.3)',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    width: '100%'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = 'rgba(153, 69, 255, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(153, 69, 255, 0.5)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(45, 45, 70, 0.5)';
+                    e.currentTarget.style.borderColor = 'rgba(100, 100, 120, 0.3)';
+                  }}
+                >
+                  {wallet.adapter.icon && (
+                    <img
+                      src={wallet.adapter.icon}
+                      alt={wallet.adapter.name}
+                      style={{ width: '32px', height: '32px', borderRadius: '8px' }}
+                    />
+                  )}
+                  <div style={{ textAlign: 'left', flex: 1 }}>
+                    <p style={{ color: '#fff', fontSize: '14px', fontWeight: '600', margin: 0 }}>
+                      {wallet.adapter.name}
+                    </p>
+                    {wallet.readyState === 'Installed' && (
+                      <p style={{ color: '#14F195', fontSize: '11px', margin: '2px 0 0 0' }}>
+                        Detected
+                      </p>
+                    )}
+                  </div>
+                  <span style={{ color: '#9945FF', fontSize: '18px' }}>→</span>
+                </button>
+              ))}
+            </div>
+
+            <p style={{
+              color: '#888',
+              fontSize: '11px',
+              textAlign: 'center',
+              marginTop: '16px'
+            }}>
+              New to Solana?{' '}
+              <a
+                href="https://phantom.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#9945FF' }}
+              >
+                Get Phantom Wallet
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Custom Scrollbar Styles */}
       <style>{`
