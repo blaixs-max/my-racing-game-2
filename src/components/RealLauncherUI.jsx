@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import {
   getCoalBalance,
   getSolBalance,
@@ -45,9 +45,20 @@ You represent and warrant that you are of legal age and that participating in sk
 Reward distributions are executed by smart contracts/automated algorithms. These transactions are irreversible. By playing, you accept the calculated results as final.`;
 
 const RealLauncherUI = ({ onStartGame }) => {
-  const { publicKey, connected, connecting, wallet } = useWallet();
+  const { publicKey, connected, connecting, disconnect, select, wallets, wallet } = useWallet();
   const { connection } = useConnection();
   const walletAdapter = useWallet();
+  const { setVisible } = useWalletModal();
+
+  // Handle wallet connect button click
+  const handleConnectClick = useCallback(() => {
+    console.log('Connect button clicked');
+    if (connected) {
+      disconnect();
+    } else {
+      setVisible(true);
+    }
+  }, [connected, disconnect, setVisible]);
 
   // Track mounting to prevent strict mode double-firing issues
   const isMounted = useRef(false);
@@ -769,13 +780,47 @@ const RealLauncherUI = ({ onStartGame }) => {
 
           {/* Wallet Connect Button */}
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
-            <WalletMultiButton style={{
-              background: 'linear-gradient(135deg, #9945FF, #14F195)',
-              borderRadius: '12px',
-              height: '48px',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }} />
+            <button
+              onClick={handleConnectClick}
+              disabled={connecting}
+              style={{
+                background: connected
+                  ? 'linear-gradient(135deg, #10B981, #059669)'
+                  : 'linear-gradient(135deg, #9945FF, #14F195)',
+                borderRadius: '12px',
+                height: '48px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                color: '#fff',
+                border: 'none',
+                padding: '0 24px',
+                cursor: connecting ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                minWidth: '180px',
+                boxShadow: '0 4px 15px rgba(153, 69, 255, 0.3)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              {connecting ? (
+                <>
+                  <span style={{ animation: 'spin 1s linear infinite' }}>⏳</span>
+                  Connecting...
+                </>
+              ) : connected ? (
+                <>
+                  <span style={{ fontSize: '16px' }}>✓</span>
+                  {publicKey?.toBase58().slice(0, 4)}...{publicKey?.toBase58().slice(-4)}
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: '18px' }}>👛</span>
+                  Connect Wallet
+                </>
+              )}
+            </button>
           </div>
 
           {connecting && (
