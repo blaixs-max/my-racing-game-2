@@ -176,20 +176,29 @@ const RealLauncherUI = ({ onStartGame }) => {
   // Fetch balances when wallet connects
   useEffect(() => {
     const fetchBalances = async () => {
+      console.log('[UI] fetchBalances called - connected:', connected, 'publicKey:', publicKey?.toString(), 'connection:', !!connection);
+
       if (connected && publicKey && connection) {
         try {
-          console.log('[UI] Fetching balances with connection from provider');
-          const [coal, sol] = await Promise.all([
-            getCoalBalance(publicKey, connection),
-            getSolBalance(publicKey, connection)
-          ]);
-          console.log('[UI] Balances fetched - COAL:', coal, 'SOL:', sol);
-          setCoalBalance(coal);
-          setSolBalance(sol);
+          console.log('[UI] Fetching balances...');
+          console.log('[UI] Connection endpoint:', connection.rpcEndpoint);
+
+          // Fetch SOL first to test connection
+          const solBalance = await getSolBalance(publicKey, connection);
+          console.log('[UI] SOL balance result:', solBalance);
+          setSolBalance(solBalance);
+
+          // Then fetch COAL
+          const coalBalance = await getCoalBalance(publicKey, connection);
+          console.log('[UI] COAL balance result:', coalBalance);
+          setCoalBalance(coalBalance);
+
         } catch (error) {
-          console.error('Failed to fetch balances:', error);
+          console.error('[UI] Failed to fetch balances:', error);
+          console.error('[UI] Error details:', error.message, error.stack);
         }
       } else {
+        console.log('[UI] Skipping balance fetch - missing requirements');
         setCoalBalance(0);
         setSolBalance(0);
       }
