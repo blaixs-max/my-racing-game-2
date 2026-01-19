@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletMultiButton } from '@solana/wallet-adapter-base-ui';
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import {
-  getCoalBalance,
-  getSolBalance,
   checkPaymentBalance,
   transferCoalToken,
   formatAddress,
@@ -12,7 +12,7 @@ import {
 } from '../utils/solanaWallet';
 import { getCoalPrice, calculateCoalAmount, formatPrice } from '../utils/jupiterPrice';
 import { getOrCreateUser } from '../utils/supabaseClient';
-import { TOKEN_CONFIG, PAYMENT_CONFIG, formatTokenAmount } from '../solana.config';
+import { TOKEN_CONFIG, PAYMENT_CONFIG, DEFAULT_RPC_ENDPOINT, fromRawAmount, formatTokenAmount } from '../solana.config';
 
 // Agreement Text Content - Updated for COAL Token
 const AGREEMENT_TEXT = `Lumexia: Gameplay Participation Agreement & Risk Disclosure
@@ -46,8 +46,13 @@ Reward distributions are executed by smart contracts/automated algorithms. These
 
 const RealLauncherUI = ({ onStartGame }) => {
   const { publicKey, connected, connecting, wallets, select } = useWallet();
-  const { connection } = useConnection();
   const walletAdapter = useWallet();
+
+  // Create a stable connection instance
+  const connection = useMemo(() => {
+    console.log('[UI] Creating connection to:', DEFAULT_RPC_ENDPOINT);
+    return new Connection(DEFAULT_RPC_ENDPOINT, 'confirmed');
+  }, []);
 
   // Wallet selection modal state
   const [walletModalOpen, setWalletModalOpen] = useState(false);
@@ -176,38 +181,60 @@ const RealLauncherUI = ({ onStartGame }) => {
   // Fetch balances when wallet connects
   useEffect(() => {
     const fetchBalances = async () => {
-      console.log('[UI] fetchBalances called - connected:', connected, 'publicKey:', publicKey?.toString(), 'connection:', !!connection);
+      console.log('[UI] fetchBalances called - connected:', connected, 'publicKey:', publicKey?.toString());
 
-      if (connected && publicKey && connection) {
-        try {
-          console.log('[UI] Fetching balances...');
-          console.log('[UI] Connection endpoint:', connection.rpcEndpoint);
-
-          // Fetch SOL first to test connection
-          const solBalance = await getSolBalance(publicKey, connection);
-          console.log('[UI] SOL balance result:', solBalance);
-          setSolBalance(solBalance);
-
-          // Then fetch COAL
-          const coalBalance = await getCoalBalance(publicKey, connection);
-          console.log('[UI] COAL balance result:', coalBalance);
-          setCoalBalance(coalBalance);
-
-        } catch (error) {
-          console.error('[UI] Failed to fetch balances:', error);
-          console.error('[UI] Error details:', error.message, error.stack);
-        }
-      } else {
-        console.log('[UI] Skipping balance fetch - missing requirements');
+      if (!connected || !publicKey) {
+        console.log('[UI] Skipping - wallet not connected');
         setCoalBalance(0);
         setSolBalance(0);
+        return;
+      }
+
+      try {
+        console.log('[UI] Fetching SOL balance...');
+        const solBalanceRaw = await connection.getBalance(publicKey);
+        const solBal = solBalanceRaw / LAMPORTS_PER_SOL;
+        console.log('[UI] SOL balance:', solBal);
+        setSolBalance(solBal);
+      } catch (error) {
+        console.error('[UI] SOL balance error:', error);
+        setSolBalance(0);
+      }
+
+      try {
+        console.log('[UI] Fetching COAL balance...');
+        const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
+        const ata = await getAssociatedTokenAddress(
+          mintPubkey,
+          publicKey,
+          false,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        );
+        console.log('[UI] COAL ATA:', ata.toString());
+
+        try {
+          const tokenAccount = await getAccount(connection, ata);
+          const coalBal = fromRawAmount(Number(tokenAccount.amount));
+          console.log('[UI] COAL balance:', coalBal);
+          setCoalBalance(coalBal);
+        } catch (e) {
+          if (e.name === 'TokenAccountNotFoundError') {
+            console.log('[UI] No COAL token account, balance is 0');
+            setCoalBalance(0);
+          } else {
+            console.error('[UI] COAL account error:', e);
+            setCoalBalance(0);
+          }
+        }
+      } catch (error) {
+        console.error('[UI] COAL balance error:', error);
+        setCoalBalance(0);
       }
     };
 
     fetchBalances();
-    // Refresh balances every 10 seconds when connected
-    const interval = connected ? setInterval(fetchBalances, 10000) : null;
-
+    const interval = connected ? setInterval(fetchBalances, 15000) : null;
     return () => interval && clearInterval(interval);
   }, [connected, publicKey, connection]);
 
@@ -228,16 +255,21 @@ const RealLauncherUI = ({ onStartGame }) => {
     };
 
     const handleAppForeground = async () => {
-      if (connected && publicKey && connection) {
+      if (connected && publicKey) {
         await loadUserData(publicKey.toString());
-        // Refresh balances
+        // Refresh balances inline
         try {
-          const [coal, sol] = await Promise.all([
-            getCoalBalance(publicKey, connection),
-            getSolBalance(publicKey, connection)
-          ]);
-          setCoalBalance(coal);
-          setSolBalance(sol);
+          const solBalanceRaw = await connection.getBalance(publicKey);
+          setSolBalance(solBalanceRaw / LAMPORTS_PER_SOL);
+
+          const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
+          const ata = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+          try {
+            const tokenAccount = await getAccount(connection, ata);
+            setCoalBalance(fromRawAmount(Number(tokenAccount.amount)));
+          } catch (e) {
+            if (e.name === 'TokenAccountNotFoundError') setCoalBalance(0);
+          }
         } catch (error) {
           console.error('[UI] Error refreshing balances on foreground:', error);
         }
@@ -374,15 +406,20 @@ const RealLauncherUI = ({ onStartGame }) => {
         `Click "START GAME" to begin racing!`
       );
 
-      // Refresh balances
-      if (publicKey && connection) {
+      // Refresh balances after payment
+      if (publicKey) {
         try {
-          const [coal, sol] = await Promise.all([
-            getCoalBalance(publicKey, connection),
-            getSolBalance(publicKey, connection)
-          ]);
-          setCoalBalance(coal);
-          setSolBalance(sol);
+          const solBalanceRaw = await connection.getBalance(publicKey);
+          setSolBalance(solBalanceRaw / LAMPORTS_PER_SOL);
+
+          const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
+          const ata = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+          try {
+            const tokenAccount = await getAccount(connection, ata);
+            setCoalBalance(fromRawAmount(Number(tokenAccount.amount)));
+          } catch (e) {
+            if (e.name === 'TokenAccountNotFoundError') setCoalBalance(0);
+          }
         } catch (error) {
           console.error('[UI] Error refreshing balances after payment:', error);
         }
