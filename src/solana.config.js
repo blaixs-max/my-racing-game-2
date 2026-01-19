@@ -11,10 +11,11 @@ import { clusterApiUrl } from '@solana/web3.js';
 
 export const SOLANA_NETWORK = 'mainnet-beta';
 
-// RPC Endpoints with fallbacks (more reliable options first)
+// RPC Endpoints with fallbacks
+// Using Helius free tier for reliable CORS-enabled RPC
 export const RPC_ENDPOINTS = [
+  'https://mainnet.helius-rpc.com/?api-key=5853e3ab-7918-4a18-8f02-923f2da827b0',
   'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.rpc.extrnode.com',
   clusterApiUrl('mainnet-beta')
 ];
 

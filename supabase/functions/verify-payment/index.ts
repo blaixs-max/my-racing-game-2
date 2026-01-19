@@ -25,9 +25,8 @@ function getCorsHeaders(req: Request) {
 
 // Solana Mainnet RPC endpoints (with fallbacks)
 const SOLANA_MAINNET_RPCS = [
+  'https://mainnet.helius-rpc.com/?api-key=5853e3ab-7918-4a18-8f02-923f2da827b0',
   'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.g.alchemy.com/v2/demo',
-  'https://rpc.ankr.com/solana',
 ];
 
 // OILTOWN Token Configuration
