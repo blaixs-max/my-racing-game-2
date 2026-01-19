@@ -26,16 +26,16 @@ export const DEFAULT_RPC_ENDPOINT = RPC_ENDPOINTS[0];
 // =============================================================================
 
 export const TOKEN_CONFIG = {
-  // COAL Token Mint Address
-  mint: '7Ta87bq49cgWdTBiJRCH33kxqe7ZDwnsxescTjNmpump',
+  // OILTOWN Token Mint Address
+  mint: 'AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump',
 
   // Token Details
-  name: 'coal works',
-  symbol: 'COAL',
+  name: 'OIL TOWN',
+  symbol: 'OILTOWN',
   decimals: 6,
 
   // Logo URL (update with actual logo)
-  logoUrl: '/coal-token-logo.png'
+  logoUrl: '/oiltown-token-logo.png'
 };
 
 // =============================================================================
