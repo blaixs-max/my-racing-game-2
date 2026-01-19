@@ -13,9 +13,8 @@ export const SOLANA_NETWORK = 'mainnet-beta';
 
 // RPC Endpoints with fallbacks (more reliable options first)
 export const RPC_ENDPOINTS = [
-  'https://rpc.ankr.com/solana',
-  'https://solana-mainnet.rpc.extrnode.com',
   'https://api.mainnet-beta.solana.com',
+  'https://solana-mainnet.rpc.extrnode.com',
   clusterApiUrl('mainnet-beta')
 ];
 
