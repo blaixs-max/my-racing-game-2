@@ -12,115 +12,104 @@ let priceCache = {
 };
 
 /**
- * Fetch COAL token price from Jupiter API
+ * Fetch token price - tries DexScreener first (better for new tokens), then Jupiter
  * @returns {Promise<number>} Price in USD
  */
 export async function getCoalPrice() {
   // Check cache
   const now = Date.now();
   if (priceCache.price && (now - priceCache.timestamp) < JUPITER_CONFIG.priceCacheDuration) {
-    console.log('[Jupiter] Using cached price:', priceCache.price);
+    console.log('[Price] Using cached price:', priceCache.price);
     return priceCache.price;
   }
 
+  // Try DexScreener first (better for new/pump.fun tokens)
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), JUPITER_CONFIG.timeout);
-
-    const url = `${JUPITER_CONFIG.priceApiUrl}?ids=${TOKEN_CONFIG.mint}`;
-    console.log('[Jupiter] Fetching price from:', url);
-
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'Accept': 'application/json'
-      }
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`Jupiter API error: ${response.status}`);
+    const price = await getDexScreenerPrice();
+    if (price) {
+      priceCache = { price, timestamp: now };
+      return price;
     }
-
-    const data = await response.json();
-    console.log('[Jupiter] API Response:', data);
-
-    // Extract price from response
-    const tokenData = data.data?.[TOKEN_CONFIG.mint];
-
-    if (!tokenData || !tokenData.price) {
-      // Try alternative price sources if Jupiter doesn't have data
-      console.warn('[Jupiter] No price data from Jupiter, trying alternatives...');
-      return await getAlternativePrice();
-    }
-
-    const price = tokenData.price;
-    console.log(`[Jupiter] COAL Price: $${price}`);
-
-    // Update cache
-    priceCache = {
-      price,
-      timestamp: now
-    };
-
-    return price;
   } catch (error) {
-    console.error('[Jupiter] Error fetching price:', error);
-
-    // Return cached price if available
-    if (priceCache.price) {
-      console.log('[Jupiter] Using stale cached price:', priceCache.price);
-      return priceCache.price;
-    }
-
-    // Try alternative price source
-    return await getAlternativePrice();
+    console.warn('[DexScreener] Failed:', error.message);
   }
+
+  // Fallback to Jupiter
+  try {
+    const price = await getJupiterPrice();
+    if (price) {
+      priceCache = { price, timestamp: now };
+      return price;
+    }
+  } catch (error) {
+    console.warn('[Jupiter] Failed:', error.message);
+  }
+
+  // Return cached price if all sources fail
+  if (priceCache.price) {
+    console.log('[Price] Using stale cached price:', priceCache.price);
+    return priceCache.price;
+  }
+
+  throw new Error('Unable to fetch token price from any source');
 }
 
 /**
- * Alternative price fetching from DexScreener
- * @returns {Promise<number>} Price in USD
+ * Get price from DexScreener API
  */
-async function getAlternativePrice() {
-  try {
-    console.log('[DexScreener] Trying alternative price source...');
+async function getDexScreenerPrice() {
+  console.log('[DexScreener] Fetching price for:', TOKEN_CONFIG.mint);
 
-    const response = await fetch(
-      `https://api.dexscreener.com/latest/dex/tokens/${TOKEN_CONFIG.mint}`,
-      { timeout: JUPITER_CONFIG.timeout }
+  const response = await fetch(
+    `https://api.dexscreener.com/latest/dex/tokens/${TOKEN_CONFIG.mint}`,
+    { signal: AbortSignal.timeout(JUPITER_CONFIG.timeout) }
+  );
+
+  if (!response.ok) {
+    throw new Error(`DexScreener API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (data.pairs && data.pairs.length > 0) {
+    // Get the pair with highest liquidity
+    const bestPair = data.pairs.reduce((best, pair) =>
+      (pair.liquidity?.usd || 0) > (best.liquidity?.usd || 0) ? pair : best
     );
 
-    if (!response.ok) {
-      throw new Error(`DexScreener API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (data.pairs && data.pairs.length > 0) {
-      // Get the pair with highest liquidity
-      const bestPair = data.pairs.reduce((best, pair) =>
-        (pair.liquidity?.usd || 0) > (best.liquidity?.usd || 0) ? pair : best
-      );
-
-      const price = parseFloat(bestPair.priceUsd);
-      console.log(`[DexScreener] COAL Price: $${price}`);
-
-      // Update cache
-      priceCache = {
-        price,
-        timestamp: Date.now()
-      };
-
-      return price;
-    }
-
-    throw new Error('No pairs found on DexScreener');
-  } catch (error) {
-    console.error('[DexScreener] Error:', error);
-    throw new Error('Unable to fetch COAL price from any source');
+    const price = parseFloat(bestPair.priceUsd);
+    console.log(`[DexScreener] Token Price: $${price}`);
+    return price;
   }
+
+  return null;
+}
+
+/**
+ * Get price from Jupiter API
+ */
+async function getJupiterPrice() {
+  const url = `${JUPITER_CONFIG.priceApiUrl}?ids=${TOKEN_CONFIG.mint}`;
+  console.log('[Jupiter] Fetching price from:', url);
+
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(JUPITER_CONFIG.timeout),
+    headers: { 'Accept': 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Jupiter API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const tokenData = data.data?.[TOKEN_CONFIG.mint];
+
+  if (tokenData?.price) {
+    console.log(`[Jupiter] Token Price: $${tokenData.price}`);
+    return tokenData.price;
+  }
+
+  return null;
 }
 
 /**
