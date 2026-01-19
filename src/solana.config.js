@@ -11,11 +11,11 @@ import { clusterApiUrl } from '@solana/web3.js';
 
 export const SOLANA_NETWORK = 'mainnet-beta';
 
-// RPC Endpoints with fallbacks
+// RPC Endpoints with fallbacks (more reliable options first)
 export const RPC_ENDPOINTS = [
-  'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.g.alchemy.com/v2/demo',
   'https://rpc.ankr.com/solana',
+  'https://solana-mainnet.rpc.extrnode.com',
+  'https://api.mainnet-beta.solana.com',
   clusterApiUrl('mainnet-beta')
 ];
 
