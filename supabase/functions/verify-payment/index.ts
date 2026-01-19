@@ -30,8 +30,8 @@ const SOLANA_MAINNET_RPCS = [
   'https://rpc.ankr.com/solana',
 ];
 
-// COAL Token Configuration
-const COAL_TOKEN_MINT = '7Ta87bq49cgWdTBiJRCH33kxqe7ZDwnsxescTjNmpump';
+// OILTOWN Token Configuration
+const COAL_TOKEN_MINT = 'AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump';
 const TOKEN_DECIMALS = 6;
 
 // Payment Receiver Wallet Address (Solana)
