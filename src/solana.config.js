@@ -11,10 +11,12 @@ import { clusterApiUrl } from '@solana/web3.js';
 
 export const SOLANA_NETWORK = 'mainnet-beta';
 
-// RPC Endpoints with fallbacks (more reliable options first)
+// RPC Endpoints with fallbacks
+// Note: Public RPCs have rate limits. For production, use Helius/QuickNode free tier
 export const RPC_ENDPOINTS = [
+  'https://mainnet.helius-rpc.com/?api-key=1d8740dc-e5f4-421c-b823-e1bad1889eff', // Helius free public
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
   'https://api.mainnet-beta.solana.com',
-  'https://solana-mainnet.rpc.extrnode.com',
   clusterApiUrl('mainnet-beta')
 ];
 
