@@ -14,7 +14,30 @@ import { getCoalPrice, calculateCoalAmount, formatPrice } from '../utils/jupiter
 import { getOrCreateUser } from '../utils/supabaseClient';
 import { TOKEN_CONFIG, PAYMENT_CONFIG, DEFAULT_RPC_ENDPOINT, fromRawAmount, formatTokenAmount } from '../solana.config';
 
-// Agreement Text Content - Updated for COAL Token
+// Solana Theme Colors
+const SOLANA_COLORS = {
+  purple: '#9945FF',
+  purpleLight: '#B87AFF',
+  purpleDark: '#7B2FE0',
+  green: '#14F195',
+  greenLight: '#5FFFC1',
+  greenDark: '#0BC47D',
+  bgPrimary: '#0B0B0F',
+  bgSecondary: '#13111C',
+  bgCard: '#1A1625',
+  bgCardHover: '#231E30',
+  textPrimary: '#E8E8E8',
+  textSecondary: '#8B8B9A',
+  textMuted: '#5A5A6A',
+  borderPurple: 'rgba(153, 69, 255, 0.2)',
+  borderGreen: 'rgba(20, 241, 149, 0.2)',
+  glowPurple: 'rgba(153, 69, 255, 0.4)',
+  glowGreen: 'rgba(20, 241, 149, 0.4)',
+  warning: '#FB923C',
+  error: '#EF4444',
+};
+
+// Agreement Text Content - Updated for OILTOWN Token
 const AGREEMENT_TEXT = `Lumexia: Gameplay Participation Agreement & Risk Disclosure
 
 IMPORTANT: Please read the following terms carefully before participating in the Lumexia Racing Module. By clicking "ACCEPT", you acknowledge that you have read, understood, and agreed to be bound by these terms.
@@ -22,8 +45,8 @@ IMPORTANT: Please read the following terms carefully before participating in the
 1. Nature of the Game (Game of Skill)
 You acknowledge that the Lumexia Racing Module is a Game of Skill, not a game of chance or gambling. Your ranking on the leaderboard and eligibility for rewards are determined solely by your gameplay performance, reflexes, and strategy. The "Score" you achieve is the defining metric for reward distribution.
 
-2. Entry Fees and COAL Token Usage
-To participate, users utilize COAL tokens (on Solana blockchain) to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The COAL tokens collected form the "Reward Pool" for the daily cycle.
+2. Entry Fees and OILTOWN Token Usage
+To participate, users utilize OILTOWN tokens (on Solana blockchain) to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The OILTOWN tokens collected form the "Reward Pool" for the daily cycle.
 
 3. Reward Distribution & Deductions
 The Reward Pool is distributed daily to the top 100 players based on their final scores. You explicitly agree to the following allocation of funds:
@@ -33,10 +56,10 @@ Prize Pool: The majority of the pool is distributed to the winners via an automa
 Operational Fee: A fixed deduction of 7.5% is taken from the total pool prior to distribution. This fee is allocated for Marketing activities and Weekly Token Burns to support the Lumexia ecosystem.
 
 4. No Guarantee of Winnings
-Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the daily cycle, you will not receive a share of the COAL pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
+Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the daily cycle, you will not receive a share of the OILTOWN pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
 
 5. Cryptocurrency Risks
-You acknowledge that the value of COAL token and SOL can fluctuate significantly. Lumexia is not responsible for any value loss due to market volatility, blockchain network errors, or wallet security breaches on the user's end.
+You acknowledge that the value of OILTOWN token and SOL can fluctuate significantly. Lumexia is not responsible for any value loss due to market volatility, blockchain network errors, or wallet security breaches on the user's end.
 
 6. Legal Compliance
 You represent and warrant that you are of legal age and that participating in skill-based crypto gaming is legal in your local jurisdiction. It is your sole responsibility to comply with the laws of your country of residence.
@@ -158,7 +181,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
   }, [state.pendingTxHash, state.isProcessing, state.selectedPackage, state.statusMessage, state.lastTransaction]);
 
-  // Fetch COAL price periodically
+  // Fetch OILTOWN price periodically
   useEffect(() => {
     const fetchPrice = async () => {
       try {
@@ -166,7 +189,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         const price = await getCoalPrice();
         setCoalPrice(price);
       } catch (error) {
-        console.error('Failed to fetch COAL price:', error);
+        console.error('Failed to fetch OILTOWN price:', error);
       } finally {
         setPriceLoading(false);
       }
@@ -202,7 +225,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       }
 
       try {
-        console.log('[UI] Fetching COAL balance...');
+        console.log('[UI] Fetching OILTOWN balance...');
         const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
         const ata = await getAssociatedTokenAddress(
           mintPubkey,
@@ -211,24 +234,24 @@ const RealLauncherUI = ({ onStartGame }) => {
           TOKEN_PROGRAM_ID,
           ASSOCIATED_TOKEN_PROGRAM_ID
         );
-        console.log('[UI] COAL ATA:', ata.toString());
+        console.log('[UI] OILTOWN ATA:', ata.toString());
 
         try {
           const tokenAccount = await getAccount(connection, ata);
           const coalBal = fromRawAmount(Number(tokenAccount.amount));
-          console.log('[UI] COAL balance:', coalBal);
+          console.log('[UI] OILTOWN balance:', coalBal);
           setCoalBalance(coalBal);
         } catch (e) {
           if (e.name === 'TokenAccountNotFoundError') {
-            console.log('[UI] No COAL token account, balance is 0');
+            console.log('[UI] No OILTOWN token account, balance is 0');
             setCoalBalance(0);
           } else {
-            console.error('[UI] COAL account error:', e);
+            console.error('[UI] OILTOWN account error:', e);
             setCoalBalance(0);
           }
         }
       } catch (error) {
-        console.error('[UI] COAL balance error:', error);
+        console.error('[UI] OILTOWN balance error:', error);
         setCoalBalance(0);
       }
     };
@@ -345,7 +368,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
   };
 
-  // Calculate required COAL for package
+  // Calculate required OILTOWN for package
   const getRequiredCoal = (usdAmount) => {
     if (!coalPrice || coalPrice <= 0) return null;
     return usdAmount / coalPrice;
@@ -364,7 +387,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     setState(prev => ({
       ...prev,
       selectedPackage: amount,
-      statusMessage: `Selected: ${amount} credits (~${coalDisplay} COAL)`
+      statusMessage: `Selected: ${amount} credits (~${coalDisplay} OILTOWN)`
     }));
   };
 
@@ -373,7 +396,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     try {
       setState(prev => ({
         ...prev,
-        statusMessage: '⏳ Verifying COAL payment on Solana...',
+        statusMessage: '⏳ Verifying OILTOWN payment on Solana...',
         lastTransaction: signature,
         pendingTxHash: signature,
       }));
@@ -399,7 +422,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       const requiredCoal = getRequiredCoal(packageAmount);
       alert(
         `✅ Payment Successful!\n\n` +
-        `COAL Paid: ~${formatTokenAmount(requiredCoal || 0)} COAL\n` +
+        `OILTOWN Paid: ~${formatTokenAmount(requiredCoal || 0)} OIL\n` +
         `Credits added: ${packageAmount}\n` +
         `New balance: ${verifyResult.credits} credits\n\n` +
         `View transaction:\n${getExplorerUrl(signature)}\n\n` +
@@ -478,10 +501,10 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       if (!balanceCheck.hasEnoughCoal) {
         alert(
-          `❌ Insufficient COAL!\n\n` +
-          `Required: ~${formatTokenAmount(balanceCheck.requiredCoal)} COAL ($${packageAmount})\n` +
-          `Your balance: ${formatTokenAmount(balanceCheck.coalBalance)} COAL\n\n` +
-          `Please add more COAL tokens to your wallet.`
+          `❌ Insufficient OILTOWN!\n\n` +
+          `Required: ~${formatTokenAmount(balanceCheck.requiredCoal)} OIL ($${packageAmount})\n` +
+          `Your balance: ${formatTokenAmount(balanceCheck.coalBalance)} OIL\n\n` +
+          `Please add more OILTOWN tokens to your wallet.`
         );
         return;
       }
@@ -510,11 +533,11 @@ const RealLauncherUI = ({ onStartGame }) => {
         ...prev,
         isProcessing: true,
         statusMessage: isMobile
-          ? '⏳ Opening wallet... Confirm COAL transfer'
-          : '⏳ Opening wallet... Please confirm COAL transfer'
+          ? '⏳ Opening wallet... Confirm OILTOWN transfer'
+          : '⏳ Opening wallet... Please confirm OILTOWN transfer'
       }));
 
-      // Transfer COAL tokens
+      // Transfer OILTOWN tokens
       const { signature, coalAmount, price } = await transferCoalToken(
         walletAdapter,
         packageAmount
@@ -526,7 +549,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         lastTransaction: signature,
         statusMessage: isMobile
           ? '⏳ Transaction sent! Confirming...'
-          : '⏳ COAL transfer sent! Waiting for confirmation...'
+          : '⏳ OILTOWN transfer sent! Waiting for confirmation...'
       }));
 
       await processTransactionResult(signature, publicKey.toString(), packageAmount);
@@ -646,37 +669,72 @@ const RealLauncherUI = ({ onStartGame }) => {
       <div style={{
         position: 'fixed',
         inset: 0,
-        background: '#0D0D12',
+        background: `linear-gradient(180deg, ${SOLANA_COLORS.bgPrimary} 0%, ${SOLANA_COLORS.bgSecondary} 100%)`,
         overflowY: 'auto',
         zIndex: 9999
       }}>
+        {/* Ambient glow effects */}
+        <div style={{
+          position: 'absolute',
+          top: '-20%',
+          left: '-10%',
+          width: '50%',
+          height: '50%',
+          background: `radial-gradient(circle, ${SOLANA_COLORS.glowPurple} 0%, transparent 70%)`,
+          filter: 'blur(80px)',
+          pointerEvents: 'none'
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: '-20%',
+          right: '-10%',
+          width: '50%',
+          height: '50%',
+          background: `radial-gradient(circle, ${SOLANA_COLORS.glowGreen} 0%, transparent 70%)`,
+          filter: 'blur(80px)',
+          pointerEvents: 'none'
+        }} />
+
         {/* Logo */}
         <div style={{
           position: 'absolute',
-          top: '15px',
-          left: '15px',
+          top: '20px',
+          left: '20px',
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
+          gap: '12px',
           zIndex: 10
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #1E1E3F, #2D2D5A)',
-            border: '2px solid rgba(255, 215, 0, 0.3)',
+            width: '48px',
+            height: '48px',
+            borderRadius: '14px',
+            background: `linear-gradient(135deg, ${SOLANA_COLORS.purple} 0%, ${SOLANA_COLORS.green} 100%)`,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            boxShadow: `0 4px 20px ${SOLANA_COLORS.glowPurple}`
           }}>
-            <span style={{ fontSize: '24px', color: '#FFD700' }}>⚡</span>
+            <span style={{ fontSize: '24px' }}>⚡</span>
           </div>
           <div>
-            <p style={{ color: '#fff', fontSize: '16px', fontWeight: 'bold', margin: 0, letterSpacing: '2px' }}>
+            <p style={{
+              color: SOLANA_COLORS.textPrimary,
+              fontSize: '18px',
+              fontWeight: '700',
+              margin: 0,
+              letterSpacing: '3px'
+            }}>
               LUMEXIA
             </p>
-            <p style={{ color: '#888', fontSize: '10px', margin: 0 }}>$COAL</p>
+            <p style={{
+              color: SOLANA_COLORS.green,
+              fontSize: '11px',
+              margin: 0,
+              fontWeight: '500'
+            }}>
+              Powered by Solana
+            </p>
           </div>
         </div>
 
@@ -687,45 +745,57 @@ const RealLauncherUI = ({ onStartGame }) => {
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: '100vh',
-          padding: '80px 20px 40px'
+          padding: '90px 20px 40px'
         }}>
           <div style={{
             width: '100%',
-            maxWidth: '700px',
-            background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
-            borderRadius: '16px',
-            border: '2px solid rgba(100, 100, 120, 0.3)',
-            padding: '25px',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+            maxWidth: '720px',
+            background: `linear-gradient(180deg, ${SOLANA_COLORS.bgCard} 0%, ${SOLANA_COLORS.bgSecondary} 100%)`,
+            borderRadius: '24px',
+            border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+            padding: '32px',
+            boxShadow: `0 25px 80px rgba(0, 0, 0, 0.6), 0 0 40px ${SOLANA_COLORS.glowPurple}`,
+            backdropFilter: 'blur(20px)'
           }}>
             {/* Title */}
-            <h2 style={{
-              color: '#FFD700',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '20px',
-              textAlign: 'center',
-              letterSpacing: '1px'
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              marginBottom: '24px'
             }}>
-              Gameplay Participation Agreement & Risk Disclosure
-            </h2>
+              <span style={{ fontSize: '24px' }}>🛡️</span>
+              <h2 style={{
+                background: `linear-gradient(90deg, ${SOLANA_COLORS.purple}, ${SOLANA_COLORS.green})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontSize: '20px',
+                fontWeight: '700',
+                margin: 0,
+                letterSpacing: '1px'
+              }}>
+                GAMEPLAY AGREEMENT
+              </h2>
+            </div>
 
             {/* Scrollable Agreement Text */}
             <div style={{
-              height: '350px',
+              height: '340px',
               overflowY: 'auto',
-              background: '#0D0D14',
-              borderRadius: '12px',
-              padding: '20px',
-              marginBottom: '20px',
-              border: '1px solid rgba(100, 100, 120, 0.2)'
+              background: SOLANA_COLORS.bgPrimary,
+              borderRadius: '16px',
+              padding: '24px',
+              marginBottom: '24px',
+              border: `1px solid ${SOLANA_COLORS.borderPurple}`
             }}>
               <pre style={{
-                color: '#C4C4C4',
+                color: SOLANA_COLORS.textSecondary,
                 fontSize: '13px',
-                lineHeight: '1.6',
+                lineHeight: '1.7',
                 whiteSpace: 'pre-wrap',
-                fontFamily: 'Inter, sans-serif',
+                fontFamily: 'Inter, -apple-system, sans-serif',
                 margin: 0
               }}>
                 {AGREEMENT_TEXT}
@@ -738,67 +808,102 @@ const RealLauncherUI = ({ onStartGame }) => {
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: '15px'
+              gap: '20px'
             }}>
               <label style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
+                gap: '14px',
                 cursor: 'pointer',
-                color: '#C4C4C4',
+                color: SOLANA_COLORS.textSecondary,
                 fontSize: '14px'
               }}>
                 <div
                   onClick={() => setAgreementChecked(!agreementChecked)}
                   style={{
-                    width: '24px',
-                    height: '24px',
-                    border: '2px solid #FFD700',
-                    borderRadius: '4px',
+                    width: '26px',
+                    height: '26px',
+                    border: `2px solid ${agreementChecked ? SOLANA_COLORS.green : SOLANA_COLORS.purple}`,
+                    borderRadius: '6px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: agreementChecked ? '#FFD700' : 'transparent',
+                    background: agreementChecked
+                      ? `linear-gradient(135deg, ${SOLANA_COLORS.green}, ${SOLANA_COLORS.greenDark})`
+                      : 'transparent',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.3s ease',
+                    boxShadow: agreementChecked ? `0 0 15px ${SOLANA_COLORS.glowGreen}` : 'none'
                   }}
                 >
-                  {agreementChecked && <span style={{ color: '#000', fontSize: '16px' }}>✓</span>}
+                  {agreementChecked && <span style={{ color: '#000', fontSize: '16px', fontWeight: 'bold' }}>✓</span>}
                 </div>
-                I have read and accept the Terms & Conditions.
+                <span>I have read and accept the Terms & Conditions</span>
               </label>
 
               <button
                 onClick={handleAcceptAgreement}
                 disabled={!agreementChecked}
                 style={{
-                  padding: '12px 30px',
+                  padding: '14px 36px',
                   background: agreementChecked
-                    ? 'linear-gradient(135deg, #FFD700, #B8860B)'
-                    : '#3D3D5C',
+                    ? `linear-gradient(135deg, ${SOLANA_COLORS.purple} 0%, ${SOLANA_COLORS.green} 100%)`
+                    : SOLANA_COLORS.bgCardHover,
                   border: 'none',
-                  borderRadius: '8px',
-                  color: agreementChecked ? '#000' : '#666',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
+                  borderRadius: '12px',
+                  color: agreementChecked ? '#fff' : SOLANA_COLORS.textMuted,
+                  fontSize: '15px',
+                  fontWeight: '700',
                   cursor: agreementChecked ? 'pointer' : 'not-allowed',
                   transition: 'all 0.3s ease',
                   textTransform: 'uppercase',
-                  letterSpacing: '1px'
+                  letterSpacing: '2px',
+                  boxShadow: agreementChecked ? `0 4px 25px ${SOLANA_COLORS.glowPurple}` : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
               >
-                Accept
+                CONTINUE
+                <span style={{ fontSize: '16px' }}>→</span>
               </button>
             </div>
+          </div>
+
+          {/* Network indicator */}
+          <div style={{
+            marginTop: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: SOLANA_COLORS.green,
+              boxShadow: `0 0 10px ${SOLANA_COLORS.green}`,
+              animation: 'pulse 2s infinite'
+            }} />
+            <span style={{ color: SOLANA_COLORS.textMuted, fontSize: '12px' }}>
+              Solana Mainnet
+            </span>
           </div>
         </div>
 
         {/* Custom Scrollbar Styles */}
         <style>{`
-          ::-webkit-scrollbar { width: 8px; }
-          ::-webkit-scrollbar-track { background: #0D0D14; }
-          ::-webkit-scrollbar-thumb { background: #3D3D5C; border-radius: 4px; }
-          ::-webkit-scrollbar-thumb:hover { background: #5D5D8C; }
+          ::-webkit-scrollbar { width: 6px; }
+          ::-webkit-scrollbar-track { background: ${SOLANA_COLORS.bgPrimary}; border-radius: 3px; }
+          ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, ${SOLANA_COLORS.purple}, ${SOLANA_COLORS.green});
+            border-radius: 3px;
+          }
+          ::-webkit-scrollbar-thumb:hover { opacity: 0.8; }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
         `}</style>
       </div>
     );
@@ -809,10 +914,32 @@ const RealLauncherUI = ({ onStartGame }) => {
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: '#0D0D12',
+      background: `linear-gradient(180deg, ${SOLANA_COLORS.bgPrimary} 0%, ${SOLANA_COLORS.bgSecondary} 100%)`,
       overflowY: 'auto',
       zIndex: 9999
     }}>
+      {/* Ambient glow effects */}
+      <div style={{
+        position: 'absolute',
+        top: '10%',
+        left: '-15%',
+        width: '40%',
+        height: '40%',
+        background: `radial-gradient(circle, ${SOLANA_COLORS.glowPurple} 0%, transparent 70%)`,
+        filter: 'blur(100px)',
+        pointerEvents: 'none'
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '10%',
+        right: '-15%',
+        width: '40%',
+        height: '40%',
+        background: `radial-gradient(circle, ${SOLANA_COLORS.glowGreen} 0%, transparent 70%)`,
+        filter: 'blur(100px)',
+        pointerEvents: 'none'
+      }} />
+
       {/* Main Content */}
       <div style={{
         display: 'flex',
@@ -820,77 +947,90 @@ const RealLauncherUI = ({ onStartGame }) => {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
-        padding: '20px'
+        padding: '20px',
+        position: 'relative',
+        zIndex: 1
       }}>
 
         {/* Logo */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
-          marginBottom: '30px'
+          gap: '14px',
+          marginBottom: '32px'
         }}>
           <div style={{
-            width: '60px',
-            height: '60px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #1E1E3F, #2D2D5A)',
-            border: '2px solid rgba(255, 215, 0, 0.3)',
+            width: '64px',
+            height: '64px',
+            borderRadius: '18px',
+            background: `linear-gradient(135deg, ${SOLANA_COLORS.purple} 0%, ${SOLANA_COLORS.green} 100%)`,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            boxShadow: `0 8px 30px ${SOLANA_COLORS.glowPurple}`
           }}>
-            <span style={{ fontSize: '32px', color: '#FFD700' }}>⚡</span>
+            <span style={{ fontSize: '32px' }}>⚡</span>
           </div>
           <div>
             <h1 style={{
-              color: '#fff',
-              fontSize: '32px',
-              fontWeight: 'bold',
+              color: SOLANA_COLORS.textPrimary,
+              fontSize: '36px',
+              fontWeight: '800',
               margin: 0,
-              letterSpacing: '3px'
+              letterSpacing: '4px'
             }}>
               LUMEXIA
             </h1>
-            <p style={{ color: '#888', fontSize: '12px', margin: 0 }}>$COAL on Solana</p>
+            <p style={{
+              color: SOLANA_COLORS.green,
+              fontSize: '13px',
+              margin: 0,
+              fontWeight: '500'
+            }}>
+              $OILTOWN on Solana
+            </p>
           </div>
         </div>
 
         {/* Glassmorphism Card */}
         <div style={{
           width: '100%',
-          maxWidth: '420px',
-          background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
-          borderRadius: '20px',
-          border: '2px solid rgba(100, 100, 120, 0.3)',
-          padding: '25px',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+          maxWidth: '440px',
+          background: `linear-gradient(180deg, ${SOLANA_COLORS.bgCard} 0%, ${SOLANA_COLORS.bgSecondary} 100%)`,
+          borderRadius: '24px',
+          border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+          padding: '28px',
+          boxShadow: `0 25px 80px rgba(0, 0, 0, 0.5), 0 0 40px ${SOLANA_COLORS.glowPurple}`,
+          backdropFilter: 'blur(20px)'
         }}>
 
           {/* Wallet Connect Button */}
-          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
             <button
               onClick={handleConnectClick}
               disabled={connecting}
               style={{
                 background: connected
-                  ? 'linear-gradient(135deg, #10B981, #059669)'
-                  : 'linear-gradient(135deg, #9945FF, #14F195)',
-                borderRadius: '12px',
-                height: '48px',
-                fontSize: '14px',
-                fontWeight: 'bold',
+                  ? `linear-gradient(135deg, ${SOLANA_COLORS.green}, ${SOLANA_COLORS.greenDark})`
+                  : `linear-gradient(135deg, ${SOLANA_COLORS.purple} 0%, ${SOLANA_COLORS.green} 100%)`,
+                borderRadius: '14px',
+                height: '52px',
+                fontSize: '15px',
+                fontWeight: '700',
                 color: '#fff',
                 border: 'none',
-                padding: '0 24px',
+                padding: '0 28px',
                 cursor: connecting ? 'wait' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
-                minWidth: '180px',
-                boxShadow: '0 4px 15px rgba(153, 69, 255, 0.3)',
-                transition: 'all 0.3s ease'
+                gap: '10px',
+                minWidth: '200px',
+                boxShadow: connected
+                  ? `0 4px 20px ${SOLANA_COLORS.glowGreen}`
+                  : `0 4px 20px ${SOLANA_COLORS.glowPurple}`,
+                transition: 'all 0.3s ease',
+                letterSpacing: '0.5px'
               }}
             >
               {connecting ? (
@@ -905,7 +1045,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                 </>
               ) : (
                 <>
-                  <span style={{ fontSize: '18px' }}>👛</span>
+                  <span style={{ fontSize: '20px' }}>👛</span>
                   Connect Wallet
                 </>
               )}
@@ -914,27 +1054,27 @@ const RealLauncherUI = ({ onStartGame }) => {
 
           {connecting && (
             <div style={{
-              marginBottom: '15px',
-              padding: '12px',
-              background: 'rgba(255, 193, 7, 0.1)',
-              border: '1px solid rgba(255, 193, 7, 0.3)',
-              borderRadius: '8px'
+              marginBottom: '16px',
+              padding: '14px',
+              background: `rgba(251, 146, 60, 0.1)`,
+              border: `1px solid rgba(251, 146, 60, 0.3)`,
+              borderRadius: '12px'
             }}>
-              <p style={{ color: '#FFC107', fontSize: '12px', margin: 0, textAlign: 'center' }}>
-                ⏳ Connecting wallet...
+              <p style={{ color: SOLANA_COLORS.warning, fontSize: '13px', margin: 0, textAlign: 'center' }}>
+                ⏳ Connecting to wallet...
               </p>
             </div>
           )}
 
           {!connected && !connecting && (
             <div style={{
-              marginBottom: '15px',
-              padding: '12px',
-              background: 'rgba(153, 69, 255, 0.1)',
-              border: '1px solid rgba(153, 69, 255, 0.2)',
-              borderRadius: '8px'
+              marginBottom: '16px',
+              padding: '14px',
+              background: `${SOLANA_COLORS.borderPurple}`,
+              border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+              borderRadius: '12px'
             }}>
-              <p style={{ color: '#C4B5FD', fontSize: '11px', margin: 0, textAlign: 'center' }}>
+              <p style={{ color: SOLANA_COLORS.purpleLight, fontSize: '12px', margin: 0, textAlign: 'center' }}>
                 💡 Connect with Phantom, Solflare, Backpack or other Solana wallets
               </p>
             </div>
@@ -942,35 +1082,61 @@ const RealLauncherUI = ({ onStartGame }) => {
 
           {/* Game Mode Selection */}
           {connected && (
-            <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: '#fff', fontSize: '14px', marginBottom: '12px', textAlign: 'center' }}>
-                🎮 Select Game Mode
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                marginBottom: '16px'
+              }}>
+                <span style={{ fontSize: '18px' }}>🎮</span>
+                <h3 style={{
+                  color: SOLANA_COLORS.textPrimary,
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  margin: 0,
+                  letterSpacing: '1px'
+                }}>
+                  SELECT GAME MODE
+                </h3>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 {/* Classic Race */}
                 <div
                   onClick={() => !state.isProcessing && setState(prev => ({ ...prev, gameMode: 'classic' }))}
                   style={{
-                    padding: '15px 10px',
+                    padding: '18px 12px',
                     background: state.gameMode === 'classic'
-                      ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.2))'
-                      : 'rgba(45, 45, 70, 0.5)',
+                      ? `linear-gradient(135deg, rgba(20, 241, 149, 0.15), rgba(20, 241, 149, 0.05))`
+                      : SOLANA_COLORS.bgCardHover,
                     border: state.gameMode === 'classic'
-                      ? '2px solid #10B981'
-                      : '2px solid rgba(100, 100, 120, 0.3)',
-                    borderRadius: '10px',
+                      ? `2px solid ${SOLANA_COLORS.green}`
+                      : `1px solid ${SOLANA_COLORS.borderPurple}`,
+                    borderRadius: '14px',
                     cursor: state.isProcessing ? 'not-allowed' : 'pointer',
                     textAlign: 'center',
                     opacity: state.isProcessing ? 0.5 : 1,
-                    transition: 'all 0.3s ease'
+                    transition: 'all 0.3s ease',
+                    boxShadow: state.gameMode === 'classic' ? `0 0 20px ${SOLANA_COLORS.glowGreen}` : 'none'
                   }}
                 >
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>🏎️</div>
-                  <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>CLASSIC RACE</p>
-                  <p style={{ color: '#888', fontSize: '10px', marginBottom: '4px' }}>Normal scoring</p>
-                  <p style={{ color: '#10B981', fontSize: '11px', fontWeight: '600' }}>1 Credit</p>
+                  <div style={{ fontSize: '28px', marginBottom: '10px' }}>🏎️</div>
+                  <p style={{
+                    color: SOLANA_COLORS.textPrimary,
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    marginBottom: '6px',
+                    letterSpacing: '0.5px'
+                  }}>CLASSIC RACE</p>
+                  <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '11px', marginBottom: '8px' }}>Normal scoring</p>
+                  <p style={{
+                    color: SOLANA_COLORS.green,
+                    fontSize: '12px',
+                    fontWeight: '700'
+                  }}>1 Credit</p>
                   {state.gameMode === 'classic' && (
-                    <p style={{ color: '#10B981', fontSize: '10px', marginTop: '4px' }}>✓ Selected</p>
+                    <p style={{ color: SOLANA_COLORS.green, fontSize: '11px', marginTop: '6px', fontWeight: '600' }}>✓ Selected</p>
                   )}
                 </div>
 
@@ -978,40 +1144,58 @@ const RealLauncherUI = ({ onStartGame }) => {
                 <div
                   onClick={() => !state.isProcessing && setState(prev => ({ ...prev, gameMode: 'doubleOrNothing' }))}
                   style={{
-                    padding: '15px 10px',
+                    padding: '18px 12px',
                     background: state.gameMode === 'doubleOrNothing'
-                      ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(202, 138, 4, 0.2))'
-                      : 'rgba(45, 45, 70, 0.5)',
+                      ? `linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(251, 146, 60, 0.05))`
+                      : SOLANA_COLORS.bgCardHover,
                     border: state.gameMode === 'doubleOrNothing'
-                      ? '2px solid #EAB308'
-                      : '2px solid rgba(100, 100, 120, 0.3)',
-                    borderRadius: '10px',
+                      ? `2px solid ${SOLANA_COLORS.warning}`
+                      : `1px solid ${SOLANA_COLORS.borderPurple}`,
+                    borderRadius: '14px',
                     cursor: state.isProcessing ? 'not-allowed' : 'pointer',
                     textAlign: 'center',
                     opacity: state.isProcessing ? 0.5 : 1,
-                    transition: 'all 0.3s ease'
+                    transition: 'all 0.3s ease',
+                    boxShadow: state.gameMode === 'doubleOrNothing' ? `0 0 20px rgba(251, 146, 60, 0.3)` : 'none'
                   }}
                 >
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>🎰</div>
-                  <p style={{ color: '#fff', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>DOUBLE OR NOTHING</p>
-                  <p style={{ color: '#888', fontSize: '10px', marginBottom: '4px' }}>2X score or 0!</p>
-                  <p style={{ color: '#EAB308', fontSize: '11px', fontWeight: '600' }}>2 Credits</p>
+                  <div style={{ fontSize: '28px', marginBottom: '10px' }}>🎰</div>
+                  <p style={{
+                    color: SOLANA_COLORS.textPrimary,
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    marginBottom: '6px',
+                    letterSpacing: '0.5px'
+                  }}>DOUBLE OR NOTHING</p>
+                  <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '11px', marginBottom: '8px' }}>2X score or 0!</p>
+                  <p style={{
+                    color: SOLANA_COLORS.warning,
+                    fontSize: '12px',
+                    fontWeight: '700'
+                  }}>2 Credits</p>
                   {state.gameMode === 'doubleOrNothing' && (
-                    <p style={{ color: '#EAB308', fontSize: '10px', marginTop: '4px' }}>✓ Selected</p>
+                    <p style={{ color: SOLANA_COLORS.warning, fontSize: '11px', marginTop: '6px', fontWeight: '600' }}>✓ Selected</p>
                   )}
                 </div>
               </div>
 
               {/* Game Mode Info */}
               <div style={{
-                marginTop: '10px',
-                padding: '10px',
-                background: state.gameMode === 'classic' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)',
-                border: `1px solid ${state.gameMode === 'classic' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
-                borderRadius: '8px',
+                marginTop: '12px',
+                padding: '12px 14px',
+                background: state.gameMode === 'classic'
+                  ? `rgba(20, 241, 149, 0.08)`
+                  : `rgba(251, 146, 60, 0.08)`,
+                border: `1px solid ${state.gameMode === 'classic' ? SOLANA_COLORS.borderGreen : 'rgba(251, 146, 60, 0.2)'}`,
+                borderRadius: '10px',
                 textAlign: 'center'
               }}>
-                <p style={{ color: state.gameMode === 'classic' ? '#10B981' : '#EAB308', fontSize: '11px', margin: 0 }}>
+                <p style={{
+                  color: state.gameMode === 'classic' ? SOLANA_COLORS.green : SOLANA_COLORS.warning,
+                  fontSize: '12px',
+                  margin: 0,
+                  fontWeight: '500'
+                }}>
                   {state.gameMode === 'classic'
                     ? '🏎️ Classic Mode: Your score is saved as normal.'
                     : '🎰 Double or Nothing: Reach Level 5 for 2X score, or score becomes 0!'
@@ -1024,49 +1208,87 @@ const RealLauncherUI = ({ onStartGame }) => {
           {/* Balance Display */}
           {connected && (
             <div style={{
-              marginBottom: '20px',
-              padding: '15px',
-              background: 'linear-gradient(135deg, rgba(153, 69, 255, 0.1), rgba(20, 241, 149, 0.05))',
-              border: '1px solid rgba(153, 69, 255, 0.3)',
-              borderRadius: '12px'
+              marginBottom: '24px',
+              padding: '20px',
+              background: `linear-gradient(135deg, ${SOLANA_COLORS.borderPurple}, ${SOLANA_COLORS.borderGreen})`,
+              border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+              borderRadius: '16px',
+              backdropFilter: 'blur(10px)'
             }}>
+              {/* Section Header */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                marginBottom: '16px'
+              }}>
+                <span style={{ fontSize: '18px' }}>💰</span>
+                <h3 style={{
+                  color: SOLANA_COLORS.textPrimary,
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  margin: 0,
+                  letterSpacing: '1px'
+                }}>
+                  YOUR BALANCE
+                </h3>
+              </div>
+
               {/* Credits */}
-              <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-                <p style={{ color: '#888', fontSize: '12px', marginBottom: '5px' }}>Your Credits</p>
-                <p style={{ color: '#FFD700', fontSize: '32px', fontWeight: 'bold', margin: '0' }}>{state.credits}</p>
+              <div style={{
+                textAlign: 'center',
+                marginBottom: '16px',
+                padding: '16px',
+                background: SOLANA_COLORS.bgPrimary,
+                borderRadius: '12px',
+                border: `1px solid ${SOLANA_COLORS.borderPurple}`
+              }}>
+                <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '12px', marginBottom: '8px' }}>Game Credits</p>
+                <p style={{
+                  background: `linear-gradient(90deg, ${SOLANA_COLORS.purple}, ${SOLANA_COLORS.green})`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  fontSize: '36px',
+                  fontWeight: '800',
+                  margin: '0'
+                }}>{state.credits}</p>
               </div>
 
               {/* Token Balances */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{
-                  padding: '10px',
-                  background: 'rgba(0,0,0,0.2)',
-                  borderRadius: '8px',
-                  textAlign: 'center'
+                  padding: '14px',
+                  background: SOLANA_COLORS.bgPrimary,
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  border: `1px solid ${SOLANA_COLORS.borderGreen}`
                 }}>
-                  <p style={{ color: '#888', fontSize: '10px', marginBottom: '4px' }}>COAL Balance</p>
-                  <p style={{ color: '#14F195', fontSize: '14px', fontWeight: 'bold', margin: 0 }}>
+                  <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '11px', marginBottom: '6px' }}>OILTOWN Balance</p>
+                  <p style={{ color: SOLANA_COLORS.green, fontSize: '16px', fontWeight: '700', margin: 0 }}>
                     {formatTokenAmount(coalBalance)}
                   </p>
                 </div>
                 <div style={{
-                  padding: '10px',
-                  background: 'rgba(0,0,0,0.2)',
-                  borderRadius: '8px',
-                  textAlign: 'center'
+                  padding: '14px',
+                  background: SOLANA_COLORS.bgPrimary,
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  border: `1px solid ${SOLANA_COLORS.borderPurple}`
                 }}>
-                  <p style={{ color: '#888', fontSize: '10px', marginBottom: '4px' }}>SOL Balance</p>
-                  <p style={{ color: '#9945FF', fontSize: '14px', fontWeight: 'bold', margin: 0 }}>
+                  <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '11px', marginBottom: '6px' }}>SOL Balance</p>
+                  <p style={{ color: SOLANA_COLORS.purple, fontSize: '16px', fontWeight: '700', margin: 0 }}>
                     {solBalance.toFixed(4)}
                   </p>
                 </div>
               </div>
 
-              {/* COAL Price */}
+              {/* OILTOWN Price */}
               {coalPrice && (
-                <div style={{ textAlign: 'center', marginTop: '10px' }}>
-                  <p style={{ color: '#666', fontSize: '10px', margin: 0 }}>
-                    COAL Price: {formatPrice(coalPrice)} {priceLoading && '(updating...)'}
+                <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                  <p style={{ color: SOLANA_COLORS.textMuted, fontSize: '11px', margin: 0 }}>
+                    OILTOWN Price: {formatPrice(coalPrice)} {priceLoading && '(updating...)'}
                   </p>
                 </div>
               )}
@@ -1074,61 +1296,78 @@ const RealLauncherUI = ({ onStartGame }) => {
           )}
 
           {/* Credit Packages */}
-          <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ color: '#fff', fontSize: '14px', marginBottom: '12px', textAlign: 'center' }}>
-              Select Credit Package
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              marginBottom: '16px'
+            }}>
+              <span style={{ fontSize: '18px' }}>🎟️</span>
+              <h3 style={{
+                color: SOLANA_COLORS.textPrimary,
+                fontSize: '14px',
+                fontWeight: '600',
+                margin: 0,
+                letterSpacing: '1px'
+              }}>
+                BUY CREDITS
+              </h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
               {[1, 5, 10].map((amount) => {
                 const requiredCoal = getRequiredCoal(amount);
+                const isSelected = state.selectedPackage === amount;
                 return (
                   <div
                     key={amount}
                     onClick={() => !state.isProcessing && connected && handleSelectTicket(amount)}
                     style={{
-                      padding: '15px 10px',
-                      background: state.selectedPackage === amount
-                        ? 'linear-gradient(135deg, #FFD700, #B8860B)'
-                        : 'rgba(45, 45, 70, 0.5)',
-                      border: state.selectedPackage === amount
-                        ? '2px solid #FFD700'
-                        : '2px solid rgba(100, 100, 120, 0.3)',
-                      borderRadius: '10px',
+                      padding: '18px 12px',
+                      background: isSelected
+                        ? `linear-gradient(135deg, ${SOLANA_COLORS.purple}, ${SOLANA_COLORS.purpleDark})`
+                        : SOLANA_COLORS.bgCardHover,
+                      border: isSelected
+                        ? `2px solid ${SOLANA_COLORS.purple}`
+                        : `1px solid ${SOLANA_COLORS.borderPurple}`,
+                      borderRadius: '14px',
                       cursor: (!connected || state.isProcessing) ? 'not-allowed' : 'pointer',
                       textAlign: 'center',
                       opacity: (!connected || state.isProcessing) ? 0.5 : 1,
                       transition: 'all 0.3s ease',
-                      transform: state.selectedPackage === amount ? 'scale(1.05)' : 'scale(1)'
+                      transform: isSelected ? 'scale(1.03)' : 'scale(1)',
+                      boxShadow: isSelected ? `0 0 25px ${SOLANA_COLORS.glowPurple}` : 'none'
                     }}
                   >
                     <p style={{
-                      color: state.selectedPackage === amount ? '#000' : '#fff',
-                      fontSize: '24px',
-                      fontWeight: 'bold',
+                      color: isSelected ? '#fff' : SOLANA_COLORS.textPrimary,
+                      fontSize: '28px',
+                      fontWeight: '800',
                       marginBottom: '4px'
                     }}>
                       {amount}
                     </p>
                     <p style={{
-                      color: state.selectedPackage === amount ? '#000' : '#888',
-                      fontSize: '10px',
-                      marginBottom: '6px'
+                      color: isSelected ? 'rgba(255,255,255,0.8)' : SOLANA_COLORS.textSecondary,
+                      fontSize: '11px',
+                      marginBottom: '8px'
                     }}>
                       credit{amount > 1 ? 's' : ''}
                     </p>
                     <p style={{
-                      color: state.selectedPackage === amount ? '#000' : '#14F195',
-                      fontSize: '11px',
-                      fontWeight: '600'
+                      color: isSelected ? SOLANA_COLORS.green : SOLANA_COLORS.green,
+                      fontSize: '13px',
+                      fontWeight: '700'
                     }}>
                       ${amount}
                     </p>
                     <p style={{
-                      color: state.selectedPackage === amount ? 'rgba(0,0,0,0.6)' : '#888',
-                      fontSize: '9px',
-                      marginTop: '4px'
+                      color: isSelected ? 'rgba(255,255,255,0.6)' : SOLANA_COLORS.textMuted,
+                      fontSize: '10px',
+                      marginTop: '6px'
                     }}>
-                      ~{requiredCoal ? formatTokenAmount(requiredCoal) : '...'} COAL
+                      ~{requiredCoal ? formatTokenAmount(requiredCoal) : '...'} OIL
                     </p>
                   </div>
                 );
@@ -1139,27 +1378,29 @@ const RealLauncherUI = ({ onStartGame }) => {
           {/* Pending Transaction */}
           {state.pendingTxHash && (
             <div style={{
-              marginBottom: '15px',
-              padding: '15px',
-              background: 'rgba(234, 179, 8, 0.1)',
-              border: '1px solid rgba(234, 179, 8, 0.3)',
-              borderRadius: '10px',
+              marginBottom: '20px',
+              padding: '18px',
+              background: `rgba(251, 146, 60, 0.1)`,
+              border: `1px solid rgba(251, 146, 60, 0.3)`,
+              borderRadius: '14px',
               textAlign: 'center'
             }}>
-              <p style={{ color: '#EAB308', fontSize: '12px', marginBottom: '10px' }}>
+              <p style={{ color: SOLANA_COLORS.warning, fontSize: '13px', marginBottom: '12px', fontWeight: '500' }}>
                 {state.isProcessing ? '⏳ Waiting for confirmation...' : '⚠️ Pending transaction'}
               </p>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => window.open(getExplorerUrl(state.pendingTxHash), '_blank')}
                   style={{
-                    padding: '8px 15px',
-                    background: '#3B82F6',
+                    padding: '10px 18px',
+                    background: `linear-gradient(135deg, ${SOLANA_COLORS.purple}, ${SOLANA_COLORS.purpleDark})`,
                     border: 'none',
-                    borderRadius: '6px',
+                    borderRadius: '10px',
                     color: '#fff',
-                    fontSize: '11px',
-                    cursor: 'pointer'
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
                   }}
                 >
                   View on Solscan
@@ -1171,13 +1412,15 @@ const RealLauncherUI = ({ onStartGame }) => {
                   }}
                   disabled={state.isProcessing}
                   style={{
-                    padding: '8px 15px',
-                    background: state.isProcessing ? '#3D3D5C' : '#EAB308',
+                    padding: '10px 18px',
+                    background: state.isProcessing ? SOLANA_COLORS.bgCardHover : SOLANA_COLORS.warning,
                     border: 'none',
-                    borderRadius: '6px',
-                    color: state.isProcessing ? '#666' : '#000',
-                    fontSize: '11px',
-                    cursor: state.isProcessing ? 'not-allowed' : 'pointer'
+                    borderRadius: '10px',
+                    color: state.isProcessing ? SOLANA_COLORS.textMuted : '#000',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: state.isProcessing ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.3s ease'
                   }}
                 >
                   Check Status
@@ -1194,25 +1437,26 @@ const RealLauncherUI = ({ onStartGame }) => {
                 disabled={state.isProcessing}
                 style={{
                   width: '100%',
-                  padding: '16px',
-                  borderRadius: '12px',
+                  padding: '18px',
+                  borderRadius: '14px',
                   border: 'none',
                   fontSize: '18px',
-                  fontWeight: 'bold',
-                  marginBottom: '12px',
+                  fontWeight: '700',
+                  marginBottom: '14px',
                   cursor: state.isProcessing ? 'not-allowed' : 'pointer',
                   background: state.isProcessing
-                    ? '#3D3D5C'
-                    : 'linear-gradient(135deg, #10B981, #059669)',
-                  color: state.isProcessing ? '#666' : '#fff',
-                  boxShadow: state.isProcessing ? 'none' : '0 0 25px rgba(16, 185, 129, 0.4)',
-                  transition: 'all 0.3s ease'
+                    ? SOLANA_COLORS.bgCardHover
+                    : `linear-gradient(135deg, ${SOLANA_COLORS.green}, ${SOLANA_COLORS.greenDark})`,
+                  color: state.isProcessing ? SOLANA_COLORS.textMuted : '#fff',
+                  boxShadow: state.isProcessing ? 'none' : `0 0 30px ${SOLANA_COLORS.glowGreen}`,
+                  transition: 'all 0.3s ease',
+                  letterSpacing: '1px'
                 }}
               >
                 {state.isProcessing ? '⏳ Processing...' : '▶ START GAME'}
               </button>
 
-              <p style={{ color: '#888', fontSize: '12px', textAlign: 'center', marginBottom: '10px' }}>
+              <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '12px', textAlign: 'center', marginBottom: '12px' }}>
                 Or purchase more credits:
               </p>
 
@@ -1221,20 +1465,22 @@ const RealLauncherUI = ({ onStartGame }) => {
                 disabled={!state.selectedPackage || state.isProcessing}
                 style={{
                   width: '100%',
-                  padding: '14px',
-                  borderRadius: '10px',
+                  padding: '16px',
+                  borderRadius: '12px',
                   border: 'none',
                   fontSize: '14px',
-                  fontWeight: 'bold',
+                  fontWeight: '700',
                   cursor: (!state.selectedPackage || state.isProcessing) ? 'not-allowed' : 'pointer',
                   background: (!state.selectedPackage || state.isProcessing)
-                    ? '#3D3D5C'
-                    : 'linear-gradient(135deg, #FFD700, #B8860B)',
-                  color: (!state.selectedPackage || state.isProcessing) ? '#666' : '#000',
-                  transition: 'all 0.3s ease'
+                    ? SOLANA_COLORS.bgCardHover
+                    : `linear-gradient(135deg, ${SOLANA_COLORS.purple}, ${SOLANA_COLORS.green})`,
+                  color: (!state.selectedPackage || state.isProcessing) ? SOLANA_COLORS.textMuted : '#fff',
+                  transition: 'all 0.3s ease',
+                  boxShadow: (!state.selectedPackage || state.isProcessing) ? 'none' : `0 4px 20px ${SOLANA_COLORS.glowPurple}`,
+                  letterSpacing: '0.5px'
                 }}
               >
-                {!state.selectedPackage ? 'Select a Package' : 'Purchase Credits with COAL'}
+                {!state.selectedPackage ? 'Select a Package' : 'Purchase Credits with OILTOWN'}
               </button>
             </>
           ) : (
@@ -1243,17 +1489,19 @@ const RealLauncherUI = ({ onStartGame }) => {
               disabled={!connected || !state.selectedPackage || state.isProcessing}
               style={{
                 width: '100%',
-                padding: '16px',
-                borderRadius: '12px',
+                padding: '18px',
+                borderRadius: '14px',
                 border: 'none',
                 fontSize: '16px',
-                fontWeight: 'bold',
+                fontWeight: '700',
                 cursor: (!connected || !state.selectedPackage || state.isProcessing) ? 'not-allowed' : 'pointer',
                 background: (!connected || !state.selectedPackage || state.isProcessing)
-                  ? '#3D3D5C'
-                  : 'linear-gradient(135deg, #FFD700, #B8860B)',
-                color: (!connected || !state.selectedPackage || state.isProcessing) ? '#666' : '#000',
-                transition: 'all 0.3s ease'
+                  ? SOLANA_COLORS.bgCardHover
+                  : `linear-gradient(135deg, ${SOLANA_COLORS.purple} 0%, ${SOLANA_COLORS.green} 100%)`,
+                color: (!connected || !state.selectedPackage || state.isProcessing) ? SOLANA_COLORS.textMuted : '#fff',
+                transition: 'all 0.3s ease',
+                boxShadow: (!connected || !state.selectedPackage || state.isProcessing) ? 'none' : `0 4px 25px ${SOLANA_COLORS.glowPurple}`,
+                letterSpacing: '1px'
               }}
             >
               {state.isProcessing ? '⏳ Processing...'
@@ -1264,31 +1512,51 @@ const RealLauncherUI = ({ onStartGame }) => {
           )}
 
           {/* Status Message */}
-          <p style={{ color: '#888', fontSize: '11px', textAlign: 'center', marginTop: '15px' }}>
+          <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '12px', textAlign: 'center', marginTop: '18px' }}>
             {state.statusMessage}
           </p>
 
           {/* How to start info */}
           <div style={{
-            marginTop: '20px',
-            padding: '15px',
-            background: 'rgba(45, 45, 70, 0.3)',
-            borderRadius: '10px',
-            border: '1px solid rgba(100, 100, 120, 0.2)'
+            marginTop: '24px',
+            padding: '18px',
+            background: SOLANA_COLORS.bgCardHover,
+            borderRadius: '14px',
+            border: `1px solid ${SOLANA_COLORS.borderPurple}`
           }}>
-            <p style={{ color: '#888', fontSize: '11px', textAlign: 'center', marginBottom: '8px' }}>
+            <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '12px', textAlign: 'center', marginBottom: '12px', fontWeight: '500' }}>
               ℹ️ How to start game:
             </p>
-            <ol style={{ color: '#C4C4C4', fontSize: '11px', margin: 0, paddingLeft: '20px' }}>
+            <ol style={{ color: SOLANA_COLORS.textSecondary, fontSize: '12px', margin: 0, paddingLeft: '20px', lineHeight: '1.8' }}>
               <li>Connect your Solana wallet (Phantom/Solflare)</li>
               <li>Select game mode</li>
-              <li>Purchase credits with COAL tokens</li>
+              <li>Purchase credits with OILTOWN tokens</li>
               <li>Start racing!</li>
             </ol>
-            <p style={{ color: '#14F195', fontSize: '11px', textAlign: 'center', marginTop: '10px' }}>
-              💰 Payments are made with COAL tokens (Solana)
+            <p style={{ color: SOLANA_COLORS.green, fontSize: '12px', textAlign: 'center', marginTop: '14px', fontWeight: '500' }}>
+              💰 Payments are made with OILTOWN tokens (Solana)
             </p>
           </div>
+        </div>
+
+        {/* Network indicator */}
+        <div style={{
+          marginTop: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: SOLANA_COLORS.green,
+            boxShadow: `0 0 10px ${SOLANA_COLORS.green}`,
+            animation: 'pulse 2s infinite'
+          }} />
+          <span style={{ color: SOLANA_COLORS.textMuted, fontSize: '12px' }}>
+            Connected to Solana Mainnet
+          </span>
         </div>
       </div>
 
@@ -1298,7 +1566,8 @@ const RealLauncherUI = ({ onStartGame }) => {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.8)',
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1309,14 +1578,15 @@ const RealLauncherUI = ({ onStartGame }) => {
         >
           <div
             style={{
-              background: 'linear-gradient(180deg, #1A1A2E 0%, #12121F 100%)',
-              borderRadius: '16px',
-              border: '2px solid rgba(153, 69, 255, 0.3)',
-              padding: '24px',
-              maxWidth: '400px',
+              background: `linear-gradient(180deg, ${SOLANA_COLORS.bgCard} 0%, ${SOLANA_COLORS.bgSecondary} 100%)`,
+              borderRadius: '20px',
+              border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+              padding: '28px',
+              maxWidth: '420px',
               width: '100%',
               maxHeight: '80vh',
-              overflowY: 'auto'
+              overflowY: 'auto',
+              boxShadow: `0 25px 80px rgba(0, 0, 0, 0.5), 0 0 40px ${SOLANA_COLORS.glowPurple}`
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1324,28 +1594,36 @@ const RealLauncherUI = ({ onStartGame }) => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '20px'
+              marginBottom: '24px'
             }}>
-              <h3 style={{ color: '#fff', fontSize: '18px', margin: 0 }}>
-                Select Wallet
+              <h3 style={{
+                color: SOLANA_COLORS.textPrimary,
+                fontSize: '20px',
+                fontWeight: '700',
+                margin: 0,
+                letterSpacing: '1px'
+              }}>
+                SELECT WALLET
               </h3>
               <button
                 onClick={() => setWalletModalOpen(false)}
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#888',
-                  fontSize: '24px',
+                  background: SOLANA_COLORS.bgCardHover,
+                  border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+                  color: SOLANA_COLORS.textSecondary,
+                  fontSize: '20px',
                   cursor: 'pointer',
-                  padding: '0',
-                  lineHeight: 1
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  lineHeight: 1,
+                  transition: 'all 0.2s ease'
                 }}
               >
                 ×
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {(walletModalConfig?.wallets || wallets || []).map((wallet) => (
                 <button
                   key={wallet.adapter.name}
@@ -1353,58 +1631,60 @@ const RealLauncherUI = ({ onStartGame }) => {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px',
-                    padding: '14px 16px',
-                    background: 'rgba(45, 45, 70, 0.5)',
-                    border: '1px solid rgba(100, 100, 120, 0.3)',
-                    borderRadius: '12px',
+                    gap: '14px',
+                    padding: '16px 18px',
+                    background: SOLANA_COLORS.bgCardHover,
+                    border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+                    borderRadius: '14px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
+                    transition: 'all 0.3s ease',
                     width: '100%'
                   }}
                   onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(153, 69, 255, 0.2)';
-                    e.currentTarget.style.borderColor = 'rgba(153, 69, 255, 0.5)';
+                    e.currentTarget.style.background = `rgba(153, 69, 255, 0.15)`;
+                    e.currentTarget.style.borderColor = SOLANA_COLORS.purple;
+                    e.currentTarget.style.boxShadow = `0 0 20px ${SOLANA_COLORS.glowPurple}`;
                   }}
                   onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'rgba(45, 45, 70, 0.5)';
-                    e.currentTarget.style.borderColor = 'rgba(100, 100, 120, 0.3)';
+                    e.currentTarget.style.background = SOLANA_COLORS.bgCardHover;
+                    e.currentTarget.style.borderColor = SOLANA_COLORS.borderPurple;
+                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
                   {wallet.adapter.icon && (
                     <img
                       src={wallet.adapter.icon}
                       alt={wallet.adapter.name}
-                      style={{ width: '32px', height: '32px', borderRadius: '8px' }}
+                      style={{ width: '36px', height: '36px', borderRadius: '10px' }}
                     />
                   )}
                   <div style={{ textAlign: 'left', flex: 1 }}>
-                    <p style={{ color: '#fff', fontSize: '14px', fontWeight: '600', margin: 0 }}>
+                    <p style={{ color: SOLANA_COLORS.textPrimary, fontSize: '15px', fontWeight: '600', margin: 0 }}>
                       {wallet.adapter.name}
                     </p>
                     {wallet.readyState === 'Installed' && (
-                      <p style={{ color: '#14F195', fontSize: '11px', margin: '2px 0 0 0' }}>
-                        Detected
+                      <p style={{ color: SOLANA_COLORS.green, fontSize: '11px', margin: '4px 0 0 0', fontWeight: '500' }}>
+                        ✓ Detected
                       </p>
                     )}
                   </div>
-                  <span style={{ color: '#9945FF', fontSize: '18px' }}>→</span>
+                  <span style={{ color: SOLANA_COLORS.purple, fontSize: '20px' }}>→</span>
                 </button>
               ))}
             </div>
 
             <p style={{
-              color: '#888',
-              fontSize: '11px',
+              color: SOLANA_COLORS.textMuted,
+              fontSize: '12px',
               textAlign: 'center',
-              marginTop: '16px'
+              marginTop: '20px'
             }}>
               New to Solana?{' '}
               <a
                 href="https://phantom.app/"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: '#9945FF' }}
+                style={{ color: SOLANA_COLORS.purple, fontWeight: '500' }}
               >
                 Get Phantom Wallet
               </a>
@@ -1415,10 +1695,21 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       {/* Custom Scrollbar Styles */}
       <style>{`
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0D0D14; }
-        ::-webkit-scrollbar-thumb { background: #3D3D5C; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #5D5D8C; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: ${SOLANA_COLORS.bgPrimary}; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, ${SOLANA_COLORS.purple}, ${SOLANA_COLORS.green});
+          border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover { opacity: 0.8; }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
       `}</style>
     </div>
   );
