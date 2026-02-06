@@ -270,7 +270,7 @@ export const useGameStore = create((set, get) => ({
     }
 
     set({
-      gameState: 'menu',
+      gameState: 'launcher',
       gameOver: false,
       score: 0,
       speed: 0,

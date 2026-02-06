@@ -28,9 +28,9 @@ interface UseCreditRequest {
   amount?: number; // Default: 1
 }
 
-// Validation helper
-const isValidEthAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+// Validation helper - Solana addresses are base58 encoded, 32-44 characters
+const isValidSolanaAddress = (address: string): boolean => {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
 };
 
 serve(async (req) => {
@@ -50,7 +50,7 @@ serve(async (req) => {
     const { walletAddress, amount = 1 }: UseCreditRequest = await req.json();
 
     // Validate input
-    if (!walletAddress || !isValidEthAddress(walletAddress)) {
+    if (!walletAddress || !isValidSolanaAddress(walletAddress)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid wallet address format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
