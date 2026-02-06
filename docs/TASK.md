@@ -1,10 +1,26 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-02-06 (v2 - Kapsamli Analiz Sonrasi)
+> Son guncelleme: 2026-02-06 (v3 - Kritik Bug Duzeltmeleri)
 
 ---
 
 ## Tamamlanan Gorevler
+
+### 2026-02-06: Kritik Bug Duzeltmeleri (Faz 0)
+
+#### Bug #1: use-credit Ethereum Dogrulama - DUZELTILDI
+- [x] `isValidEthAddress` -> `isValidSolanaAddress` olarak degistirildi
+- [x] Regex: `/^0x[a-fA-F0-9]{40}$/` -> `/^[1-9A-HJ-NP-Za-km-z]{32,44}$/`
+- [x] Fonksiyon adi ve cagri noktasi guncellendi
+- [x] Build basarili
+
+#### Bug #2: quitGame() 'menu' State - DUZELTILDI
+- [x] `store.js:273` - `'menu'` -> `'launcher'` olarak degistirildi
+- [x] Build basarili
+
+#### Bug #3: RainbowKit CSS Import - DUZELTILDI
+- [x] `index.html` - RainbowKit CSS import satiri kaldirildi
+- [x] Build basarili
 
 ### 2026-02-06: Proje Kesfetme ve Dokumantasyon (v2)
 
@@ -129,9 +145,9 @@ Eksik: RealLauncherUI'nin detayli UI bilesenleri (64KB dosya, cok buyuk)
 
 ## Sonraki Adimlar (Oncelik Sirasina Gore)
 
-1. **ACIL: Bug #1 duzelt** - use-credit Ethereum -> Solana dogrulama
-2. **ACIL: Bug #2 duzelt** - quitGame() 'menu' -> 'launcher'
-3. **ACIL: Bug #3 duzelt** - RainbowKit CSS kaldir
+1. ~~**ACIL: Bug #1 duzelt** - use-credit Ethereum -> Solana dogrulama~~ TAMAMLANDI
+2. ~~**ACIL: Bug #2 duzelt** - quitGame() 'menu' -> 'launcher'~~ TAMAMLANDI
+3. ~~**ACIL: Bug #3 duzelt** - RainbowKit CSS kaldir~~ TAMAMLANDI
 4. **Test altyapisi kur** - Vitest + store.js testleri
 5. **RLS politikalarini sikistir** - wallet bazli erisim kurallari
 6. **Sunucu tarafli skor dogrulama** - anti-cheat Edge Function

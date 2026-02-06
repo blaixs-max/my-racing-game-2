@@ -8,17 +8,16 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 
 ## Faz 0: ACIL - Kritik Bug Duzeltmeleri (Oncelik: ACIL)
 
-### 0.1 use-credit Edge Function Bug
-- [ ] `isValidEthAddress` Ethereum regex'ini `isValidSolanaAddress` ile degistir
-- [ ] Regex: `/^[1-9A-HJ-NP-Za-km-z]{32,44}$/` (base58, 32-44 karakter)
+### 0.1 use-credit Edge Function Bug - TAMAMLANDI
+- [x] `isValidEthAddress` Ethereum regex'ini `isValidSolanaAddress` ile degistirildi
+- [x] Regex: `/^[1-9A-HJ-NP-Za-km-z]{32,44}$/` (base58, 32-44 karakter)
 - [ ] Test: gecerli Solana adresleri kabul edilmeli, gecersiz adresler reddedilmeli
 
-### 0.2 quitGame() State Bug
-- [ ] `store.js`'te `quitGame()` icindeki `'menu'` state'ini `'launcher'` ile degistir
-- [ ] Veya App.jsx'te `'menu'` state icin render ekle
+### 0.2 quitGame() State Bug - TAMAMLANDI
+- [x] `store.js`'te `quitGame()` icindeki `'menu'` state'i `'launcher'` ile degistirildi
 
-### 0.3 Kullanilmayan Import Temizligi
-- [ ] `index.html`'den RainbowKit CSS import'unu kaldir (BNB Chain artigi)
+### 0.3 Kullanilmayan Import Temizligi - TAMAMLANDI
+- [x] `index.html`'den RainbowKit CSS import'u kaldirildi
 
 ---
 
@@ -172,8 +171,8 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 
 | Alan | Aciklama | Oncelik |
 |------|----------|---------|
-| **KRITIK BUG** | use-credit Ethereum adresi dogruluyor (Solana degil) | ACIL |
-| **KRITIK BUG** | quitGame() 'menu' state -> bos ekran | ACIL |
+| ~~KRITIK BUG~~ | ~~use-credit Ethereum adresi dogruluyor~~ DUZELTILDI | ~~ACIL~~ |
+| ~~KRITIK BUG~~ | ~~quitGame() 'menu' state -> bos ekran~~ DUZELTILDI | ~~ACIL~~ |
 | Test yok | Hicbir test mevcut degil | Kritik |
 | TypeScript yok | Tip guvenligi eksik | Yuksek |
 | RLS politikalari | Tum tablolarda USING(true) - herkes her seye erisebilir | Yuksek |
