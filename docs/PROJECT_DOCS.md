@@ -1,10 +1,10 @@
-# Lumexia Racing Game - Proje Dokumantasyonu
+# Lumexia Racing Game - Proje Dokumantasyonu (v2 - Kapsamli)
 
 ## Genel Bakis
 
-Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D tarayici tabanli bir araba yarisi oyunudur. Oyuncular kripto cuzdan baglayarak kredi satin alir, trafik arasinda slalom yaparak puan toplar ve liderlik tablosunda yarisbilirler.
+Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D tarayici tabanli bir araba yarisi oyunudur. Oyuncular kripto cuzdan baglayarak kredi satin alir, trafik arasinda slalom yaparak puan toplar ve liderlik tablosunda yarisirler.
 
-**Canli URL:** Netlify uzerinden deploy ediliyor
+**Canli URL:** Netlify uzerinden deploy ediliyor (lumexia.net)
 **Veritabani:** Supabase (PostgreSQL)
 **Blockchain:** Solana Mainnet-Beta
 
@@ -19,7 +19,8 @@ Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D ta
 | Vite | 7.2.4 | Build araci (ESM, HMR) |
 | Three.js | 0.181.2 | 3D rendering |
 | @react-three/fiber | 9.4.0 | React Three.js renderer |
-| @react-three/drei | 10.7.7 | 3D yardimci bilesenler |
+| @react-three/drei | 10.7.7 | 3D yardimci bilesenler (Stars, useGLTF, useProgress, useTexture, PerspectiveCamera) |
+| @react-three/postprocessing | 3.0.4 | Post-processing efektler (su an devre disi) |
 | @react-three/rapier | 2.2.0 | Fizik motoru wrapper |
 | Rapier3D | 0.19.3 | WebAssembly fizik motoru |
 | Zustand | 5.0.8 | State management |
@@ -29,15 +30,17 @@ Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D ta
 ### Blockchain (Solana)
 | Teknoloji | Amac |
 |-----------|------|
-| @solana/web3.js 1.98.4 | Solana blockchain etklesimi |
-| @solana/wallet-adapter-react | Cuzdan baglanti saglayicisi |
-| @solana/spl-token | SPL token transferleri |
+| @solana/web3.js 1.98.4 | Solana blockchain etkilesimi |
+| @solana/wallet-adapter-react 0.15.39 | Cuzdan baglanti saglayicisi |
+| @solana/wallet-adapter-react-ui 0.9.39 | Cuzdan UI bilesenleri |
+| @solana/wallet-adapter-wallets 0.19.37 | Coklu cuzdan destegi |
+| @solana/spl-token 0.4.14 | SPL token transferleri |
 | Desteklenen Cuzdanlar | Phantom, Solflare, Coinbase, Trust |
 
 ### Backend
 | Teknoloji | Amac |
 |-----------|------|
-| Supabase | PostgreSQL veritabani + Edge Functions |
+| Supabase | PostgreSQL veritabani + Edge Functions (Deno/TypeScript) |
 | Netlify | Hosting ve CI/CD |
 
 ---
@@ -48,45 +51,50 @@ Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D ta
 my-racing-game-2/
 ├── src/
 │   ├── App.jsx              # Ana oyun bileseni (~2464 satir)
-│   ├── App.css              # Oyun stilleri
+│   ├── App.css              # Oyun stilleri (minimal, #root container)
 │   ├── main.jsx             # Giris noktasi (Solana wallet provider)
-│   ├── index.css            # Global stiller
+│   ├── index.css            # Global stiller (Inter font, Tailwind directives)
 │   ├── store.js             # Zustand state yonetimi (~796 satir)
-│   ├── solana.config.js     # Solana yapilandirmasi
+│   ├── solana.config.js     # Solana yapilandirmasi (token, RPC, odeme)
 │   ├── assets/
-│   │   ├── coin_logo.png    # HUD coin ikonu
+│   │   ├── coin_logo.png    # HUD coin ikonu (HUD'da ve SpinningCoin'de kullanilir)
 │   │   └── react.svg
 │   ├── components/
-│   │   ├── RealLauncherUI.jsx      # Oyun baslangic ekrani & cuzdan arayuzu
-│   │   ├── GameOverUI.jsx          # Oyun bitis ekrani
-│   │   ├── AdvancedParticles.jsx   # Parcacik efekt sistemi
+│   │   ├── RealLauncherUI.jsx      # Oyun baslangic ekrani & cuzdan arayuzu (~64KB)
+│   │   ├── GameOverUI.jsx          # Oyun bitis ekrani (~420 satir)
+│   │   ├── AdvancedParticles.jsx   # Nitro boost parcacik sistemi
 │   │   ├── PhysicsWorld.jsx        # Rapier3D fizik wrapper
-│   │   └── PostProcessing.jsx      # Post-processing (su an devre disi)
+│   │   └── PostProcessing.jsx      # Post-processing (DEVRE DISI - returns null)
 │   └── utils/
-│       ├── supabaseClient.js       # Veritabani islemleri
-│       ├── solanaWallet.js         # Token transfer & bakiye kontrol
-│       └── jupiterPrice.js         # Token fiyat API entegrasyonu
+│       ├── supabaseClient.js       # Veritabani islemleri (getOrCreateUser, getUserCredits, useCredit)
+│       ├── solanaWallet.js         # Token transfer & bakiye kontrol (getCoalBalance, transferCoalToken)
+│       └── jupiterPrice.js         # Token fiyat API (DexScreener + Jupiter fallback)
 ├── public/
+│   ├── Lumexia.jpg                 # Loading screen banner
+│   ├── Lumexia.png                 # Branding asset
 │   └── models/
-│       ├── sport_car.glb           # Oyuncu araci (F1)
-│       ├── ferrari.glb             # Dusman: sport araba
-│       ├── truck.glb               # Dusman: kamyon
+│       ├── sport_car.glb           # Oyuncu araci (F1, scale: 0.16)
+│       ├── ferrari.glb             # Dusman: sport araba (scale: 1.21)
+│       ├── truck.glb               # Dusman: kamyon (scale: 1.678)
 │       ├── suv.glb                 # Dusman: SUV
-│       ├── Car1/scene.gltf         # Dusman: sedan
-│       ├── Car 2/scene.gltf        # Dusman: SUV (GLTF)
-│       ├── Car 3/scene.gltf        # Dusman: pikap/taksi
-│       ├── coin.glb                # Toplanabilir altin
-│       └── tree.glb                # Cevre agaci
+│       ├── Car1/scene.gltf         # Dusman: sedan (GLTF + texturler)
+│       ├── Car 2/scene.gltf        # Dusman: SUV (scale: 1.53)
+│       ├── Car 3/scene.gltf        # Dusman: pikap/taksi (scale: 1.35)
+│       ├── coin.glb                # Toplanabilir altin (kullanilmiyor, SpinningCoin procedurel)
+│       └── tree.glb                # Cevre agaci (scale: 2.5)
 ├── supabase/
 │   ├── functions/
-│   │   ├── verify-payment/index.ts # Odeme dogrulama Edge Function
-│   │   └── use-credit/index.ts     # Kredi dusme Edge Function
-│   └── migrations/
-├── supabase-schema.sql             # Veritabani semasi
-├── supabase-functions.sql          # Stored procedure'ler
-├── vite.config.js                  # Build yapilandirmasi
+│   │   ├── verify-payment/index.ts # Odeme dogrulama Edge Function (TypeScript/Deno)
+│   │   └── use-credit/index.ts     # Kredi dusme Edge Function (KRITIK BUG MEVCUT)
+│   ├── migrations/
+│   │   └── 20241216_add_token_fields.sql
+│   └── rls-security-update.sql
+├── supabase-schema.sql             # Veritabani semasi (6 tablo + 1 view)
+├── supabase-functions.sql          # Stored procedure'ler (submit_score, triggers, cron)
+├── vite.config.js                  # Build yapilandirmasi (code splitting, terser)
 ├── netlify.toml                    # Deploy yapilandirmasi
-├── tailwind.config.js              # Tailwind CSS yapilandirmasi
+├── tailwind.config.js              # Tailwind CSS yapilandirmasi (Inter font)
+├── index.html                      # HTML giris (FontAwesome CDN, RainbowKit CSS artigi)
 └── .env.example                    # Ortam degiskenleri sablonu
 ```
 
@@ -100,173 +108,538 @@ loading -> launcher -> countdown (5sn) -> playing -> gameover
                                                       |
                                                       v
                                                    launcher
+
+Not: store.js'te quitGame() fonksiyonu 'menu' state'ini kullaniyor
+     ancak App.jsx'te 'menu' state'i icin render yok. Bu bir BUG.
 ```
 
 | Durum | Aciklama |
 |-------|----------|
-| `loading` | Ilk yukleme, 3D modeller preload ediliyor |
-| `launcher` | Ana menu: mod secimi, kredi satin alma, cuzdan baglama |
-| `countdown` | 5 saniye geri sayim |
-| `playing` | Aktif oyun - 60fps frame dongusu |
-| `gameover` | Carpma/bitis ekrani, skor kaydi |
+| `loading` | Ilk yukleme, 3D modeller preload (%90'da baslar), Lumexia.jpg banner gosterilir |
+| `launcher` | Ana menu: mod secimi, kredi satin alma, cuzdan baglama (RealLauncherUI) |
+| `countdown` | 5 saniye geri sayim + shader warmup (modeller gorünmez sahneye render edilir) |
+| `playing` | Aktif oyun - 60fps frame dongusu, Canvas aktif |
+| `gameover` | Carpma/bitis ekrani, skor Supabase'e kaydedilir (3 retry ile) |
+| `menu` | **BUG**: quitGame() bunu ayarlar ama App.jsx'te render yok |
 
-### Ana Bilesenler
-
-#### 1. State Management (`store.js`)
-- **Zustand** ile merkezi state yonetimi
-- Oyun durumu, skor, dusmanlar, coinler
-- Web Audio API ile ses sentezi (crash, coin, near-miss)
-- Kredi dusme sistemi
-- Iki oyun modu: `classic` ve `doubleOrNothing`
-
-#### 2. Oyuncu Arabasi (PlayerCar)
-- 3D Model: `sport_car.glb` (F1 araci, scale: 0.16)
-- Kontroller: Klavye (A/D) veya dokunmatik ekran
-- Nitro boost sistemi (SPACE veya buton)
-- Hareket: Position-based, lerp ile yumusak gecis
-- Carpisma algilama: AABB kutu carpisma
-
-#### 3. Trafik Sistemi (Traffic)
-- 5 arac tipi: truck, suv, sedan, sport, muscle
-- 3 seritli yol: sol (-4.5), orta (0), sag (+4.5)
-- Serit degistirme davranisi
-- Seviye bazli zorluk: her 1000 birim mesafede seviye artar
-- Her seviyede %10 hiz artisi
-
-#### 4. Coin Sistemi
-- Rastgele spawn, seritlerde dagitim
-- Toplama: +100 puan
-- Carpisma algilama: dx < 2.0, dz < 2.5
-
-#### 5. Parcacik Sistemi (GPU Instanced)
-- Kivilcim parcaciklari (sari) - max 50
-- Patlama parcaciklari (turuncu) - max 50
-- Nitro boost efekti
-- InstancedMesh ile GPU optimizasyonu
-
-### Skor Sistemi
-- **Mesafe puani:** `speed * delta * 0.2` (surekli)
-- **Coin toplama:** +100 puan
-- **Near Miss:** +500 * combo carpani
-- **Combo:** Art arda near miss ile artar (max 10x)
-- **Seviye:** Her 1000 birim mesafede +1
-
-### Fizik Ayarlari
-- Gravity: [0, -9.81, 0]
-- 4 solver iterasyonu
-- Surekli carpisma algilama (CCD)
+### Giris Noktasi Akisi
+1. `index.html` → FontAwesome CDN yukler
+2. `main.jsx` → SolanaWalletProvider (Phantom, Solflare, Coinbase, Trust) → `<App />`
+3. `App.jsx` → ErrorBoundary icinde gameState'e gore render:
+   - `loading` → LoadingScreen (progress bar, Lumexia.jpg)
+   - `launcher` → RealLauncherUI
+   - `countdown/playing` → Game (Canvas + HUD)
+   - `gameover` → GameOverUI
+4. Viewport meta tag'leri dinamik olarak ayarlanir (zoom engelleme, safe-area-inset)
 
 ---
 
-## Blockchain Entegrasyonu
+## State Yonetimi (store.js - 796 satir)
 
-### Token Bilgileri
-- **Token:** OILTOWN
-- **Mint Adresi:** `AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump`
-- **Decimal:** 6
-- **Ag:** Solana Mainnet-Beta
+### Tum State Degiskenleri
+```javascript
+gameState: 'loading',     // Oyun durumu
+countdown: 3,             // Geri sayim
+speed: 0,                 // Mevcut hiz (km/h)
+targetSpeed: 60,          // Hedef hiz
+currentX: 0,              // Oyuncu X pozisyonu
+targetX: 0,               // Hedef X pozisyonu
+score: 0,                 // Toplam skor
+combo: 1,                 // Near miss combo carpani (max 10)
+gameOver: false,           // Oyun bitti mi
+enemies: [],               // Dusman arac dizisi
+coins: [],                 // Coin dizisi
+particles: [],             // Parcacik dizisi
+message: "",               // Ekran mesaji
+cameraShake: 0,            // Kamera sarsinti
+totalDistance: 0,           // Toplam mesafe
+nearMissCount: 0,          // Near miss sayisi
+startTime: 0,              // Oyun baslangic zamani (Date.now())
+currentLevel: 1,           // Mevcut seviye
+lastLevelUpDistance: 0,     // Son level-up mesafesi
 
-### Odeme Akisi
-1. Kullanici cuzdanini baglar
-2. Kredi paketi secer ($1, $5, $10)
-3. Token fiyati DexScreener/Jupiter'den cekilir
-4. OILTOWN token transferi yapilir
-5. `verify-payment` Edge Function ile dogrulanir
-6. Kredi kullanici hesabina eklenir
+// Nitro Sistemi
+nitro: 100,                // Mevcut nitro (0-100)
+maxNitro: 100,             // Maksimum nitro
+isNitroActive: false,      // Nitro aktif mi
+nitroRegenRate: 5,         // Saniyede nitro yenileme orani
 
-### Alici Cuzdan
-`T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg`
+selectedCar: 'default',    // Secili arac
+walletAddress: null,        // Bagli cuzdan adresi
+credits: 0,                 // Mevcut kredi sayisi
 
-### RPC Endpoints (Fallback sirasi)
-1. Helius RPC (ana)
-2. Solana Mainnet-Beta (yedek)
+// Oyun Modu
+gameMode: 'classic',       // 'classic' | 'doubleOrNothing'
+reachedLevel5: false,      // Level 5'e ulasildi mi (D/N icin)
 
----
-
-## Veritabani Semasi (Supabase/PostgreSQL)
-
-### Tablolar
-| Tablo | Amac |
-|-------|------|
-| `users` | Kullanici bilgileri, krediler, toplam oyun sayisi |
-| `transactions` | Odeme islemi kayitlari |
-| `scores` | Tum oyun skorlari |
-| `daily_leaderboard` | Gunluk en iyi skorlar (Top 100) |
-| `daily_leaderboard_history` | Gecmis gunlerin arsivi |
-
-### Gorunumler (Views)
-| View | Amac |
-|------|------|
-| `alltime_leaderboard` | Tum zamanlarin en iyi 100 skoru |
-
-### Guvenlik
-- Row Level Security (RLS) tum tablolarda aktif
-- Kredi ekleme sadece Edge Function uzerinden
-- Frontend'den dogrudan kredi ekleme yok
-
----
-
-## Build ve Deploy
-
-### Komutlar
-```bash
-npm run dev      # Gelistirme sunucusu (HMR)
-npm run build    # Uretim build'i (/dist)
-npm run preview  # Uretim onizleme
-npm run lint     # ESLint kontrolu
+updateCounter: 0,           // Frame sayaci
+lastSpawnZ: -400,           // Son spawn Z pozisyonu
+countdownTimer: null         // Countdown interval referansi
 ```
 
-### Vite Build Optimizasyonlari
-- **Code Splitting:** 4 ayri chunk
-  - `three-vendor`: Three.js + React Three Fiber
-  - `solana-vendor`: Solana cuzdan kutuphaneleri
-  - `supabase-vendor`: Supabase istemcisi
-  - `react-vendor`: React cekirdek
-- **Minification:** Terser (console.log temizleme dahil)
-- **Chunk uyari limiti:** 500KB
+### Tum Action'lar (Fonksiyonlar)
 
-### Netlify Yapilandirmasi
-- Build komutu: `npm run build`
-- Cikti dizini: `dist`
-- Node versiyonu: 20
-- SPA yonlendirme: `/*` -> `/index.html`
+| Action | Aciklama |
+|--------|----------|
+| `setGameState(state)` | Oyun durumunu degistir |
+| `setWalletData(address, credits)` | Cuzdan bilgisini ayarla |
+| `setGameMode(mode)` | Oyun modunu ayarla (reachedLevel5 sifirlanir) |
+| `updateEnemyPassed(enemyId)` | Dusman gecis bayragi guncelle (near miss icin) |
+| `startGame()` | Oyunu baslat: kredi kontrol, countdown baslat, kredi dus, playing state |
+| `quitGame()` | Oyundan cik: timer temizle, 'menu' state (BUG) |
+| `cleanupTimer()` | Countdown timer'i temizle (component unmount icin) |
+| `steer(direction)` | Yonlendirme: step=1.25, sinirlar: [-5.0, +5.0] |
+| `activateNitro()` | Nitro etkinlestir (nitro > 0 gerekli) |
+| `deactivateNitro()` | Nitro devre disi birak |
+| `collectCoin(id)` | Coin topla: +100 puan, ses cal, mesaj goster |
+| `triggerNearMiss(position)` | Near miss: combo++, +500*combo puan, 5 kivilcim parcacik |
+| `addExplosion(x, y, z)` | Patlama efekti: 20 parcacik |
+| `updateGame(delta)` | **ANA OYUN DONGUSU** (asagida detayli) |
+| `setGameOver()` | Oyun bitis: crash sesi, patlama efekti, kamera sarsinti (3.0) |
+
+### Oyun Dongusu Detayi (updateGame)
+
+Her frame'de cagrilir (RoadEnvironment useFrame icinden):
+
+1. **Delta Clamp**: `Math.min(delta, 0.1)` - 100ms'den buyuk spike'lari engeller
+2. **Nitro Sistemi**:
+   - Aktifken: saniyede 25 nitro tuketim, hedef hiz 200 km/h
+   - Pasifken: saniyede 5 nitro yenileme, hedef hiz 110 km/h
+3. **Hiz Hesaplama**: `lerp(speed, targetSpeed, delta * 2)` - yumusak hizlanma
+4. **Skor**: `speed * delta * 0.2` (surekli eklenir)
+5. **Mesafe**: `speed * delta * 0.1`
+6. **Seviye Sistemi**: `floor(distance / 1000) + 1` - her 1000m'de level up
+   - Level 5'te Double or Nothing bonusu acilir
+7. **Parcacik Guncelleme**: Yercekimi (`-9.8 * delta`), yasam suresi (`life - delta * 3`)
+8. **Dusman AI** (asagida detayli)
+9. **Coin Spawn**: %9 olasilik/frame, max 15 coin, guvenli alan kontrolu
+10. **Dusman Spawn**: Her 30 birim mesafede, en az 1 serit acik birakma garantisi
+
+### Dusman AI (Lane Change Logic)
+
+Dusmanlar bagimsiz AI ile serit degistirir:
+
+```
+Serit Degistirme Baslatma:
+- Oyuncunun 35m+ arkasindaysa baslayabilir
+- Her frame %0.3 olasilikla baslar
+- Hedef serit bos olmali (25m tampon)
+- Oyuncunun seridini engellemeyecek sekilde (50m mesafe)
+
+Serit Degistirme Sureci:
+- Progress: 0 -> 1 (delta * 2 hizinda, ~0.5 saniye)
+- Hedef engelliyse ve progress < 0.5 ise: iptal
+- Hedef engelliyse ve progress >= 0.5 ise: bekle
+- Progress 1'e ulasinca: tamamla, yeni seride gec
+
+NPC Onde Algilama:
+- 15m mesafede NPC var mi kontrol
+- 8-15m: serit degistirmeye calis
+- <8m: %50 yavasla (ownSpeed * 0.5)
+```
+
+### Arac Hizlari (Seviye carpanli)
+```
+Seviye Carpani: 1 + ((level - 1) * 0.1) = her levelde +%10
+
+truck:  40-50 km/h * carpan
+sedan:  50-65 km/h * carpan
+suv:    50-65 km/h * carpan
+sport:  65-75 km/h * carpan
+```
+
+### Spawn Algoritmasi (Dusman)
+```
+1. Her 30 birim mesafede spawn denenecek
+2. Mevcut engellenmiş seritler sayilir (35-150m arasinda)
+3. Sadece max 1 serit engelliyse spawn izni (2 serit acik kalmali)
+4. Oncelik: zaten engelli olan seritlerde spawn (yigilma onleme)
+5. Bos alan yoksa veya 2+ serit engelliyse: spawn yok
+6. Arac tipi rastgele: truck, sedan, suv, sport
+7. Spawn noktasi: z = -400
+```
 
 ---
 
-## Ses Sistemi
+## Bilesen Detaylari
 
-Tum sesler Web Audio API ile sentezlenir (dosya yok):
+### App.jsx Bilesenleri (2464 satir)
 
-| Ses | Tip | Frekans |
-|-----|-----|---------|
-| Coin toplama | Square wave | B5 (988 Hz) -> E6 (1319 Hz) |
-| Carpma | Square wave | 100 Hz, azalan |
-| Near Miss | Sine wave | 800 Hz -> 1200 Hz sweep |
+| Bilesen | Satir | Aciklama |
+|---------|-------|----------|
+| `useResponsive()` | 23-75 | Hook: mobil/desktop algilama (touch + ekran boyutu, 100ms debounce) |
+| `ErrorBoundary` | 78-131 | React hata siniri, yeniden baslatma butonu |
+| `ParticleSystem` | 134-237 | GPU InstancedMesh: 50 kivilcim + 50 patlama parcacigi |
+| `Coins` | 239-260 | Coin listesi render (gecersiz coinleri filtreler) |
+| `SpinningCoin` | 263-286 | Donen coin: cylinder geometri + coin_logo.png texture |
+| `MobileControls` | 293-492 | Dokunmatik kontroller: sol/sag alan + nitro butonu + yon gostergeleri |
+| `Speedometer` | 497-529 | SVG benzeri hiz gostergesi (max 200 km/h, renk kodlu) |
+| `CarModel` | 548-568 | GLTF/GLB model yukleyici (clone, golge, renk tinting) |
+| `TreeModel` | 570-586 | Agac modeli yukleyici |
+| `PlayerCar` | 590-775 | Oyuncu araci: hareket, carpisma, near miss, coin toplama, far isiklari |
+| `SingleCoin` | 778-816 | Altin coin: MeshPhysicalMaterial, metalik, parlak |
+| `Traffic` | 822-906 | Trafik sistemi: dusman render, serit degisimi tilt |
+| `Building` | 930-1074 | Bina bileseni: 6 tip (apartment, villa, modern, shop, townhouse, small) |
+| `SideObjects` | 1078-1211 | Yol kenari objeler: binalar + agaclar (30 adet, sonsuz dongu) |
+| `Barrier` | 1214-1240 | Yol bariyeri: 40 direk + uzun ray |
+| `StreetLights` | 1243-1353 | Sokak lambalari: 14 adet (7 cift), hareket eden, point light |
+| `RoadEnvironment` | 1356-1453 | Yol: GPU instanced serit cizgileri (60), zemin, bariyer, lambalar |
+| `CameraShake` | 1456-1503 | Kamera: %70 takip, gameover'da sarsinti |
+| `SkyEnvironment` | 1506-1529 | Gokyuzu: 5000 yildiz, ay (10m yaricap), ambient isik |
+| `SpeedLines` | 1532-1581 | Hiz cizgileri: 50 cizgi, 160+ km/h'de gorunur |
+| `SpeedBlurOverlay` | 1584-1614 | Hiz bulanikligi: CSS gradient, 160-200 km/h araliginda |
+| `ShaderWarmup` | 1620-1660 | Shader on-derleme: countdown'da tum modelleri gorünmez render eder |
+| `AudioListenerController` | 1663-1671 | Three.js AudioListener kameraya ekler |
+| `GameContent` | 1674-1710 | Canvas icerigi: kamera, isiklar, tum 3D bilesenler |
+| `Game` | 1713-2169 | Ana oyun bileseni: HUD, Canvas, kontroller, ag izleme |
+| `LoadingScreen` | 2173-2357 | Yukleme ekrani: progress bar, banner, model preload |
+| `App` | 2360-2464 | Root bilesen: viewport ayari, state yonlendirme |
+
+### Canvas Ayarlari
+```javascript
+shadows: PCFSoftShadowMap (512x512)
+dpr: Platform'a gore:
+  - Android: [1, 1]      // Dusuk - performans icin
+  - iOS: [1, 1.5]        // Orta
+  - Desktop: [1, 1.25-1.5] // Ekran boyutuna gore
+gl: {
+  antialias: false,           // Performans icin kapatildi
+  powerPreference: "high-performance",
+  alpha: false,               // Seffaflik yok
+  stencil: false,             // Stencil buffer yok
+  depth: true,
+  logarithmicDepthBuffer: false
+}
+outputColorSpace: SRGBColorSpace
+toneMapping: ACESFilmicToneMapping
+toneMappingExposure: 1.0
+```
+
+### Kamera Ayarlari
+```
+Pozisyon: [0, 4, 11] (z=8'den 11'e tasinmis - tam araba gorunumu)
+FOV: 50
+Takip: targetX * 0.7 (%70 takip faktoru)
+Lerp hizi: delta * 3
+Sarsinti: gameover'da cameraShake * 0.5 rastgele offset
+```
+
+### HUD Elemanlari
+| Eleman | Pozisyon | Responsive Olcek |
+|--------|----------|-------------------|
+| Speedometer | Sol ust | Landscape: 0.28, Mobile: 0.35, Desktop: 1.0 |
+| Score | Sag ust | Cyan, skewX(-15deg) |
+| Nitro Bar | Ust orta | Fire gradient, fireGlow animasyonu |
+| Distance | Sag ust (2. sira) | Cyan border |
+| Near Miss | Sag ust (3. sira) | Magenta border |
+| Level | Sag ust (4. sira) | Gold border |
+| Message | Ekran ortasi (%30) | Gold=level, Cyan=coin, Red=diger |
+| Internet | Ust orta | Kirmizi banner (sadece offline) |
+
+### Hiz Efektleri
+- **Speed Lines**: 160+ km/h → 50 beyaz cizgi, kameraya dogru hareket
+- **Speed Blur Overlay**: 160-200 km/h → radial gradient + ruzgar cizgileri, max %50 opacity
+
+---
+
+## Bilesen Detaylari (Diger Dosyalar)
+
+### GameOverUI.jsx (~420 satir)
+
+**Oyun Sonu Skor Hesaplama:**
+```javascript
+Classic mod: Math.floor(score)     // Normal skor
+D/N mod + Level 5: score * 2       // 2X bonus
+D/N mod + Level 5 yok: 0           // Sifir skor
+```
+
+**Ozellikler:**
+- Skor renk kodlama: Gold (classic), Yesil (D/N basari), Kirmizi (D/N basarisiz)
+- Otomatik skor kaydetme: `supabase.rpc('submit_score', ...)`
+- Retry mekanizmasi: 3 deneme, `2000ms * (retryCount + 1)` bekleme
+- Network kontrolu: `navigator.onLine` ile offline algilama
+- Anti-cheat banner: "Fair Play Protected - All scores are verified on-chain"
+- Butonlar: Race Again (kredi varsa), Check Scores (lumexia.net), Main Menu
+- Kalan kredi gosterimi
+
+### AdvancedParticles.jsx
+
+**NitroBoostParticles:**
+- 50 parcacik havuzu (mount'ta olusturulur)
+- Spawn: arabanin arkasinda (position[2] + 2)
+- Fizik: yercekimi (y -= 5 * delta), surtuname (velocity *= 0.95)
+- Renk: turuncu araliginda (life'a gore)
+- Boyut: buyuyen sonra kuculen (life faktorune gore)
+- GPU: InstancedMesh, tek draw call, cached dummy Object3D ve Color
+
+### PostProcessing.jsx
+- EffectComposer multisampling=0 ile
+- **TAMAMEN DEVRE DISI**: Component null dondurur
+- Yorum: "ALL POST-PROCESSING DISABLED - Clean gameplay visuals"
+
+### PhysicsWorld.jsx
+```javascript
+gravity: [0, -9.81, 0]
+numSolverIterations: 4
+timeStep: "vary"           // Adaptif zaman adimi
+colliders: "hull"          // Konveks govde collider
+updatePriority: -50        // Dusuk oncelik (render'dan once)
+```
+
+---
+
+## Edge Functions (Supabase)
+
+### verify-payment/index.ts
+
+**Islem Akisi:**
+1. CORS preflight kontrolu (lumexia.net, game.lumexia.net, localhost:5173)
+2. Girdi dogrulama:
+   - Solana adresi: base58, 32-44 karakter (DOGRU regex)
+   - Transaction signature: base58, 80-90 karakter
+   - Paket miktari: sadece 1, 5, 10
+3. Tekrar islem kontrolu (transaction_hash unique)
+4. Token fiyati alma:
+   - Jupiter Price API (ana)
+   - DexScreener (yedek)
+   - %10 fiyat toleransi (kripto volatilite icin)
+5. Blockchain dogrulama:
+   - Multi-RPC: Helius (ana) + Solana mainnet (yedek)
+   - Her endpoint icin 3 deneme, 1000ms * attempt bekleme
+   - Method 1: SPL token transfer instruction parse
+   - Method 2: Pre/post token bakiye analizi
+6. Transfer dogrulama:
+   - Gonderici == kullanici adresi
+   - Alici == PAYMENT_RECEIVER
+   - Token == COAL_TOKEN_MINT
+   - Miktar >= minExpectedCoal
+7. Veritabani islemleri:
+   - Kullanici getir/olustur
+   - Transaction kaydi ekle (idempotency icin)
+   - Kullanici kredisini guncelle
+   - Basarisizsa rollback
+
+### use-credit/index.ts
+
+**KRITIK BUG:**
+```typescript
+// HATALI - Ethereum adresi dogruluyor, Solana degil!
+const isValidEthAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+```
+Bu fonksiyon `0x` ile baslayan Ethereum adreslerini dogrular.
+Solana adresleri base58 formatinda ve `0x` ile baslamaz.
+**Sonuc: Tum gecerli Solana adresleri reddedilecek!**
+
+**Not:** Bu bug, frontend'in `supabaseClient.js`'deki `useCredit()` fonksiyonunun
+Edge Function'a cagri yapmasini etkiler. Frontend dogrudan Supabase'e
+baglanarak kredi dusuyor olabilir, bu durumda Edge Function bypasslanmis olur.
+
+**Normal Islem Akisi:**
+1. CORS kontrolu
+2. Wallet adresi dogrulama (**HATALI**)
+3. Miktar dogrulama (1-10 arasi tam sayi)
+4. Kullanici ara
+5. Yeterli kredi kontrolu
+6. Kredi dus, oyun sayaci artir, last_played guncelle
+7. Sonuc don: remainingCredits, totalGamesPlayed
+
+---
+
+## Veritabani Semasi ve Fonksiyonlari
+
+### Tablolar
+
+#### users
+| Sutun | Tip | Aciklama |
+|-------|-----|----------|
+| id | UUID (PK) | Otomatik |
+| wallet_address | TEXT (UNIQUE) | Solana cuzdan adresi |
+| credits | INTEGER | Mevcut kredi (>= 0 CHECK) |
+| total_games_played | INTEGER | Toplam oyun sayisi |
+| total_spent | DECIMAL(10,2) | Toplam harcama (USD) |
+| last_played | TIMESTAMPTZ | Son oyun zamani |
+| created_at | TIMESTAMPTZ | Olusturma zamani |
+| updated_at | TIMESTAMPTZ | Guncelleme zamani (trigger ile otomatik) |
+
+#### transactions
+| Sutun | Tip | Aciklama |
+|-------|-----|----------|
+| id | UUID (PK) | Otomatik |
+| user_id | UUID (FK -> users) | Kullanici referansi |
+| amount | DECIMAL(10,2) | Odeme miktari (USD) |
+| credits_added | INTEGER | Eklenen kredi |
+| transaction_hash | TEXT (UNIQUE) | Blockchain tx hash |
+| status | TEXT | 'success', 'pending', 'failed' |
+| created_at | TIMESTAMPTZ | Islem zamani |
+
+#### scores
+| Sutun | Tip | Aciklama |
+|-------|-----|----------|
+| id | UUID (PK) | Otomatik |
+| user_id | UUID (FK -> users) | Kullanici referansi |
+| wallet_address | TEXT | Cuzdan adresi (denormalize) |
+| score | INTEGER | Oyun skoru (>= 0) |
+| distance | INTEGER | Toplam mesafe (>= 0) |
+| coins_collected | INTEGER | Toplanan coin sayisi |
+| play_duration | INTEGER | Oyun suresi (saniye) |
+| game_mode | TEXT | 'normal' (gelecek: 'hard', 'expert') |
+| created_at | TIMESTAMPTZ | Kayit zamani |
+
+#### daily_leaderboard
+- Her wallet + her gun icin tek kayit (UNIQUE constraint)
+- Trigger ile otomatik guncellenir
+- Top 100 disindakiler otomatik silinir
+
+#### daily_leaderboard_history
+- Gecmis gunlerin arsivi
+- Gece 00:00 UTC'de pg_cron ile kopyalanir
+
+### Stored Procedures
+
+#### submit_score(p_wallet, p_score, p_duration, p_distance)
+- Frontend'den `supabase.rpc('submit_score', ...)` ile cagilir
+- SECURITY DEFINER: servis rolu ile calisir
+- Trigger: `trg_update_daily_leaderboard` otomatik tetiklenir
+
+#### update_daily_leaderboard() [TRIGGER]
+- scores'a INSERT oldigunda otomatik calisir
+- Ayni gun + ayni wallet: en yüksek skoru guncelle
+- Yeni kayit: yeni satir ekle
+- Top 100 disindakileri sil
+
+#### archive_daily_leaderboard()
+- pg_cron ile her gece 00:00 UTC (03:00 TR) calisir
+- daily_leaderboard -> daily_leaderboard_history kopyalar
+- ON CONFLICT DO NOTHING (duplicate handling)
+- daily_leaderboard tablosunu temizler
+
+### RLS Politikalari
+**TUMU COK ACIK** - `USING(true)`:
+- users: SELECT, INSERT, UPDATE herkese acik
+- transactions: SELECT, INSERT herkese acik
+- scores: SELECT, INSERT herkese acik
+- daily_leaderboard: SELECT, INSERT, UPDATE, DELETE herkese acik
+- daily_leaderboard_history: SELECT, INSERT herkese acik
+
+**RISK:** Herhangi bir kullanici diger kullanicilarin verilerini okuyabilir,
+kendi skorlarini ekleyebilir, ve potansiyel olarak baskalarinin verilerini degistirebilir.
+
+---
+
+## Ses Sistemi (AudioSystem class)
+
+Web Audio API ile sentezlenmis sesler (dosya yok):
+
+| Ses | Tip | Frekans | Sure | Ek Efekt |
+|-----|-----|---------|------|----------|
+| Coin toplama | Square wave | B5 (988 Hz) -> E6 (1319 Hz) | 0.35s | Super Mario tarzı 2 tonlu |
+| Carpma | Square wave | 100 Hz, exponential azalan | 0.5s | Titresim: [100, 50, 100, 50, 200]ms |
+| Near Miss | Sine wave | 800 Hz -> 1200 Hz sweep | 0.2s | Titresim: 50ms |
+
+- Context: `AudioContext` veya `webkitAudioContext`
+- Suspended durumdan otomatik resume
+- `navigator.vibrate()` ile haptic feedback
+
+---
+
+## Carpisma Sistemi
+
+### Arac Boyutlari (VEHICLE_DIMENSIONS)
+```javascript
+player: { width: 1.8, length: 5.5 }
+sedan:  { width: 3.0, length: 6.75, height: 2.7 }
+truck:  { width: 3.1, length: 8.3, height: 4.2 }
+sport:  { width: 1.9, length: 4.2, height: 1.9 }
+suv:    { width: 2.9, length: 7.6, height: 3.8 }
+```
+
+### Carpisma Algilama
+```
+Carpisma = AABB (Axis-Aligned Bounding Box)
+COLLISION_PADDING = 0.2
+
+crashWidthThreshold  = (playerWidth + enemyWidth) / 2 + 0.2
+crashDepthThreshold  = (playerLength + enemyLength) / 2 + 0.2
+
+Near Miss:
+  nearMissWidthMin = crashWidth + 0.3
+  nearMissWidthMax = crashWidth + 1.2
+  nearMissDepthThreshold = crashDepth + 0.8
+  dz >= 1.0 (minimum derinlik)
+```
 
 ---
 
 ## Performans Optimizasyonlari
 
-1. **GPU Instanced Mesh:** Parcaciklar icin tek draw call
-2. **Delta Clamp:** `Math.min(delta, 0.1)` ile spike koruması
-3. **Object Pool:** Dusman ve coin objeleri yeniden kullanim
-4. **Shared Materials:** Bina materyalleri global havuzda paylasilir
-5. **Preload:** 3D modeller onceden yuklenir
-6. **Spatial Partitioning:** Serit bazli dusman gruplama
-7. **Memo:** Tum alt bilesenler `React.memo` ile sarili
-8. **Code Splitting:** Vendor kutuphaneleri ayri chunk'larda
+### Rendering
+1. **GPU Instanced Mesh:** Parcaciklar ve serit cizgileri tek draw call
+2. **Shader Warmup:** Countdown sirasinda modeller gorünmez sahneye render edilir
+3. **Platform DPR:** Android'de dusuk, iOS'ta orta, Desktop'ta yukse DPR
+4. **Canvas Optimizasyonu:** antialias=false, alpha=false, stencil=false
+5. **Frustum Culling:** InstancedMesh'lerde kapatildi (surekli gorunur)
+6. **Shadow Map:** PCFSoft, 512x512 (dusuk cozunurluk)
+
+### State/Logic
+7. **Delta Clamp:** `Math.min(delta, 0.1)` - frame spike koruması
+8. **Spatial Partitioning:** Serit bazli dusman gruplama (laneOccupancy) O(1) lookup
+9. **Object Pool:** Dusman ve coin objeleri yeniden kullanim (for loop, spread yok)
+10. **Single Pass Update:** Coin/dusman guncelleme tek dongu (filter/map zinciri yok)
+
+### Memory
+11. **Shared Materials:** Bina materyalleri global havuzda (new yok)
+12. **Cached THREE objeler:** tempMatrix, tempColor, tempScale tekrar kullanilir
+13. **Material Dispose:** useEffect cleanup'ta dispose() cagilir
+14. **Preload:** 3D modeller `useGLTF.preload()` ile onceden yuklenir
+
+### Build
+15. **Code Splitting:** 4 vendor chunk (three, solana, supabase, react)
+16. **Terser:** console.log + debugger uretimde kaldirilir
+17. **Memo:** Tum alt bilesenler `React.memo` ile sarili
 
 ---
 
-## Bilinen Eksiklikler
+## Oyun Modlari
 
-1. **Test yok:** Hicbir test runner veya test dosyasi mevcut degil
-2. **TypeScript yok:** Tum kod JavaScript, tip guvenligi yok
-3. **Post-processing devre disi:** `PostProcessing.jsx` yorum satirinda
-4. **Ses dosyasi yok:** Sadece sentezlenmis sesler
-5. **Fonksiyon isimleri tutarsiz:** `getCoalBalance` ama token OILTOWN
-6. **Hardcoded degerler:** Bazi oyun ayarlari dosyada sabit
-7. **RLS politikalari cok acik:** `USING (true)` ile herkes okuyabilir
+### Classic
+- Normal skor: mesafe + coinler + near miss
+- 1 kredi gerekli
+- Skor olduğu gibi kaydedilir
+
+### Double or Nothing
+- 2 kredi gerekli
+- Level 5'e ulasirsa: skor x2
+- Level 5'e ulasamazsa: skor = 0
+- Level 5 = 5000m mesafe
+
+---
+
+## Bilinen Hatalar ve Eksiklikler
+
+### KRITIK HATALAR
+1. **use-credit Edge Function Ethereum adresi dogrulama** - Solana adresleri reddedilecek (`/^0x[a-fA-F0-9]{40}$/`)
+2. **quitGame() 'menu' state kullanir** - App.jsx'te 'menu' icin render yok, bos ekran
+3. **RainbowKit CSS import** - `index.html`'de BNB Chain doneminden kalma, kullanilmiyor
+
+### YUKSEK ONCELIK
+4. **Test altyapisi yok** - Hicbir test runner veya test dosyasi mevcut degil
+5. **RLS politikalari gevşek** - `USING(true)` ile tum tablolar herkese acik
+6. **Sunucu tarafli skor dogrulama yok** - Frontend'den hile mumkun
+7. **TypeScript yok** - 3000+ satir JavaScript, tip guvenligi eksik
+8. **Tutarsiz isimlendirme** - `getCoalBalance`, `calculateCoalAmount`, `transferCoalToken` (OILTOWN olmalı)
+9. **App.jsx cok buyuk** - 2464 satir tek dosyada
+
+### ORTA ONCELIK
+10. **Post-processing devre disi** - Gorsel kalite arttirilabilir
+11. **Ses dosyalari yok** - Sadece sentezlenmis sesler (motor sesi yok)
+12. **Hardcoded oyun sabitleri** - Config dosyasina tasinabilir
+13. **GameOverUI'da coins_collected gonderilmiyor** - scores tablosunda var ama kaydedilmiyor
+
+### DUSUK ONCELIK
+14. **Fazla console.log** - Terser uretimde kaldirir ama gelistirmede cok
+15. **FontAwesome CDN** - Sadece loading icin, bundle'a alinabilir
 
 ---
 
@@ -276,4 +649,10 @@ Tum sesler Web Audio API ile sentezlenir (dosya yok):
 VITE_SUPABASE_URL=https://cldjwajhcepyzvmwjcmz.supabase.co
 VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
 VITE_WALLETCONNECT_PROJECT_ID=<optional>
+```
+
+### Edge Function Env (Supabase tarafinda)
+```
+SUPABASE_URL=<supabase-url>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 ```

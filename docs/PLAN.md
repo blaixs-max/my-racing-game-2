@@ -2,7 +2,23 @@
 
 ## Mevcut Durum Ozeti
 
-Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi sistemi, liderlik tablosu ve temel oyun mekanikleri tamamlanmis durumda. Ancak test altyapisi, tip guvenligi ve bazi performans iyilestirmeleri eksik.
+Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi sistemi, liderlik tablosu ve temel oyun mekanikleri tamamlanmis durumda. Ancak **3 kritik bug**, test altyapisi eksikligi, guvenlik aciklari ve tip guvenligi sorunlari tespit edildi.
+
+---
+
+## Faz 0: ACIL - Kritik Bug Duzeltmeleri (Oncelik: ACIL)
+
+### 0.1 use-credit Edge Function Bug
+- [ ] `isValidEthAddress` Ethereum regex'ini `isValidSolanaAddress` ile degistir
+- [ ] Regex: `/^[1-9A-HJ-NP-Za-km-z]{32,44}$/` (base58, 32-44 karakter)
+- [ ] Test: gecerli Solana adresleri kabul edilmeli, gecersiz adresler reddedilmeli
+
+### 0.2 quitGame() State Bug
+- [ ] `store.js`'te `quitGame()` icindeki `'menu'` state'ini `'launcher'` ile degistir
+- [ ] Veya App.jsx'te `'menu'` state icin render ekle
+
+### 0.3 Kullanilmayan Import Temizligi
+- [ ] `index.html`'den RainbowKit CSS import'unu kaldir (BNB Chain artigi)
 
 ---
 
@@ -11,8 +27,9 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 ### 1.1 Test Altyapisi Kurulumu
 - [ ] Vitest kurulumu ve yapilandirmasi
 - [ ] Store (game logic) icin birim testleri
-- [ ] Carpisma algilama testleri
-- [ ] Skor hesaplama testleri
+- [ ] Carpisma algilama testleri (VEHICLE_DIMENSIONS, COLLISION_PADDING)
+- [ ] Skor hesaplama testleri (classic vs D/N)
+- [ ] Dusman AI testleri (serit degistirme, spawn algoritmasi)
 - [ ] Utility fonksiyonlari (jupiterPrice, solanaWallet) testleri
 - [ ] CI/CD pipeline'a test entegrasyonu
 
@@ -21,6 +38,7 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 - [ ] Prettier entegrasyonu
 - [ ] Gereksiz console.log'lari temizleme (dev ortaminda birakma)
 - [ ] Tutarsiz isimlendirmelerin duzeltilmesi (Coal -> Oiltown)
+- [ ] App.jsx bolme (2464 satir -> mantiksal alt dosyalar)
 
 ### 1.3 TypeScript Gecisi (Opsiyonel - Buyuk is)
 - [ ] tsconfig.json olusturma
@@ -57,10 +75,12 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 ## Faz 3: Backend ve Guvenlik (Oncelik: Yuksek)
 
 ### 3.1 Guvenlik Iyilestirmeleri
-- [ ] RLS politikalarinin sikistirilmasi (USING(true) -> spesifik kurallar)
-- [ ] Skor dogrulama (sunucu tarafli anti-cheat)
-- [ ] Rate limiting eklenmesi
+- [ ] RLS politikalarinin sikistirilmasi (USING(true) -> wallet bazli kurallar)
+- [ ] Skor dogrulama (sunucu tarafli anti-cheat, hiz/mesafe tutarliligi)
+- [ ] Rate limiting eklenmesi (skor gonderme, kredi kullanma)
 - [ ] Edge Function'larda girdi dogrulama guclendirme
+- [ ] GameOverUI'daki "Fair Play Protected" iddiasini gercek dogrulama ile destekle
+- [ ] coins_collected verisini scores tablosuna kaydetme
 
 ### 3.2 Backend Ozellikleri
 - [ ] Skor gonderme Edge Function'u (sunucu tarafli dogrulama)
@@ -152,10 +172,16 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 
 | Alan | Aciklama | Oncelik |
 |------|----------|---------|
+| **KRITIK BUG** | use-credit Ethereum adresi dogruluyor (Solana degil) | ACIL |
+| **KRITIK BUG** | quitGame() 'menu' state -> bos ekran | ACIL |
 | Test yok | Hicbir test mevcut degil | Kritik |
 | TypeScript yok | Tip guvenligi eksik | Yuksek |
-| Coal -> Oiltown | Fonksiyon isimleri eski token ismini kullaniyor | Orta |
-| RLS politikalari | Cok acik kurallar | Yuksek |
+| RLS politikalari | Tum tablolarda USING(true) - herkes her seye erisebilir | Yuksek |
+| Sunucu tarafli skor dogrulama yok | Frontend'den hile mumkun | Yuksek |
+| App.jsx 2464 satir | Tek dosyada cok fazla bilesen | Yuksek |
+| Coal -> Oiltown | getCoalBalance, transferCoalToken gibi fonksiyon isimleri | Orta |
+| coins_collected kaydedilmiyor | Scores tablosunda sutun var ama GameOverUI gondermez | Orta |
 | Post-processing | Devre disi birakilmis | Dusuk |
-| Hardcoded degerler | Oyun sabitleri dosyada gommlu | Orta |
-| Console.log'lar | Uretimde Terser kaldiriyor ama gelistirmede cok fazla | Dusuk |
+| Hardcoded degerler | Oyun sabitleri (hiz, mesafe, spawn oranlari) dosyada gommlu | Orta |
+| RainbowKit CSS | index.html'de BNB Chain doneminden kalma kullanilmayan import | Dusuk |
+| FontAwesome CDN | Dis bagimllik, bundle'a alinabilir | Dusuk |
