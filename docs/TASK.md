@@ -145,10 +145,10 @@ Eksik: RealLauncherUI'nin detayli UI bilesenleri (64KB dosya, cok buyuk)
 
 ## Sonraki Adimlar (Oncelik Sirasina Gore)
 
-1. ~~**ACIL: Bug #1 duzelt** - use-credit Ethereum -> Solana dogrulama~~ TAMAMLANDI
-2. ~~**ACIL: Bug #2 duzelt** - quitGame() 'menu' -> 'launcher'~~ TAMAMLANDI
-3. ~~**ACIL: Bug #3 duzelt** - RainbowKit CSS kaldir~~ TAMAMLANDI
-4. **Test altyapisi kur** - Vitest + store.js testleri
+1. ~~**ACIL: Bug #1 duzelt** - use-credit Ethereum -> Solana dogrulama~~ TAMAMLANDI + MERGED
+2. ~~**ACIL: Bug #2 duzelt** - quitGame() 'menu' -> 'launcher'~~ TAMAMLANDI + MERGED
+3. ~~**ACIL: Bug #3 duzelt** - RainbowKit CSS kaldir~~ TAMAMLANDI + MERGED
+4. **Test altyapisi kur** - Vitest + store.js testleri (RISK: bug fix'ler test olmadan merge edildi)
 5. **RLS politikalarini sikistir** - wallet bazli erisim kurallari
 6. **Sunucu tarafli skor dogrulama** - anti-cheat Edge Function
 7. **Coal -> Oiltown isimlendirme** - fonksiyon adlari guncelle
