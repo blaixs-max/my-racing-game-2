@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletMultiButton } from '@solana/wallet-adapter-base-ui';
-import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import {
+  getCoalBalance,
   checkPaymentBalance,
   transferCoalToken,
   formatAddress,
@@ -12,7 +12,7 @@ import {
 } from '../utils/solanaWallet';
 import { getCoalPrice, calculateCoalAmount, formatPrice } from '../utils/jupiterPrice';
 import { getOrCreateUser } from '../utils/supabaseClient';
-import { TOKEN_CONFIG, PAYMENT_CONFIG, DEFAULT_RPC_ENDPOINT, fromRawAmount, formatTokenAmount } from '../solana.config';
+import { TOKEN_CONFIG, PAYMENT_CONFIG, DEFAULT_RPC_ENDPOINT, formatTokenAmount } from '../solana.config';
 
 // Solana Theme Colors
 const SOLANA_COLORS = {
@@ -226,30 +226,9 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       try {
         console.log('[UI] Fetching OILTOWN balance...');
-        const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
-        const ata = await getAssociatedTokenAddress(
-          mintPubkey,
-          publicKey,
-          false,
-          TOKEN_PROGRAM_ID,
-          ASSOCIATED_TOKEN_PROGRAM_ID
-        );
-        console.log('[UI] OILTOWN ATA:', ata.toString());
-
-        try {
-          const tokenAccount = await getAccount(connection, ata);
-          const coalBal = fromRawAmount(Number(tokenAccount.amount));
-          console.log('[UI] OILTOWN balance:', coalBal);
-          setCoalBalance(coalBal);
-        } catch (e) {
-          if (e.name === 'TokenAccountNotFoundError') {
-            console.log('[UI] No OILTOWN token account, balance is 0');
-            setCoalBalance(0);
-          } else {
-            console.error('[UI] OILTOWN account error:', e);
-            setCoalBalance(0);
-          }
-        }
+        const coalBal = await getCoalBalance(publicKey, connection);
+        console.log('[UI] OILTOWN balance:', coalBal);
+        setCoalBalance(coalBal);
       } catch (error) {
         console.error('[UI] OILTOWN balance error:', error);
         setCoalBalance(0);
@@ -280,19 +259,12 @@ const RealLauncherUI = ({ onStartGame }) => {
     const handleAppForeground = async () => {
       if (connected && publicKey) {
         await loadUserData(publicKey.toString());
-        // Refresh balances inline
+        // Refresh balances
         try {
           const solBalanceRaw = await connection.getBalance(publicKey);
           setSolBalance(solBalanceRaw / LAMPORTS_PER_SOL);
-
-          const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
-          const ata = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
-          try {
-            const tokenAccount = await getAccount(connection, ata);
-            setCoalBalance(fromRawAmount(Number(tokenAccount.amount)));
-          } catch (e) {
-            if (e.name === 'TokenAccountNotFoundError') setCoalBalance(0);
-          }
+          const coalBal = await getCoalBalance(publicKey, connection);
+          setCoalBalance(coalBal);
         } catch (error) {
           console.error('[UI] Error refreshing balances on foreground:', error);
         }
@@ -435,14 +407,8 @@ const RealLauncherUI = ({ onStartGame }) => {
           const solBalanceRaw = await connection.getBalance(publicKey);
           setSolBalance(solBalanceRaw / LAMPORTS_PER_SOL);
 
-          const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
-          const ata = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
-          try {
-            const tokenAccount = await getAccount(connection, ata);
-            setCoalBalance(fromRawAmount(Number(tokenAccount.amount)));
-          } catch (e) {
-            if (e.name === 'TokenAccountNotFoundError') setCoalBalance(0);
-          }
+          const coalBal = await getCoalBalance(publicKey, connection);
+          setCoalBalance(coalBal);
         } catch (error) {
           console.error('[UI] Error refreshing balances after payment:', error);
         }

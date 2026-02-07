@@ -32,6 +32,31 @@ import { calculateCoalAmount } from './jupiterPrice.js';
 let connection = null;
 let currentRpcIndex = 0;
 
+// Cached token program ID (SPL Token vs Token-2022)
+let cachedTokenProgramId = null;
+
+/**
+ * Detect the token program (SPL Token or Token-2022) from the mint account.
+ * pump.fun tokens use Token-2022, so we auto-detect instead of hardcoding.
+ * @param {Connection} conn - Solana connection
+ * @returns {Promise<PublicKey>} Token program ID
+ */
+async function getTokenProgramId(conn) {
+  if (cachedTokenProgramId) return cachedTokenProgramId;
+
+  const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
+  const accountInfo = await conn.getAccountInfo(mintPubkey);
+
+  if (!accountInfo) {
+    console.warn('[Solana] Mint account not found, defaulting to TOKEN_PROGRAM_ID');
+    return TOKEN_PROGRAM_ID;
+  }
+
+  cachedTokenProgramId = accountInfo.owner;
+  console.log('[Solana] Detected token program:', cachedTokenProgramId.toString());
+  return cachedTokenProgramId;
+}
+
 /**
  * Get or create Solana connection with fallback RPC
  */
@@ -87,23 +112,24 @@ export async function getCoalBalance(publicKey, conn = null) {
   try {
     const connection = conn || getConnection();
     const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
+    const tokenProgramId = await getTokenProgramId(connection);
 
     console.log('[Solana] Fetching COAL balance for:', publicKey.toString());
-    console.log('[Solana] COAL mint address:', TOKEN_CONFIG.mint);
+    console.log('[Solana] Using token program:', tokenProgramId.toString());
 
-    // Get associated token account address
+    // Get associated token account address with detected program
     const ata = await getAssociatedTokenAddress(
       mintPubkey,
       publicKey,
       false,
-      TOKEN_PROGRAM_ID,
+      tokenProgramId,
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
     console.log('[Solana] Token ATA:', ata.toString());
 
     try {
-      const tokenAccount = await getAccount(connection, ata);
+      const tokenAccount = await getAccount(connection, ata, undefined, tokenProgramId);
       const balance = fromRawAmount(Number(tokenAccount.amount));
       console.log('[Solana] COAL balance:', balance);
       return balance;
@@ -174,27 +200,31 @@ export async function transferCoalToken(wallet, usdAmount) {
   const receiverPubkey = new PublicKey(PAYMENT_CONFIG.receiverWallet);
   const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
 
+  // Detect token program (SPL Token vs Token-2022)
+  const tokenProgramId = await getTokenProgramId(conn);
+
   // Calculate COAL amount needed
   const { coalAmount, price } = await calculateCoalAmount(usdAmount);
   const rawAmount = toRawAmount(coalAmount);
 
   console.log(`[Transfer] Sending ${coalAmount} COAL ($${usdAmount}) to ${PAYMENT_CONFIG.receiverWallet}`);
+  console.log(`[Transfer] Using token program: ${tokenProgramId.toString()}`);
 
-  // Get sender's ATA
+  // Get sender's ATA with detected program
   const senderAta = await getAssociatedTokenAddress(
     mintPubkey,
     senderPubkey,
     false,
-    TOKEN_PROGRAM_ID,
+    tokenProgramId,
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
-  // Get receiver's ATA
+  // Get receiver's ATA with detected program
   const receiverAta = await getAssociatedTokenAddress(
     mintPubkey,
     receiverPubkey,
     false,
-    TOKEN_PROGRAM_ID,
+    tokenProgramId,
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
@@ -203,7 +233,7 @@ export async function transferCoalToken(wallet, usdAmount) {
 
   // Check if receiver ATA exists, create if not
   try {
-    await getAccount(conn, receiverAta);
+    await getAccount(conn, receiverAta, undefined, tokenProgramId);
   } catch (e) {
     if (e.name === 'TokenAccountNotFoundError') {
       console.log('[Transfer] Creating receiver ATA...');
@@ -213,14 +243,14 @@ export async function transferCoalToken(wallet, usdAmount) {
           receiverAta, // ata
           receiverPubkey, // owner
           mintPubkey, // mint
-          TOKEN_PROGRAM_ID,
+          tokenProgramId,
           ASSOCIATED_TOKEN_PROGRAM_ID
         )
       );
     }
   }
 
-  // Add transfer instruction
+  // Add transfer instruction with detected program
   transaction.add(
     createTransferInstruction(
       senderAta, // source
@@ -228,7 +258,7 @@ export async function transferCoalToken(wallet, usdAmount) {
       senderPubkey, // owner
       rawAmount, // amount
       [], // multiSigners
-      TOKEN_PROGRAM_ID
+      tokenProgramId
     )
   );
 
