@@ -911,6 +911,15 @@ const RealLauncherUI = ({ onStartGame }) => {
         margin: '0 auto',
         width: '100%',
       }}>
+        {/* Card wrapper with border */}
+        <div style={{
+          background: `linear-gradient(180deg, ${SOLANA_COLORS.bgCard} 0%, ${SOLANA_COLORS.bgSecondary} 100%)`,
+          borderRadius: '24px',
+          border: `1px solid ${SOLANA_COLORS.borderPurple}`,
+          padding: '24px',
+          boxShadow: `0 25px 80px rgba(0, 0, 0, 0.5), 0 0 40px ${SOLANA_COLORS.glowPurple}`,
+          backdropFilter: 'blur(20px)',
+        }}>
         {/* Connect Wallet Button */}
         <button
           onClick={handleConnectClick}
@@ -1402,6 +1411,7 @@ const RealLauncherUI = ({ onStartGame }) => {
             </span>
           </div>
         </div>
+        </div> {/* end card wrapper */}
       </div>
 
       {/* Bottom Navigation Bar */}
