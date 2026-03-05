@@ -1377,10 +1377,10 @@ const RealLauncherUI = ({ onStartGame }) => {
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
-              { icon: '\u25ce', text: 'Connect your Solana wallet (Phantom/Solflare)', color: '#9945FF' },
-              { icon: '\uD83C\uDFAE', text: 'Select game mode', color: '#14F195' },
-              { icon: '\uD83D\uDED2', text: 'Purchase credits with OILTOWN tokens', color: '#14F195' },
-              { icon: '\uD83C\uDFCE\uFE0F', text: 'Start racing!', color: '#14F195' },
+              { icon: '◎', text: 'Connect your Solana wallet (Phantom/Solflare)', color: '#9945FF' },
+              { icon: '🎮', text: 'Select game mode', color: '#14F195' },
+              { icon: '🛒', text: 'Purchase credits with OILTOWN tokens', color: '#14F195' },
+              { icon: '🏎️', text: 'Start racing!', color: '#14F195' },
             ].map((step, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{
@@ -1405,7 +1405,7 @@ const RealLauncherUI = ({ onStartGame }) => {
             alignItems: 'center',
             gap: '8px',
           }}>
-            <span style={{ fontSize: '14px' }}>\uD83D\uDD12</span>
+            <span style={{ fontSize: '14px' }}>🔒</span>
             <span style={{ color: '#5A5A6A', fontSize: '12px' }}>
               Payments are made with OILTOWN tokens (Solana)
             </span>
@@ -1431,11 +1431,11 @@ const RealLauncherUI = ({ onStartGame }) => {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
         {[
-          { symbol: '\u25c2', active: false },
-          { symbol: '\u270f', active: false },
-          { symbol: '\u261c', active: false },
-          { symbol: '\u2295', active: true },
-          { symbol: '\u229e', active: false },
+          { symbol: '◂', active: false },
+          { symbol: '✏', active: false },
+          { symbol: '☜', active: false },
+          { symbol: '⊕', active: true },
+          { symbol: '⊞', active: false },
         ].map((item, i) => (
           <button
             key={i}
@@ -1516,7 +1516,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                   transition: 'all 0.2s ease'
                 }}
               >
-                \u00d7
+                ×
               </button>
             </div>
 
@@ -1561,11 +1561,11 @@ const RealLauncherUI = ({ onStartGame }) => {
                     </p>
                     {wallet.readyState === 'Installed' && (
                       <p style={{ color: SOLANA_COLORS.green, fontSize: '11px', margin: '4px 0 0 0', fontWeight: '500' }}>
-                        \u2713 Detected
+                        ✓ Detected
                       </p>
                     )}
                   </div>
-                  <span style={{ color: SOLANA_COLORS.purple, fontSize: '20px' }}>\u2192</span>
+                  <span style={{ color: SOLANA_COLORS.purple, fontSize: '20px' }}>→</span>
                 </button>
               ))}
             </div>
