@@ -1,4 +1,4 @@
-# Lumexia Racing Game - Proje Dokumantasyonu (v2 - Kapsamli)
+# Lumexia Racing Game - Proje Dokumantasyonu (v3 - Kod ile hizalandi)
 
 ## Genel Bakis
 
@@ -7,6 +7,8 @@ Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D ta
 **Canli URL:** Netlify uzerinden deploy ediliyor (lumexia.net)
 **Veritabani:** Supabase (PostgreSQL)
 **Blockchain:** Solana Mainnet-Beta
+**Token Mint:** `AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump` (OILTOWN, pump.fun - Token-2022 otomatik algilama)
+**Odeme Alicisi:** `T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg`
 
 ---
 
@@ -60,15 +62,15 @@ my-racing-game-2/
 │   │   ├── coin_logo.png    # HUD coin ikonu (HUD'da ve SpinningCoin'de kullanilir)
 │   │   └── react.svg
 │   ├── components/
-│   │   ├── RealLauncherUI.jsx      # Oyun baslangic ekrani & cuzdan arayuzu (~64KB)
-│   │   ├── GameOverUI.jsx          # Oyun bitis ekrani (~420 satir)
+│   │   ├── RealLauncherUI.jsx      # Oyun baslangic ekrani & cuzdan arayuzu (~59KB, 1615 satir)
+│   │   ├── GameOverUI.jsx          # Oyun bitis ekrani (419 satir)
 │   │   ├── AdvancedParticles.jsx   # Nitro boost parcacik sistemi
 │   │   ├── PhysicsWorld.jsx        # Rapier3D fizik wrapper
-│   │   └── PostProcessing.jsx      # Post-processing (DEVRE DISI - returns null)
+│   │   └── PostProcessing.jsx      # Post-processing (bos EffectComposer - tum efektler devre disi)
 │   └── utils/
 │       ├── supabaseClient.js       # Veritabani islemleri (getOrCreateUser, getUserCredits, useCredit)
-│       ├── solanaWallet.js         # Token transfer & bakiye kontrol (getCoalBalance, transferCoalToken)
-│       └── jupiterPrice.js         # Token fiyat API (DexScreener + Jupiter fallback)
+│       ├── solanaWallet.js         # Token transfer & bakiye kontrol (getCoalBalance, transferCoalToken - COAL eski BNB donemi isimleri, OILTOWN icin kullaniliyor)
+│       └── jupiterPrice.js         # Token fiyat API (frontend: DexScreener -> Jupiter fallback)
 ├── public/
 │   ├── Lumexia.jpg                 # Loading screen banner
 │   ├── Lumexia.png                 # Branding asset
@@ -76,18 +78,18 @@ my-racing-game-2/
 │       ├── sport_car.glb           # Oyuncu araci (F1, scale: 0.16)
 │       ├── ferrari.glb             # Dusman: sport araba (scale: 1.21)
 │       ├── truck.glb               # Dusman: kamyon (scale: 1.678)
-│       ├── suv.glb                 # Dusman: SUV
-│       ├── Car1/scene.gltf         # Dusman: sedan (GLTF + texturler)
+│       ├── suv.glb                 # (preload edilmis ama kullanilmiyor - suv tipi Car 2 kullaniyor)
+│       ├── Car1/scene.gltf         # (preload edilmis ama kullanilmiyor - sedan Car 3 kullaniyor)
 │       ├── Car 2/scene.gltf        # Dusman: SUV (scale: 1.53)
-│       ├── Car 3/scene.gltf        # Dusman: pikap/taksi (scale: 1.35)
-│       ├── coin.glb                # Toplanabilir altin (kullanilmiyor, SpinningCoin procedurel)
+│       ├── Car 3/scene.gltf        # Dusman: sedan (scale: 1.35)
+│       ├── coin.glb                # (kullanilmiyor - SpinningCoin procedurel cylinder + coin_logo.png)
 │       └── tree.glb                # Cevre agaci (scale: 2.5)
 ├── supabase/
 │   ├── functions/
 │   │   ├── verify-payment/index.ts # Odeme dogrulama Edge Function (TypeScript/Deno)
-│   │   └── use-credit/index.ts     # Kredi dusme Edge Function (KRITIK BUG MEVCUT)
+│   │   └── use-credit/index.ts     # Kredi dusme Edge Function (Solana adres dogrulama DUZELTILDI)
 │   ├── migrations/
-│   │   └── 20241216_add_token_fields.sql
+│   │   └── 20241216_add_token_fields.sql # (eski BNB/LMX donemi - hala LMX/BNB default, guncellenmesi gerekli)
 │   └── rls-security-update.sql
 ├── supabase-schema.sql             # Veritabani semasi (6 tablo + 1 view)
 ├── supabase-functions.sql          # Stored procedure'ler (submit_score, triggers, cron)
@@ -108,19 +110,15 @@ loading -> launcher -> countdown (5sn) -> playing -> gameover
                                                       |
                                                       v
                                                    launcher
-
-Not: store.js'te quitGame() fonksiyonu 'menu' state'ini kullaniyor
-     ancak App.jsx'te 'menu' state'i icin render yok. Bu bir BUG.
 ```
 
 | Durum | Aciklama |
 |-------|----------|
-| `loading` | Ilk yukleme, 3D modeller preload (%90'da baslar), Lumexia.jpg banner gosterilir |
+| `loading` | Ilk yukleme, 3D modeller preload, Lumexia.jpg banner gosterilir |
 | `launcher` | Ana menu: mod secimi, kredi satin alma, cuzdan baglama (RealLauncherUI) |
-| `countdown` | 5 saniye geri sayim + shader warmup (modeller gorünmez sahneye render edilir) |
-| `playing` | Aktif oyun - 60fps frame dongusu, Canvas aktif |
+| `countdown` | Geri sayim + shader warmup (modeller gorünmez sahneye render edilir) |
+| `playing` | Aktif oyun - frame dongusu, Canvas aktif |
 | `gameover` | Carpma/bitis ekrani, skor Supabase'e kaydedilir (3 retry ile) |
-| `menu` | **BUG**: quitGame() bunu ayarlar ama App.jsx'te render yok |
 
 ### Giris Noktasi Akisi
 1. `index.html` → FontAwesome CDN yukler
@@ -134,7 +132,7 @@ Not: store.js'te quitGame() fonksiyonu 'menu' state'ini kullaniyor
 
 ---
 
-## State Yonetimi (store.js - 796 satir)
+## State Yonetimi (store.js - 797 satir)
 
 ### Tum State Degiskenleri
 ```javascript
@@ -186,7 +184,7 @@ countdownTimer: null         // Countdown interval referansi
 | `setGameMode(mode)` | Oyun modunu ayarla (reachedLevel5 sifirlanir) |
 | `updateEnemyPassed(enemyId)` | Dusman gecis bayragi guncelle (near miss icin) |
 | `startGame()` | Oyunu baslat: kredi kontrol, countdown baslat, kredi dus, playing state |
-| `quitGame()` | Oyundan cik: timer temizle, 'menu' state (BUG) |
+| `quitGame()` | Oyundan cik: timer temizle, 'launcher' state'e don |
 | `cleanupTimer()` | Countdown timer'i temizle (component unmount icin) |
 | `steer(direction)` | Yonlendirme: step=1.25, sinirlar: [-5.0, +5.0] |
 | `activateNitro()` | Nitro etkinlestir (nitro > 0 gerekli) |
@@ -355,10 +353,12 @@ D/N mod + Level 5 yok: 0           // Sifir skor
 
 **Ozellikler:**
 - Skor renk kodlama: Gold (classic), Yesil (D/N basari), Kirmizi (D/N basarisiz)
-- Otomatik skor kaydetme: `supabase.rpc('submit_score', ...)`
-- Retry mekanizmasi: 3 deneme, `2000ms * (retryCount + 1)` bekleme
+- Otomatik skor kaydetme: `supabase.rpc('submit_score', { p_wallet, p_score, p_duration, p_distance })`
+  - **NOT:** `coins_collected` parametresi gonderilmiyor (scores tablosunda sutun var)
+- Retry mekanizmasi: 3 deneme, linear backoff `2000ms * (retryCount + 1)` (2s, 4s, 6s)
 - Network kontrolu: `navigator.onLine` ile offline algilama
 - Anti-cheat banner: "Fair Play Protected - All scores are verified on-chain"
+  - **NOT:** Yaniltici iddia - sunucu tarafli dogrulama yok, skor frontend'ten dogrudan RPC'ye gonderiliyor
 - Butonlar: Race Again (kredi varsa), Check Scores (lumexia.net), Main Menu
 - Kalan kredi gosterimi
 
@@ -372,9 +372,10 @@ D/N mod + Level 5 yok: 0           // Sifir skor
 - Boyut: buyuyen sonra kuculen (life faktorune gore)
 - GPU: InstancedMesh, tek draw call, cached dummy Object3D ve Color
 
-### PostProcessing.jsx
-- EffectComposer multisampling=0 ile
-- **TAMAMEN DEVRE DISI**: Component null dondurur
+### PostProcessing.jsx (22 satir)
+- `enabled=false` ise `null` dondurur; aksi halde bos `<EffectComposer multisampling={0}>` dondurur (hicbir efekt icermez)
+- App.jsx her zaman `enabled={true}` ile render eder, yani efektsiz composer sahneye eklenir
+- App.jsx'te `speed` ve `isNitroActive` prop'lari gecer ama component kullanmaz (olu prop'lar)
 - Yorum: "ALL POST-PROCESSING DISABLED - Clean gameplay visuals"
 
 ### PhysicsWorld.jsx
@@ -399,51 +400,48 @@ updatePriority: -50        // Dusuk oncelik (render'dan once)
    - Transaction signature: base58, 80-90 karakter
    - Paket miktari: sadece 1, 5, 10
 3. Tekrar islem kontrolu (transaction_hash unique)
-4. Token fiyati alma:
+4. Token fiyati alma (backend oncelik sirasi):
    - Jupiter Price API (ana)
    - DexScreener (yedek)
-   - %10 fiyat toleransi (kripto volatilite icin)
+   - `PRICE_TOLERANCE = 0.10` (%10 fiyat toleransi - kripto volatilite icin)
+   - **NOT:** Frontend `solana.config.js` ise `priceTolerance: 0.05` (%5) kullanir - tolerans frontend/backend arasinda tutarsiz
 5. Blockchain dogrulama:
    - Multi-RPC: Helius (ana) + Solana mainnet (yedek)
-   - Her endpoint icin 3 deneme, 1000ms * attempt bekleme
+   - `verifySolanaTransaction` icinde `maxRetries = 5` (her endpoint icin), 1000ms * attempt bekleme
    - Method 1: SPL token transfer instruction parse
    - Method 2: Pre/post token bakiye analizi
 6. Transfer dogrulama:
    - Gonderici == kullanici adresi
    - Alici == PAYMENT_RECEIVER
-   - Token == COAL_TOKEN_MINT
-   - Miktar >= minExpectedCoal
+   - Token == PAYMENT_TOKEN_MINT (OILTOWN)
+   - Miktar >= minExpectedAmount
 7. Veritabani islemleri:
    - Kullanici getir/olustur
-   - Transaction kaydi ekle (idempotency icin)
+   - Transaction kaydi ekle (idempotency icin, `token_symbol: 'COAL'` - eski isim)
    - Kullanici kredisini guncelle
    - Basarisizsa rollback
 
 ### use-credit/index.ts
 
-**KRITIK BUG:**
+**Adres Dogrulama (DUZELTILDI):**
 ```typescript
-// HATALI - Ethereum adresi dogruluyor, Solana degil!
-const isValidEthAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+const isValidSolanaAddress = (address: string): boolean => {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
 };
 ```
-Bu fonksiyon `0x` ile baslayan Ethereum adreslerini dogrular.
-Solana adresleri base58 formatinda ve `0x` ile baslamaz.
-**Sonuc: Tum gecerli Solana adresleri reddedilecek!**
+Onceki Ethereum-format regex'i (`/^0x[a-fA-F0-9]{40}$/`) Solana base58 regex'i ile degistirildi.
 
-**Not:** Bu bug, frontend'in `supabaseClient.js`'deki `useCredit()` fonksiyonunun
-Edge Function'a cagri yapmasini etkiler. Frontend dogrudan Supabase'e
-baglanarak kredi dusuyor olabilir, bu durumda Edge Function bypasslanmis olur.
-
-**Normal Islem Akisi:**
+**Islem Akisi:**
 1. CORS kontrolu
-2. Wallet adresi dogrulama (**HATALI**)
+2. Wallet adresi dogrulama (Solana base58)
 3. Miktar dogrulama (1-10 arasi tam sayi)
 4. Kullanici ara
 5. Yeterli kredi kontrolu
 6. Kredi dus, oyun sayaci artir, last_played guncelle
 7. Sonuc don: remainingCredits, totalGamesPlayed
+
+**Not:** Frontend'in `supabaseClient.js`'deki `useCredit()` fonksiyonu dogrudan DB'ye
+yazabilir; RLS gevsek oldugundan Edge Function bypass edilebilir (bkz. Guvenlik Riskleri).
 
 ---
 
@@ -618,28 +616,30 @@ Near Miss:
 
 ## Bilinen Hatalar ve Eksiklikler
 
-### KRITIK HATALAR
-1. **use-credit Edge Function Ethereum adresi dogrulama** - Solana adresleri reddedilecek (`/^0x[a-fA-F0-9]{40}$/`)
-2. **quitGame() 'menu' state kullanir** - App.jsx'te 'menu' icin render yok, bos ekran
-3. **RainbowKit CSS import** - `index.html`'de BNB Chain doneminden kalma, kullanilmiyor
+> Faz 0 kritik bug'lari (use-credit Ethereum regex, quitGame 'menu' state, RainbowKit CSS) **duzeltildi ve merge edildi**.
+> Detay icin bkz. `TASK.md`.
 
 ### YUKSEK ONCELIK
-4. **Test altyapisi yok** - Hicbir test runner veya test dosyasi mevcut degil
-5. **RLS politikalari gevşek** - `USING(true)` ile tum tablolar herkese acik
-6. **Sunucu tarafli skor dogrulama yok** - Frontend'den hile mumkun
-7. **TypeScript yok** - 3000+ satir JavaScript, tip guvenligi eksik
-8. **Tutarsiz isimlendirme** - `getCoalBalance`, `calculateCoalAmount`, `transferCoalToken` (OILTOWN olmalı)
-9. **App.jsx cok buyuk** - 2464 satir tek dosyada
+1. **Test altyapisi yok** - Hicbir test runner veya test dosyasi mevcut degil
+2. **RLS politikalari gevsek** - `USING(true)` ile tum tablolar herkese acik
+3. **Sunucu tarafli skor dogrulama yok** - Frontend'den hile mumkun, GameOverUI "Fair Play Protected" banner'i yaniltici
+4. **TypeScript yok** - Frontend tamami JavaScript, tip guvenligi eksik
+5. **Tutarsiz isimlendirme** - `getCoalBalance`, `calculateCoalAmount`, `transferCoalToken` - COAL eski BNB donemi isimleri, token OILTOWN
+6. **App.jsx cok buyuk** - 2464 satir tek dosyada, bolunmesi gerekli
 
 ### ORTA ONCELIK
-10. **Post-processing devre disi** - Gorsel kalite arttirilabilir
-11. **Ses dosyalari yok** - Sadece sentezlenmis sesler (motor sesi yok)
-12. **Hardcoded oyun sabitleri** - Config dosyasina tasinabilir
-13. **GameOverUI'da coins_collected gonderilmiyor** - scores tablosunda var ama kaydedilmiyor
+7. **Post-processing bos composer** - `PostProcessing.jsx` efektsiz `EffectComposer` render eder (null yerine). Gereksiz Canvas agaci dugumu.
+8. **PostProcessing olu prop'lar** - App.jsx `speed`, `isNitroActive` prop'lari gonderir ama component kullanmaz
+9. **Ses dosyalari yok** - Sadece sentezlenmis sesler (motor sesi/muzik yok)
+10. **Hardcoded oyun sabitleri** - Oyun parametreleri (hiz, mesafe, spawn orani) App.jsx/store.js icine gomulu
+11. **GameOverUI'da coins_collected gonderilmiyor** - scores tablosunda sutun var ama RPC cagrisina eklenmiyor
+12. **Tolerans tutarsizligi** - Frontend `solana.config.js` %5, backend `verify-payment` %10 tolerans kullanir
+13. **Preload edilen kullanilmayan asset'ler** - `Car1/scene.gltf`, `suv.glb`, `coin.glb` preload edilir ama Traffic render'inda kullanilmaz
+14. **Eski migration** - `20241216_add_token_fields.sql` LMX/BNB default'lari iceriyor (artik OILTOWN)
 
 ### DUSUK ONCELIK
-14. **Fazla console.log** - Terser uretimde kaldirir ama gelistirmede cok
-15. **FontAwesome CDN** - Sadece loading icin, bundle'a alinabilir
+15. **Fazla console.log** - Terser uretimde kaldirir ama gelistirmede kirlilik
+16. **FontAwesome CDN** - Sadece loading icin, bundle'a alinabilir
 
 ---
 

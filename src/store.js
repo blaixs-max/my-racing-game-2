@@ -103,7 +103,7 @@ export const audioSystem = new AudioSystem();
 
 // ==================== OYUN VERİ MERKEZİ ====================
 export const useGameStore = create((set, get) => ({
-  gameState: 'loading', // 'loading' | 'launcher' | 'countdown' | 'playing' | 'gameOver'
+  gameState: 'loading', // 'loading' | 'launcher' | 'countdown' | 'playing' | 'gameover'
   countdown: 3,
   speed: 0,
   targetSpeed: 60,

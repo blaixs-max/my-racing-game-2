@@ -1244,10 +1244,10 @@ const StreetLights = memo(() => {
   const { speed } = useGameStore();
   const lightsRef = useRef();
 
-  // OPTIMIZED: Reduced from 22 to 12 lights (every 150m instead of 100m)
+  // OPTIMIZED: Reduced from 22 to 14 lights (every 150m instead of 100m)
   const lights = useMemo(() => {
     const result = [];
-    // Create lights from -450m to +450m (6 pairs = 12 total, down from 22)
+    // Create lights from -450m to +450m (7 pairs = 14 total, down from 22)
     for (let i = -3; i <= 3; i++) {
       result.push({
         id: `left-${i}`,
