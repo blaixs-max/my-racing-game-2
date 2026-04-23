@@ -1,6 +1,8 @@
 /**
- * Jupiter Price API Integration
- * Fetches real-time COAL token price in USD
+ * Token Price API Integration
+ * Fetches real-time payment token price in USD.
+ * Primary: DexScreener (better for new/pump.fun tokens)
+ * Fallback: Jupiter Price API
  */
 
 import { TOKEN_CONFIG, JUPITER_CONFIG } from '../solana.config.js';
@@ -12,10 +14,10 @@ let priceCache = {
 };
 
 /**
- * Fetch token price - tries DexScreener first (better for new tokens), then Jupiter
+ * Fetch token price - DexScreener first (better for new tokens), then Jupiter fallback.
  * @returns {Promise<number>} Price in USD
  */
-export async function getCoalPrice() {
+export async function getTokenPrice() {
   // Check cache
   const now = Date.now();
   if (priceCache.price && (now - priceCache.timestamp) < JUPITER_CONFIG.priceCacheDuration) {
@@ -113,23 +115,23 @@ async function getJupiterPrice() {
 }
 
 /**
- * Calculate required COAL amount for USD value
+ * Calculate required token amount for USD value
  * @param {number} usdAmount - Amount in USD
- * @returns {Promise<{coalAmount: number, price: number}>}
+ * @returns {Promise<{tokenAmount: number, price: number}>}
  */
-export async function calculateCoalAmount(usdAmount) {
-  const price = await getCoalPrice();
+export async function calculateTokenAmount(usdAmount) {
+  const price = await getTokenPrice();
 
   if (!price || price <= 0) {
-    throw new Error('Invalid COAL price');
+    throw new Error(`Invalid ${TOKEN_CONFIG.symbol} price`);
   }
 
-  const coalAmount = usdAmount / price;
+  const tokenAmount = usdAmount / price;
 
-  console.log(`[Price] $${usdAmount} USD = ${coalAmount.toFixed(6)} COAL (@ $${price}/COAL)`);
+  console.log(`[Price] $${usdAmount} USD = ${tokenAmount.toFixed(6)} ${TOKEN_CONFIG.symbol} (@ $${price}/${TOKEN_CONFIG.symbol})`);
 
   return {
-    coalAmount,
+    tokenAmount,
     price
   };
 }
@@ -156,15 +158,15 @@ export function formatPrice(price) {
  * @param {number} maxRetries - Maximum retry attempts
  * @returns {Promise<number>} Price in USD
  */
-export async function getCoalPriceWithRetry(maxRetries = 3) {
+export async function getTokenPriceWithRetry(maxRetries = 3) {
   let lastError;
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await getCoalPrice();
+      return await getTokenPrice();
     } catch (error) {
       lastError = error;
-      console.warn(`[Jupiter] Retry ${i + 1}/${maxRetries} failed:`, error.message);
+      console.warn(`[Price] Retry ${i + 1}/${maxRetries} failed:`, error.message);
 
       // Wait before retry (exponential backoff)
       if (i < maxRetries - 1) {
@@ -184,13 +186,13 @@ export function clearPriceCache() {
     price: null,
     timestamp: 0
   };
-  console.log('[Jupiter] Price cache cleared');
+  console.log('[Price] Cache cleared');
 }
 
 export default {
-  getCoalPrice,
-  calculateCoalAmount,
+  getTokenPrice,
+  calculateTokenAmount,
   formatPrice,
-  getCoalPriceWithRetry,
+  getTokenPriceWithRetry,
   clearPriceCache
 };

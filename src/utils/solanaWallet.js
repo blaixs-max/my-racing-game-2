@@ -1,6 +1,7 @@
 /**
  * Solana Wallet Utilities
- * SPL Token Transfer and Balance Functions for COAL Token
+ * SPL Token Transfer and Balance Functions for the payment token
+ * (token defined in solana.config.js -> TOKEN_CONFIG)
  */
 
 import {
@@ -26,7 +27,7 @@ import {
   toRawAmount,
   fromRawAmount
 } from '../solana.config.js';
-import { calculateCoalAmount } from './jupiterPrice.js';
+import { calculateTokenAmount } from './jupiterPrice.js';
 
 // Connection instance with fallback
 let connection = null;
@@ -103,21 +104,20 @@ export async function getSolBalance(publicKey, conn = null) {
 }
 
 /**
- * Get COAL token balance of wallet
+ * Get payment token balance of wallet
  * @param {PublicKey} publicKey - Wallet public key
  * @param {Connection} conn - Optional connection instance (uses default if not provided)
- * @returns {Promise<number>} COAL token balance
+ * @returns {Promise<number>} Token balance
  */
-export async function getCoalBalance(publicKey, conn = null) {
+export async function getTokenBalance(publicKey, conn = null) {
   try {
     const connection = conn || getConnection();
     const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
     const tokenProgramId = await getTokenProgramId(connection);
 
-    console.log('[Solana] Fetching COAL balance for:', publicKey.toString());
+    console.log(`[Solana] Fetching ${TOKEN_CONFIG.symbol} balance for:`, publicKey.toString());
     console.log('[Solana] Using token program:', tokenProgramId.toString());
 
-    // Get associated token account address with detected program
     const ata = await getAssociatedTokenAddress(
       mintPubkey,
       publicKey,
@@ -131,10 +131,9 @@ export async function getCoalBalance(publicKey, conn = null) {
     try {
       const tokenAccount = await getAccount(connection, ata, undefined, tokenProgramId);
       const balance = fromRawAmount(Number(tokenAccount.amount));
-      console.log('[Solana] COAL balance:', balance);
+      console.log(`[Solana] ${TOKEN_CONFIG.symbol} balance:`, balance);
       return balance;
     } catch (e) {
-      // Account doesn't exist, balance is 0
       if (e.name === 'TokenAccountNotFoundError') {
         console.log('[Solana] No token account found, balance is 0');
         return 0;
@@ -142,7 +141,7 @@ export async function getCoalBalance(publicKey, conn = null) {
       throw e;
     }
   } catch (error) {
-    console.error('[Solana] Error getting COAL balance:', error);
+    console.error(`[Solana] Error getting ${TOKEN_CONFIG.symbol} balance:`, error);
     return 0;
   }
 }
@@ -151,30 +150,28 @@ export async function getCoalBalance(publicKey, conn = null) {
  * Check if wallet has enough balance for payment
  * @param {PublicKey} publicKey - Wallet public key
  * @param {number} usdAmount - USD amount to pay
- * @returns {Promise<{hasEnough: boolean, coalBalance: number, requiredCoal: number, solBalance: number}>}
+ * @returns {Promise<{hasEnough: boolean, tokenBalance: number, requiredTokens: number, solBalance: number}>}
  */
 export async function checkPaymentBalance(publicKey, usdAmount) {
   try {
-    // Get current price and calculate required COAL
-    const { coalAmount: requiredCoal } = await calculateCoalAmount(usdAmount);
+    const { tokenAmount: requiredTokens } = await calculateTokenAmount(usdAmount);
 
-    // Get balances
-    const [coalBalance, solBalance] = await Promise.all([
-      getCoalBalance(publicKey),
+    const [tokenBalance, solBalance] = await Promise.all([
+      getTokenBalance(publicKey),
       getSolBalance(publicKey)
     ]);
 
-    const hasEnoughCoal = coalBalance >= requiredCoal;
+    const hasEnoughTokens = tokenBalance >= requiredTokens;
     const hasEnoughSol = solBalance >= PAYMENT_CONFIG.minSolBalance;
 
-    console.log(`[Balance Check] COAL: ${coalBalance} (need ${requiredCoal}), SOL: ${solBalance}`);
+    console.log(`[Balance Check] ${TOKEN_CONFIG.symbol}: ${tokenBalance} (need ${requiredTokens}), SOL: ${solBalance}`);
 
     return {
-      hasEnough: hasEnoughCoal && hasEnoughSol,
-      hasEnoughCoal,
+      hasEnough: hasEnoughTokens && hasEnoughSol,
+      hasEnoughTokens,
       hasEnoughSol,
-      coalBalance,
-      requiredCoal,
+      tokenBalance,
+      requiredTokens,
       solBalance,
       minSolRequired: PAYMENT_CONFIG.minSolBalance
     };
@@ -185,12 +182,12 @@ export async function checkPaymentBalance(publicKey, usdAmount) {
 }
 
 /**
- * Transfer COAL tokens to receiver wallet
+ * Transfer payment tokens to receiver wallet
  * @param {object} wallet - Wallet adapter instance
  * @param {number} usdAmount - USD amount to pay
- * @returns {Promise<{signature: string, coalAmount: number, price: number}>}
+ * @returns {Promise<{signature: string, tokenAmount: number, price: number}>}
  */
-export async function transferCoalToken(wallet, usdAmount) {
+export async function transferToken(wallet, usdAmount) {
   if (!wallet.publicKey) {
     throw new Error('Wallet not connected');
   }
@@ -200,17 +197,14 @@ export async function transferCoalToken(wallet, usdAmount) {
   const receiverPubkey = new PublicKey(PAYMENT_CONFIG.receiverWallet);
   const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
 
-  // Detect token program (SPL Token vs Token-2022)
   const tokenProgramId = await getTokenProgramId(conn);
 
-  // Calculate COAL amount needed
-  const { coalAmount, price } = await calculateCoalAmount(usdAmount);
-  const rawAmount = toRawAmount(coalAmount);
+  const { tokenAmount, price } = await calculateTokenAmount(usdAmount);
+  const rawAmount = toRawAmount(tokenAmount);
 
-  console.log(`[Transfer] Sending ${coalAmount} COAL ($${usdAmount}) to ${PAYMENT_CONFIG.receiverWallet}`);
+  console.log(`[Transfer] Sending ${tokenAmount} ${TOKEN_CONFIG.symbol} ($${usdAmount}) to ${PAYMENT_CONFIG.receiverWallet}`);
   console.log(`[Transfer] Using token program: ${tokenProgramId.toString()}`);
 
-  // Get sender's ATA with detected program
   const senderAta = await getAssociatedTokenAddress(
     mintPubkey,
     senderPubkey,
@@ -219,7 +213,6 @@ export async function transferCoalToken(wallet, usdAmount) {
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
-  // Get receiver's ATA with detected program
   const receiverAta = await getAssociatedTokenAddress(
     mintPubkey,
     receiverPubkey,
@@ -228,10 +221,8 @@ export async function transferCoalToken(wallet, usdAmount) {
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
-  // Create transaction
   const transaction = new Transaction();
 
-  // Check if receiver ATA exists, create if not
   try {
     await getAccount(conn, receiverAta, undefined, tokenProgramId);
   } catch (e) {
@@ -239,10 +230,10 @@ export async function transferCoalToken(wallet, usdAmount) {
       console.log('[Transfer] Creating receiver ATA...');
       transaction.add(
         createAssociatedTokenAccountInstruction(
-          senderPubkey, // payer
-          receiverAta, // ata
-          receiverPubkey, // owner
-          mintPubkey, // mint
+          senderPubkey,
+          receiverAta,
+          receiverPubkey,
+          mintPubkey,
           tokenProgramId,
           ASSOCIATED_TOKEN_PROGRAM_ID
         )
@@ -250,24 +241,21 @@ export async function transferCoalToken(wallet, usdAmount) {
     }
   }
 
-  // Add transfer instruction with detected program
   transaction.add(
     createTransferInstruction(
-      senderAta, // source
-      receiverAta, // destination
-      senderPubkey, // owner
-      rawAmount, // amount
-      [], // multiSigners
+      senderAta,
+      receiverAta,
+      senderPubkey,
+      rawAmount,
+      [],
       tokenProgramId
     )
   );
 
-  // Get recent blockhash
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
   transaction.recentBlockhash = blockhash;
   transaction.feePayer = senderPubkey;
 
-  // Sign and send transaction
   console.log('[Transfer] Requesting wallet signature...');
 
   try {
@@ -278,7 +266,6 @@ export async function transferCoalToken(wallet, usdAmount) {
 
     console.log('[Transfer] Transaction sent:', signature);
 
-    // Wait for confirmation
     const confirmation = await conn.confirmTransaction({
       signature,
       blockhash,
@@ -293,13 +280,12 @@ export async function transferCoalToken(wallet, usdAmount) {
 
     return {
       signature,
-      coalAmount,
+      tokenAmount,
       price
     };
   } catch (error) {
     console.error('[Transfer] Transaction error:', error);
 
-    // Handle specific errors
     if (error.message?.includes('User rejected')) {
       throw new Error('Transaction cancelled by user');
     }
@@ -352,13 +338,11 @@ export async function watchTransaction(signature, onConfirmed, onError, timeout 
         return;
       }
 
-      // Check timeout
       if (Date.now() - startTime > timeout) {
         onError(new Error('Transaction confirmation timeout'));
         return;
       }
 
-      // Continue polling
       setTimeout(checkConfirmation, 2000);
     } catch (error) {
       onError(error);
@@ -432,9 +416,9 @@ export default {
   getConnection,
   switchRpcEndpoint,
   getSolBalance,
-  getCoalBalance,
+  getTokenBalance,
   checkPaymentBalance,
-  transferCoalToken,
+  transferToken,
   getTransactionDetails,
   watchTransaction,
   formatAddress,

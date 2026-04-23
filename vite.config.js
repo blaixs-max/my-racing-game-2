@@ -25,8 +25,7 @@ export default defineConfig({
           'three-vendor': [
             'three',
             '@react-three/fiber',
-            '@react-three/drei',
-            '@react-three/postprocessing'
+            '@react-three/drei'
           ],
           // Solana wallet libraries in separate chunk
           'solana-vendor': [

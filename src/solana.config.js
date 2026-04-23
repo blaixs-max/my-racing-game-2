@@ -1,6 +1,8 @@
 /**
  * Solana Configuration for Racing Game
- * COAL Token Payment System
+ * Token Payment System - tum token bilgileri TOKEN_CONFIG icinde.
+ * Yeni token'a gecis icin sadece TOKEN_CONFIG icindeki `mint`, `name`, `symbol`,
+ * `decimals`, `logoUrl` degerlerini degistirmek yeterlidir.
  */
 
 import { clusterApiUrl } from '@solana/web3.js';
@@ -12,9 +14,16 @@ import { clusterApiUrl } from '@solana/web3.js';
 export const SOLANA_NETWORK = 'mainnet-beta';
 
 // RPC Endpoints with fallbacks
-// Using Helius free tier for reliable CORS-enabled RPC
+// Helius key'i build-time env var ile alinir (VITE_HELIUS_API_KEY).
+// Key domain-restricted (Helius dashboard'dan lumexia.net whitelist) olmalidir.
+// Key yoksa dogrudan public RPC'lere dusulur.
+const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY;
+const HELIUS_ENDPOINT = HELIUS_API_KEY
+  ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
+  : null;
+
 export const RPC_ENDPOINTS = [
-  'https://mainnet.helius-rpc.com/?api-key=5853e3ab-7918-4a18-8f02-923f2da827b0',
+  ...(HELIUS_ENDPOINT ? [HELIUS_ENDPOINT] : []),
   'https://api.mainnet-beta.solana.com',
   clusterApiUrl('mainnet-beta')
 ];
@@ -25,16 +34,13 @@ export const DEFAULT_RPC_ENDPOINT = RPC_ENDPOINTS[0];
 // TOKEN CONFIGURATION
 // =============================================================================
 
+// Payment token - yeni token'a gecerken sadece buradaki degerleri guncelle.
+// TODO: Yeni coin secildiginde mint/name/symbol/logoUrl degistirilecek.
 export const TOKEN_CONFIG = {
-  // OILTOWN Token Mint Address
   mint: 'AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump',
-
-  // Token Details
   name: 'OIL TOWN',
   symbol: 'OILTOWN',
   decimals: 6,
-
-  // Logo URL (update with actual logo)
   logoUrl: '/oiltown-token-logo.png'
 };
 
