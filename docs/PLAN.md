@@ -2,22 +2,17 @@
 
 ## Mevcut Durum Ozeti
 
-Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi sistemi, liderlik tablosu ve temel oyun mekanikleri tamamlanmis durumda. Ancak **3 kritik bug**, test altyapisi eksikligi, guvenlik aciklari ve tip guvenligi sorunlari tespit edildi.
+Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi sistemi, liderlik tablosu ve temel oyun mekanikleri tamamlanmis durumda. **Faz 0 kritik bug'lari duzeltildi.** Kalan oncelikler: test altyapisi, sunucu tarafli dogrulama, RLS sikistirma, tip guvenligi.
 
 ---
 
-## Faz 0: ACIL - Kritik Bug Duzeltmeleri (Oncelik: ACIL)
+## Faz 0: Kritik Bug Duzeltmeleri (TAMAMLANDI)
 
-### 0.1 use-credit Edge Function Bug - TAMAMLANDI
-- [x] `isValidEthAddress` Ethereum regex'ini `isValidSolanaAddress` ile degistirildi
-- [x] Regex: `/^[1-9A-HJ-NP-Za-km-z]{32,44}$/` (base58, 32-44 karakter)
-- [ ] Test: gecerli Solana adresleri kabul edilmeli, gecersiz adresler reddedilmeli
+- [x] `use-credit/index.ts`: Ethereum regex -> Solana base58 regex
+- [x] `store.js` quitGame(): `'menu'` -> `'launcher'`
+- [x] `index.html`: kullanilmayan RainbowKit CSS import kaldirildi
 
-### 0.2 quitGame() State Bug - TAMAMLANDI
-- [x] `store.js`'te `quitGame()` icindeki `'menu'` state'i `'launcher'` ile degistirildi
-
-### 0.3 Kullanilmayan Import Temizligi - TAMAMLANDI
-- [x] `index.html`'den RainbowKit CSS import'u kaldirildi
+Detay icin bkz. `TASK.md`.
 
 ---
 
@@ -79,7 +74,8 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 - [ ] Rate limiting eklenmesi (skor gonderme, kredi kullanma)
 - [ ] Edge Function'larda girdi dogrulama guclendirme
 - [ ] GameOverUI'daki "Fair Play Protected" iddiasini gercek dogrulama ile destekle
-- [ ] coins_collected verisini scores tablosuna kaydetme
+- [ ] submit_score RPC'ye coins_collected parametresi eklemek ve scores tablosuna yazmak
+- [ ] Fiyat toleransini hizala (frontend %5 vs backend %10)
 
 ### 3.2 Backend Ozellikleri
 - [ ] Skor gonderme Edge Function'u (sunucu tarafli dogrulama)
@@ -171,16 +167,17 @@ Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi
 
 | Alan | Aciklama | Oncelik |
 |------|----------|---------|
-| ~~KRITIK BUG~~ | ~~use-credit Ethereum adresi dogruluyor~~ DUZELTILDI | ~~ACIL~~ |
-| ~~KRITIK BUG~~ | ~~quitGame() 'menu' state -> bos ekran~~ DUZELTILDI | ~~ACIL~~ |
 | Test yok | Hicbir test mevcut degil | Kritik |
 | TypeScript yok | Tip guvenligi eksik | Yuksek |
 | RLS politikalari | Tum tablolarda USING(true) - herkes her seye erisebilir | Yuksek |
-| Sunucu tarafli skor dogrulama yok | Frontend'den hile mumkun | Yuksek |
+| Sunucu tarafli skor dogrulama yok | Frontend'den hile mumkun, "Fair Play Protected" banner'i yaniltici | Yuksek |
 | App.jsx 2464 satir | Tek dosyada cok fazla bilesen | Yuksek |
-| Coal -> Oiltown | getCoalBalance, transferCoalToken gibi fonksiyon isimleri | Orta |
-| coins_collected kaydedilmiyor | Scores tablosunda sutun var ama GameOverUI gondermez | Orta |
-| Post-processing | Devre disi birakilmis | Dusuk |
-| Hardcoded degerler | Oyun sabitleri (hiz, mesafe, spawn oranlari) dosyada gommlu | Orta |
-| RainbowKit CSS | index.html'de BNB Chain doneminden kalma kullanilmayan import | Dusuk |
+| Coal -> Oiltown | getCoalBalance, transferCoalToken gibi fonksiyon isimleri eski BNB donemi | Orta |
+| coins_collected kaydedilmiyor | Scores tablosunda sutun var ama GameOverUI submit_score'a gondermez | Orta |
+| Tolerans tutarsizligi | Frontend %5 (solana.config.js) vs backend %10 (verify-payment) | Orta |
+| Post-processing | Bos EffectComposer render ediliyor, component tamamen kaldirilabilir | Dusuk |
+| Olu prop'lar | PostProcessing'e gecen speed, isNitroActive prop'lari kullanilmiyor | Dusuk |
+| Hardcoded degerler | Oyun sabitleri (hiz, mesafe, spawn oranlari) dosyada gomulu | Orta |
+| Kullanilmayan asset'ler | Car1/scene.gltf, suv.glb, coin.glb preload edilir ama render'da kullanilmaz | Dusuk |
+| Eski migration | 20241216_add_token_fields.sql LMX/BNB default'lari iceriyor (artik OILTOWN) | Dusuk |
 | FontAwesome CDN | Dis bagimllik, bundle'a alinabilir | Dusuk |

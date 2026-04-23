@@ -1,10 +1,24 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-02-06 (v3 - Kritik Bug Duzeltmeleri)
+> Son guncelleme: 2026-04-16 (v4 - Dokuman tutarlilik gecisi)
 
 ---
 
 ## Tamamlanan Gorevler
+
+### 2026-04-16: Dokumantasyon Tutarlilik Gecisi
+
+- [x] PROJECT_DOCS.md'den tamamlanmis Faz 0 bug'lari "KRITIK HATALAR"dan kaldirildi
+- [x] PostProcessing aciklamasi duzeltildi (null yerine bos EffectComposer)
+- [x] Token fiyat API oncelik siralamasi aciklandi (frontend DexScreener ilk, backend Jupiter ilk)
+- [x] Fiyat tolerans tutarsizligi belgelendi (frontend %5, backend %10)
+- [x] StreetLights lamba sayisi yorumu 14'e cikarildi (App.jsx:1250 7x2=14)
+- [x] store.js:106 yorum kucuk/buyuk harf tutarsizligi giderildi ('gameOver' -> 'gameover')
+- [x] Kullanilmayan asset'ler (Car1/scene.gltf, suv.glb, coin.glb) dokumante edildi
+- [x] Eski LMX/BNB migration'i dokumante edildi
+- [x] GameOverUI submit_score imzasi duzeltildi (coins_collected gonderilmiyor not'u)
+- [x] OILTOWN mint ve odeme alici adresleri dokumantasyona eklendi
+- [x] PLAN.md teknik borc tablosu guncellendi
 
 ### 2026-02-06: Kritik Bug Duzeltmeleri (Faz 0)
 
@@ -65,35 +79,19 @@
 
 ---
 
-## Tespit Edilen Kritik Buglar
+## Tespit Edilen Kritik Buglar (ARSIV - Tamami Duzeltildi)
 
-### BUG #1: use-credit Edge Function - Ethereum Adresi Dogrulama
-**Dosya:** `supabase/functions/use-credit/index.ts:32-34`
-**Ciddiyet:** KRITIK
-**Aciklama:** `isValidEthAddress()` fonksiyonu `0x` ile baslayan Ethereum adreslerini dogrular. Solana adresleri base58 formatinda ve `0x` ile baslamaz. Tum gecerli Solana adresleri reddedilecek.
-```typescript
-// HATALI:
-const isValidEthAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
-// OLMASI GEREKEN:
-const isValidSolanaAddress = (address: string): boolean => {
-  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
-};
-```
-**Not:** Frontend muhtemelen bu Edge Function'i bypassliyor ve dogrudan Supabase'e baglanarak kredi dusuyor. Bu da guvenlik riski olusturuyor.
+### BUG #1: use-credit Edge Function - Ethereum Adresi Dogrulama (DUZELTILDI)
+**Dosya:** `supabase/functions/use-credit/index.ts`
+**Cozum:** `isValidEthAddress` -> `isValidSolanaAddress` (regex: `/^[1-9A-HJ-NP-Za-km-z]{32,44}$/`)
 
-### BUG #2: quitGame() 'menu' State
-**Dosya:** `src/store.js` (quitGame action)
-**Ciddiyet:** KRITIK
-**Aciklama:** `quitGame()` fonksiyonu state'i `'menu'` olarak ayarlar, ancak `App.jsx`'te `'menu'` state'i icin hicbir render tanimli degil. Sonuc: bos/beyaz ekran.
-**Cozum:** `'menu'` yerine `'launcher'` kullanmak.
+### BUG #2: quitGame() 'menu' State (DUZELTILDI)
+**Dosya:** `src/store.js`
+**Cozum:** `quitGame()` icinde `'menu'` -> `'launcher'`
 
-### BUG #3: RainbowKit CSS Import
+### BUG #3: RainbowKit CSS Import (DUZELTILDI)
 **Dosya:** `index.html`
-**Ciddiyet:** DUSUK (islevsiz kod)
-**Aciklama:** BNB Chain doneminden kalma kullanilmayan RainbowKit CSS import'u.
-**Cozum:** Import satirini kaldirmak.
+**Cozum:** BNB Chain doneminden kalma CSS import satiri kaldirildi.
 
 ---
 
@@ -113,8 +111,8 @@ const isValidSolanaAddress = (address: string): boolean => {
 
 ### RISK #3: Edge Function Bypass
 **Ciddiyet:** ORTA
-**Sorun:** use-credit Edge Function calismiyorsa (Bug #1), frontend dogrudan DB'ye erisebilir
-**Etki:** Kredi dusme guvenligi azalir
+**Sorun:** RLS politikalari gevsek oldugu icin frontend, use-credit Edge Function'i yerine dogrudan DB'ye yazabilir
+**Etki:** Kredi dusme guvenligi azalir, anti-cheat dogrulama yapilamaz
 
 ---
 
@@ -126,11 +124,11 @@ const isValidSolanaAddress = (address: string): boolean => {
 | App.jsx (tum bilesenler) | %95 | Tum 20+ bilesen dokumante edildi |
 | GameOverUI.jsx | %100 | D/N mantigi, retry, anti-cheat |
 | AdvancedParticles.jsx | %100 | Fizik, GPU instancing |
-| PostProcessing.jsx | %100 | Devre disi durumu belgelendi |
+| PostProcessing.jsx | %100 | Bos EffectComposer render ettigi belgelendi |
 | PhysicsWorld.jsx | %100 | Tum parametre |
-| RealLauncherUI.jsx | %70 | Cok buyuk dosya, ana ozellikler belgelendi |
+| RealLauncherUI.jsx | %70 | 1615 satir / ~59KB, ana ozellikler belgelendi |
 | verify-payment/index.ts | %100 | Tam islem akisi |
-| use-credit/index.ts | %100 | Bug dahil |
+| use-credit/index.ts | %100 | Solana regex duzeltilmis hali |
 | supabase-functions.sql | %100 | Tum fonksiyonlar ve trigger'lar |
 | supabase-schema.sql | %95 | Tum tablolar, RLS analizi |
 | Oyun mekanikleri | %100 | Carpisma, spawn, AI, skor, seviye |
@@ -139,7 +137,7 @@ const isValidSolanaAddress = (address: string): boolean => {
 | Ses sistemi | %100 | AudioSystem class, frekanslar |
 
 **Genel Tamamlanma: ~%97**
-Eksik: RealLauncherUI'nin detayli UI bilesenleri (64KB dosya, cok buyuk)
+Eksik: RealLauncherUI'nin detayli UI bilesenleri (~59KB dosya, cok buyuk)
 
 ---
 
