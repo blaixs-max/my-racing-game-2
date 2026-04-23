@@ -1,5 +1,15 @@
-// Supabase Edge Function: Verify COAL Token Payment on Solana
-// This function verifies SPL token transfer transactions and adds credits to users
+// Supabase Edge Function: Verify SPL Token Payment on Solana
+// This function verifies SPL token transfer transactions and adds credits to users.
+//
+// Token ayarlari Supabase Secrets uzerinden yapilir:
+//   PAYMENT_TOKEN_MINT    - Token mint adresi (zorunlu)
+//   TOKEN_SYMBOL          - Token kodu (DB'ye yazilir, ornek: OILTOWN)
+//   TOKEN_DECIMALS        - Token decimals (default 6)
+//   PAYMENT_RECEIVER      - Odeme alici cuzdan adresi (zorunlu)
+//   HELIUS_API_KEY        - Helius RPC API key (opsiyonel, yoksa public RPC kullanilir)
+//
+// Set etmek icin:
+//   supabase secrets set PAYMENT_TOKEN_MINT=... TOKEN_SYMBOL=... HELIUS_API_KEY=...
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -24,17 +34,22 @@ function getCorsHeaders(req: Request) {
 }
 
 // Solana Mainnet RPC endpoints (with fallbacks)
+// Helius API key Supabase Secrets uzerinden alinir (HELIUS_API_KEY).
+const HELIUS_API_KEY = Deno.env.get('HELIUS_API_KEY') ?? '';
 const SOLANA_MAINNET_RPCS = [
-  'https://mainnet.helius-rpc.com/?api-key=5853e3ab-7918-4a18-8f02-923f2da827b0',
+  ...(HELIUS_API_KEY
+    ? [`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`]
+    : []),
   'https://api.mainnet-beta.solana.com',
 ];
 
-// OILTOWN Token Configuration
-const COAL_TOKEN_MINT = 'AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump';
-const TOKEN_DECIMALS = 6;
+// Payment Token Configuration (env vars, fallback degerleri frontend ile senkron)
+const PAYMENT_TOKEN_MINT = Deno.env.get('PAYMENT_TOKEN_MINT') ?? 'AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump';
+const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'OILTOWN';
+const TOKEN_DECIMALS = Number(Deno.env.get('TOKEN_DECIMALS') ?? '6');
 
 // Payment Receiver Wallet Address (Solana)
-const PAYMENT_RECEIVER = 'T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg';
+const PAYMENT_RECEIVER = Deno.env.get('PAYMENT_RECEIVER') ?? 'T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg';
 
 // Jupiter Price API for dynamic pricing
 const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price';
@@ -51,12 +66,10 @@ interface TransactionData {
 
 // Validation helpers
 const isValidSolanaAddress = (address: string): boolean => {
-  // Solana addresses are base58 encoded, 32-44 characters
   return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
 };
 
 const isValidSolanaSignature = (signature: string): boolean => {
-  // Solana signatures are base58 encoded, typically 87-88 characters
   return /^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(signature);
 };
 
@@ -78,7 +91,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { transactionSignature, userAddress, packageAmount, blockchain }: TransactionData = await req.json();
+    const { transactionSignature, userAddress, packageAmount }: TransactionData = await req.json();
 
     // INPUT VALIDATION
     if (!transactionSignature || !isValidSolanaSignature(transactionSignature)) {
@@ -102,7 +115,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('🔍 Verifying COAL payment on Solana:', { transactionSignature, userAddress, packageAmount });
+    console.log(`🔍 Verifying ${TOKEN_SYMBOL} payment on Solana:`, { transactionSignature, userAddress, packageAmount });
 
     // 1. CHECK IF TRANSACTION ALREADY PROCESSED
     const { data: existingTx } = await supabase
@@ -118,24 +131,24 @@ serve(async (req) => {
       );
     }
 
-    // 2. GET CURRENT COAL PRICE FROM JUPITER
-    const coalPrice = await getCoalPrice();
-    if (!coalPrice) {
+    // 2. GET CURRENT TOKEN PRICE
+    const tokenPrice = await getTokenPrice();
+    if (!tokenPrice) {
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch COAL token price' }),
+        JSON.stringify({ error: `Failed to fetch ${TOKEN_SYMBOL} token price` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Calculate expected COAL amount for the package (USD value)
-    const expectedCoalAmount = packageAmount / coalPrice;
-    const minExpectedCoal = expectedCoalAmount * (1 - PRICE_TOLERANCE);
+    // Calculate expected token amount for the package (USD value)
+    const expectedTokenAmount = packageAmount / tokenPrice;
+    const minExpectedTokens = expectedTokenAmount * (1 - PRICE_TOLERANCE);
 
     console.log('💰 Price calculation:', {
       packageUsd: packageAmount,
-      coalPrice: coalPrice,
-      expectedCoal: expectedCoalAmount,
-      minExpectedCoal: minExpectedCoal,
+      tokenPrice,
+      expectedTokens: expectedTokenAmount,
+      minExpectedTokens,
     });
 
     // 3. VERIFY SOLANA TRANSACTION ON BLOCKCHAIN
@@ -149,10 +162,9 @@ serve(async (req) => {
     }
 
     // 4. VALIDATE TOKEN TRANSFER DETAILS
-    // Check if it's a COAL token transfer
-    if (!txData.isCoalTransfer) {
+    if (!txData.isTokenTransfer) {
       return new Response(
-        JSON.stringify({ error: 'Transaction is not a COAL token transfer' }),
+        JSON.stringify({ error: `Transaction is not a ${TOKEN_SYMBOL} token transfer` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -173,27 +185,27 @@ serve(async (req) => {
       );
     }
 
-    // Validate COAL amount with tolerance
-    const receivedCoal = txData.tokenAmount || 0;
+    // Validate token amount with tolerance
+    const receivedTokens = txData.tokenAmount || 0;
 
-    if (receivedCoal < minExpectedCoal) {
+    if (receivedTokens < minExpectedTokens) {
       return new Response(
         JSON.stringify({
-          error: 'Insufficient COAL amount',
-          expected: expectedCoalAmount,
-          minimum: minExpectedCoal,
-          received: receivedCoal,
+          error: `Insufficient ${TOKEN_SYMBOL} amount`,
+          expected: expectedTokenAmount,
+          minimum: minExpectedTokens,
+          received: receivedTokens,
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('✅ COAL transfer verified:', {
+    console.log(`✅ ${TOKEN_SYMBOL} transfer verified:`, {
       sender: txData.sender,
       receiver: txData.receiver,
-      coalAmount: receivedCoal,
-      expectedCoal: expectedCoalAmount,
-      coalPrice: coalPrice,
+      tokenAmount: receivedTokens,
+      expectedTokens: expectedTokenAmount,
+      tokenPrice,
     });
 
     // 5. GET OR CREATE USER
@@ -232,8 +244,8 @@ serve(async (req) => {
         credits_added: packageAmount,
         transaction_hash: transactionSignature,
         status: 'pending',
-        token_amount: receivedCoal,
-        token_symbol: 'COAL',
+        token_amount: receivedTokens,
+        token_symbol: TOKEN_SYMBOL,
       })
       .select()
       .single();
@@ -273,8 +285,8 @@ serve(async (req) => {
       user: userAddress,
       credits: packageAmount,
       newBalance: newCredits,
-      coalPaid: receivedCoal,
-      coalPrice: coalPrice,
+      tokensPaid: receivedTokens,
+      tokenPrice,
     });
 
     return new Response(
@@ -282,8 +294,9 @@ serve(async (req) => {
         success: true,
         credits: newCredits,
         transactionSignature,
-        coalAmount: receivedCoal,
-        coalPrice: coalPrice,
+        tokenAmount: receivedTokens,
+        tokenSymbol: TOKEN_SYMBOL,
+        tokenPrice,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -301,32 +314,30 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Get COAL token price from Jupiter API
-async function getCoalPrice(): Promise<number | null> {
+// Get token price from Jupiter API (with DexScreener fallback)
+async function getTokenPrice(): Promise<number | null> {
   try {
-    const response = await fetch(`${JUPITER_PRICE_API}?ids=${COAL_TOKEN_MINT}`);
+    const response = await fetch(`${JUPITER_PRICE_API}?ids=${PAYMENT_TOKEN_MINT}`);
     const data = await response.json();
 
-    if (data.data && data.data[COAL_TOKEN_MINT]) {
-      return data.data[COAL_TOKEN_MINT].price;
+    if (data.data && data.data[PAYMENT_TOKEN_MINT]) {
+      return data.data[PAYMENT_TOKEN_MINT].price;
     }
 
-    // Fallback to DexScreener if Jupiter doesn't have data
-    return await getCoalPriceFromDexScreener();
+    return await getTokenPriceFromDexScreener();
   } catch (error) {
-    console.error('Failed to fetch COAL price from Jupiter:', error);
-    return await getCoalPriceFromDexScreener();
+    console.error(`Failed to fetch ${TOKEN_SYMBOL} price from Jupiter:`, error);
+    return await getTokenPriceFromDexScreener();
   }
 }
 
 // Fallback price source: DexScreener
-async function getCoalPriceFromDexScreener(): Promise<number | null> {
+async function getTokenPriceFromDexScreener(): Promise<number | null> {
   try {
-    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${COAL_TOKEN_MINT}`);
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${PAYMENT_TOKEN_MINT}`);
     const data = await response.json();
 
     if (data.pairs && data.pairs.length > 0) {
-      // Get the pair with highest liquidity
       const bestPair = data.pairs.reduce((best: any, pair: any) =>
         (pair.liquidity?.usd || 0) > (best.liquidity?.usd || 0) ? pair : best
       );
@@ -335,7 +346,7 @@ async function getCoalPriceFromDexScreener(): Promise<number | null> {
 
     return null;
   } catch (error) {
-    console.error('Failed to fetch COAL price from DexScreener:', error);
+    console.error(`Failed to fetch ${TOKEN_SYMBOL} price from DexScreener:`, error);
     return null;
   }
 }
@@ -384,7 +395,6 @@ async function verifySolanaTransaction(signature: string, expectedSender: string
     try {
       console.log(`🔄 Verification attempt ${attempt}/${maxRetries} for signature: ${signature}`);
 
-      // Get transaction details with parsed instructions
       const tx = await solanaRpcCall('getTransaction', [
         signature,
         {
@@ -438,13 +448,12 @@ async function verifySolanaTransaction(signature: string, expectedSender: string
         return { valid: false, error: 'Transaction not found after retries' };
       }
 
-      // Check if transaction succeeded
       if (tx.meta.err) {
         return { valid: false, error: 'Transaction failed/reverted' };
       }
 
-      // Find COAL token transfer in the transaction
-      let isCoalTransfer = false;
+      // Find token transfer in the transaction
+      let isTokenTransfer = false;
       let sender = '';
       let receiver = '';
       let tokenAmount = 0;
@@ -453,33 +462,28 @@ async function verifySolanaTransaction(signature: string, expectedSender: string
       for (const instruction of tx.transaction.message.instructions) {
         if (instruction.parsed?.type === 'transfer' || instruction.parsed?.type === 'transferChecked') {
           const info = instruction.parsed.info;
-
-          // Get authority (sender wallet)
           sender = info.authority || '';
-
-          // We need to find the receiver from token balances
-          // The destination is an ATA, not the wallet address
+          // The destination is an ATA, not the wallet address - need to look at balances below
         }
       }
 
-      // Method 2: Analyze token balance changes to find COAL transfer
+      // Method 2: Analyze token balance changes to find token transfer
       const preBalances = tx.meta.preTokenBalances || [];
       const postBalances = tx.meta.postTokenBalances || [];
 
-      // Find COAL token balance changes
+      // Find token balance changes for configured mint
       for (const postBalance of postBalances) {
-        if (postBalance.mint === COAL_TOKEN_MINT) {
+        if (postBalance.mint === PAYMENT_TOKEN_MINT) {
           const preBalance = preBalances.find(
-            pb => pb.owner === postBalance.owner && pb.mint === COAL_TOKEN_MINT
+            pb => pb.owner === postBalance.owner && pb.mint === PAYMENT_TOKEN_MINT
           );
 
           const preBal = preBalance?.uiTokenAmount.uiAmount || 0;
           const postBal = postBalance.uiTokenAmount.uiAmount || 0;
           const change = postBal - preBal;
 
-          // Receiver (balance increased)
           if (change > 0 && postBalance.owner === PAYMENT_RECEIVER) {
-            isCoalTransfer = true;
+            isTokenTransfer = true;
             receiver = postBalance.owner;
             tokenAmount = change;
           }
@@ -488,34 +492,33 @@ async function verifySolanaTransaction(signature: string, expectedSender: string
 
       // Find sender (balance decreased)
       for (const preBalance of preBalances) {
-        if (preBalance.mint === COAL_TOKEN_MINT) {
+        if (preBalance.mint === PAYMENT_TOKEN_MINT) {
           const postBalance = postBalances.find(
-            pb => pb.owner === preBalance.owner && pb.mint === COAL_TOKEN_MINT
+            pb => pb.owner === preBalance.owner && pb.mint === PAYMENT_TOKEN_MINT
           );
 
           const preBal = preBalance.uiTokenAmount.uiAmount || 0;
           const postBal = postBalance?.uiTokenAmount.uiAmount || 0;
           const change = postBal - preBal;
 
-          // Sender (balance decreased)
           if (change < 0) {
             sender = preBalance.owner;
           }
         }
       }
 
-      if (!isCoalTransfer) {
-        // Alternative: Check if any COAL was received by payment address
+      if (!isTokenTransfer) {
+        // Alternative: Check if any payment tokens were received by payment address
         for (const postBalance of postBalances) {
-          if (postBalance.mint === COAL_TOKEN_MINT && postBalance.owner === PAYMENT_RECEIVER) {
+          if (postBalance.mint === PAYMENT_TOKEN_MINT && postBalance.owner === PAYMENT_RECEIVER) {
             const preBalance = preBalances.find(
-              pb => pb.owner === PAYMENT_RECEIVER && pb.mint === COAL_TOKEN_MINT
+              pb => pb.owner === PAYMENT_RECEIVER && pb.mint === PAYMENT_TOKEN_MINT
             );
             const preBal = preBalance?.uiTokenAmount.uiAmount || 0;
             const postBal = postBalance.uiTokenAmount.uiAmount || 0;
 
             if (postBal > preBal) {
-              isCoalTransfer = true;
+              isTokenTransfer = true;
               receiver = PAYMENT_RECEIVER;
               tokenAmount = postBal - preBal;
             }
@@ -532,7 +535,7 @@ async function verifySolanaTransaction(signature: string, expectedSender: string
       }
 
       console.log(`✅ Solana transaction analysis:`, {
-        isCoalTransfer,
+        isTokenTransfer,
         sender,
         receiver,
         tokenAmount,
@@ -542,7 +545,7 @@ async function verifySolanaTransaction(signature: string, expectedSender: string
 
       return {
         valid: true,
-        isCoalTransfer,
+        isTokenTransfer,
         sender,
         receiver,
         tokenAmount,

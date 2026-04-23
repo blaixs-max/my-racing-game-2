@@ -22,7 +22,6 @@ Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D ta
 | Three.js | 0.181.2 | 3D rendering |
 | @react-three/fiber | 9.4.0 | React Three.js renderer |
 | @react-three/drei | 10.7.7 | 3D yardimci bilesenler (Stars, useGLTF, useProgress, useTexture, PerspectiveCamera) |
-| @react-three/postprocessing | 3.0.4 | Post-processing efektler (su an devre disi) |
 | @react-three/rapier | 2.2.0 | Fizik motoru wrapper |
 | Rapier3D | 0.19.3 | WebAssembly fizik motoru |
 | Zustand | 5.0.8 | State management |
@@ -65,11 +64,10 @@ my-racing-game-2/
 │   │   ├── RealLauncherUI.jsx      # Oyun baslangic ekrani & cuzdan arayuzu (~59KB, 1615 satir)
 │   │   ├── GameOverUI.jsx          # Oyun bitis ekrani (419 satir)
 │   │   ├── AdvancedParticles.jsx   # Nitro boost parcacik sistemi
-│   │   ├── PhysicsWorld.jsx        # Rapier3D fizik wrapper
-│   │   └── PostProcessing.jsx      # Post-processing (bos EffectComposer - tum efektler devre disi)
+│   │   └── PhysicsWorld.jsx        # Rapier3D fizik wrapper
 │   └── utils/
 │       ├── supabaseClient.js       # Veritabani islemleri (getOrCreateUser, getUserCredits, useCredit)
-│       ├── solanaWallet.js         # Token transfer & bakiye kontrol (getCoalBalance, transferCoalToken - COAL eski BNB donemi isimleri, OILTOWN icin kullaniliyor)
+│       ├── solanaWallet.js         # Token transfer & bakiye kontrol (getTokenBalance, transferToken - jenerik isimler)
 │       └── jupiterPrice.js         # Token fiyat API (frontend: DexScreener -> Jupiter fallback)
 ├── public/
 │   ├── Lumexia.jpg                 # Loading screen banner
@@ -372,11 +370,8 @@ D/N mod + Level 5 yok: 0           // Sifir skor
 - Boyut: buyuyen sonra kuculen (life faktorune gore)
 - GPU: InstancedMesh, tek draw call, cached dummy Object3D ve Color
 
-### PostProcessing.jsx (22 satir)
-- `enabled=false` ise `null` dondurur; aksi halde bos `<EffectComposer multisampling={0}>` dondurur (hicbir efekt icermez)
-- App.jsx her zaman `enabled={true}` ile render eder, yani efektsiz composer sahneye eklenir
-- App.jsx'te `speed` ve `isNitroActive` prop'lari gecer ama component kullanmaz (olu prop'lar)
-- Yorum: "ALL POST-PROCESSING DISABLED - Clean gameplay visuals"
+### PostProcessing (KALDIRILDI - v5)
+Tum post-processing efektleri kaldirildi. Component silindi, `@react-three/postprocessing` dependency'si cikarildi. Yeniden eklenmek istenirse ilgili sahne kodu App.jsx icine baska bir noktada yazilabilir.
 
 ### PhysicsWorld.jsx
 ```javascript
@@ -624,35 +619,48 @@ Near Miss:
 2. **RLS politikalari gevsek** - `USING(true)` ile tum tablolar herkese acik
 3. **Sunucu tarafli skor dogrulama yok** - Frontend'den hile mumkun, GameOverUI "Fair Play Protected" banner'i yaniltici
 4. **TypeScript yok** - Frontend tamami JavaScript, tip guvenligi eksik
-5. **Tutarsiz isimlendirme** - `getCoalBalance`, `calculateCoalAmount`, `transferCoalToken` - COAL eski BNB donemi isimleri, token OILTOWN
-6. **App.jsx cok buyuk** - 2464 satir tek dosyada, bolunmesi gerekli
+5. **App.jsx cok buyuk** - 2464 satir tek dosyada, bolunmesi gerekli
 
 ### ORTA ONCELIK
-7. **Post-processing bos composer** - `PostProcessing.jsx` efektsiz `EffectComposer` render eder (null yerine). Gereksiz Canvas agaci dugumu.
-8. **PostProcessing olu prop'lar** - App.jsx `speed`, `isNitroActive` prop'lari gonderir ama component kullanmaz
-9. **Ses dosyalari yok** - Sadece sentezlenmis sesler (motor sesi/muzik yok)
-10. **Hardcoded oyun sabitleri** - Oyun parametreleri (hiz, mesafe, spawn orani) App.jsx/store.js icine gomulu
-11. **GameOverUI'da coins_collected gonderilmiyor** - scores tablosunda sutun var ama RPC cagrisina eklenmiyor
-12. **Tolerans tutarsizligi** - Frontend `solana.config.js` %5, backend `verify-payment` %10 tolerans kullanir
-13. **Preload edilen kullanilmayan asset'ler** - `Car1/scene.gltf`, `suv.glb`, `coin.glb` preload edilir ama Traffic render'inda kullanilmaz
-14. **Eski migration** - `20241216_add_token_fields.sql` LMX/BNB default'lari iceriyor (artik OILTOWN)
+6. **Ses dosyalari yok** - Sadece sentezlenmis sesler (motor sesi/muzik yok)
+7. **Hardcoded oyun sabitleri** - Oyun parametreleri (hiz, mesafe, spawn orani) App.jsx/store.js icine gomulu
+8. **GameOverUI'da coins_collected gonderilmiyor** (ertelendi - bkz TASK.md)
+9. **Tolerans tutarsizligi** - Frontend `solana.config.js` %5, backend `verify-payment` %10 tolerans kullanir
+10. **Preload edilen kullanilmayan asset'ler** - `Car1/scene.gltf`, `suv.glb`, `coin.glb` preload edilir ama render'da kullanilmaz (Hata 15 - dokunulmadi)
 
 ### DUSUK ONCELIK
-15. **Fazla console.log** - Terser uretimde kaldirir ama gelistirmede kirlilik
-16. **FontAwesome CDN** - Sadece loading icin, bundle'a alinabilir
+11. **Fazla console.log** - Terser uretimde kaldirir ama gelistirmede kirlilik
+12. **FontAwesome CDN** - Sadece loading icin, bundle'a alinabilir
+
+### DUZELTILDI (v5 - 2026-04-23)
+- ~~Coal/Oiltown tutarsiz isimlendirme~~ → jenerik isimlere rename (getTokenBalance, transferToken, vb.)
+- ~~Post-processing bos composer~~ → PostProcessing component tamamen kaldirildi
+- ~~PostProcessing olu prop'lar~~ → (component kaldirildi)
+- ~~Eski migration LMX/BNB~~ → default temizlendi + yeni migration (20260423_fix_token_symbol_defaults.sql)
+- ~~Helius API key commit'li~~ → env var'a tasindi (VITE_HELIUS_API_KEY + Supabase secret HELIUS_API_KEY)
 
 ---
 
 ## Ortam Degiskenleri
 
+### Frontend (Vite build-time)
 ```env
 VITE_SUPABASE_URL=https://cldjwajhcepyzvmwjcmz.supabase.co
 VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
+VITE_HELIUS_API_KEY=<public-domain-restricted-key>   # Helius dashboard'dan lumexia.net whitelist zorunlu
 VITE_WALLETCONNECT_PROJECT_ID=<optional>
 ```
 
-### Edge Function Env (Supabase tarafinda)
+### Edge Function Secrets (Supabase Dashboard)
 ```
-SUPABASE_URL=<supabase-url>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+SUPABASE_URL=<auto>
+SUPABASE_SERVICE_ROLE_KEY=<auto>
+HELIUS_API_KEY=<private-key-no-domain-restriction>
+PAYMENT_TOKEN_MINT=<token-mint-address>               # default: OILTOWN mint
+TOKEN_SYMBOL=<token-symbol>                           # default: OILTOWN
+TOKEN_DECIMALS=<token-decimals>                       # default: 6
+PAYMENT_RECEIVER=<receiver-wallet-address>            # default: current receiver
 ```
+
+Yeni token'a gecerken degistirilecek yer: `src/solana.config.js` -> `TOKEN_CONFIG` (frontend)
+ve Supabase Secrets -> `PAYMENT_TOKEN_MINT` / `TOKEN_SYMBOL` (backend).

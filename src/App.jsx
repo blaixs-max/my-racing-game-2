@@ -5,7 +5,6 @@ import * as THREE from 'three';
 import coinLogo from './assets/coin_logo.png';
 import RealLauncherUI from './components/RealLauncherUI';
 import GameOverUI from './components/GameOverUI';
-import PostProcessing from './components/PostProcessing';
 import { NitroBoostParticles } from './components/AdvancedParticles';
 import { useGameStore } from './store'; // Imported from store
 
@@ -1686,13 +1685,6 @@ const GameContent = () => {
       <AudioListenerController />
       <ambientLight intensity={0.6} color="#ffffff" />
       <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
-
-      {/* Professional Post-Processing Effects */}
-      <PostProcessing
-        enabled={true}
-        speed={speed}
-        isNitroActive={isNitroActive}
-      />
 
       <Suspense fallback={null}>
         <ShaderWarmup />

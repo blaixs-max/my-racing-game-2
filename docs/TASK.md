@@ -1,10 +1,71 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-04-16 (v4 - Dokuman tutarlilik gecisi)
+> Son guncelleme: 2026-04-23 (v5 - Tokenize rename + Helius env + migration fix + PostProcessing kaldirma)
+
+---
+
+## Ertelenmis / Not Dusulenler (Gelecekte Cozulmek Uzere)
+
+### BUG #4: `coins_collected` submit_score RPC'ye gonderilmiyor (ERTELEND]I)
+**Dosya:** `src/components/GameOverUI.jsx:50`, `supabase-functions.sql:23` (submit_score)
+**Durum:** Ileriki faz icin not dusuldu, simdi dokunulmayacak
+**Ozet:**
+- `scores.coins_collected` sutunu DB'de var, DEFAULT 0
+- `submit_score(p_wallet, p_score, p_duration, p_distance)` imzasinda parametre yok
+- GameOverUI bu degeri gondermiyor → tum kayitlarda 0
+**Cozumde Yapilacak:**
+- `submit_score` imzasina `p_coins INTEGER DEFAULT 0` ekle
+- INSERT ifadesine `coins_collected` ekle
+- GameOverUI'den toplanan coin sayisini gecir
+- Migration: `CREATE OR REPLACE FUNCTION submit_score(...)` ile guncelle
 
 ---
 
 ## Tamamlanan Gorevler
+
+---
+
+### 2026-04-23: Tokenize Rename + Helius Env + Migration Fix + PostProcessing Kaldirma (v5)
+
+**Hata 6 - Coal/Oiltown jenerik isimlendirme (Secenek A):**
+- `getCoalBalance` → `getTokenBalance`
+- `transferCoalToken` → `transferToken`
+- `getCoalPrice` → `getTokenPrice`
+- `calculateCoalAmount` → `calculateTokenAmount`
+- `COAL_TOKEN_MINT` → `PAYMENT_TOKEN_MINT` (backend env var)
+- Frontend state: `coalBalance` → `tokenBalance`, `coalPrice` → `tokenPrice`, `requiredCoal` → `requiredTokens`
+- `AGREEMENT_TEXT` dinamik: `buildAgreementText(TOKEN_CONFIG.symbol)`
+- UI metinleri: "OILTOWN" → `${TOKEN_CONFIG.symbol}`, "OIL" abbreviation kaldirildi
+- Backend `verify-payment/index.ts` env var destekli (PAYMENT_TOKEN_MINT, TOKEN_SYMBOL, TOKEN_DECIMALS, PAYMENT_RECEIVER)
+- Etkilenen dosyalar: `solana.config.js`, `solanaWallet.js`, `jupiterPrice.js`, `RealLauncherUI.jsx`, `verify-payment/index.ts`
+
+**Hata 7 - coins_collected:** Ertelendi, yukarida ayri bolumde not dusuldu
+
+**Hata 8 - Migration:**
+- `20241216_add_token_fields.sql`: LMX default'u ve BNB UPDATE'i kaldirildi, default NULL yapildi
+- Yeni `20260423_fix_token_symbol_defaults.sql`: Existing DB'deki LMX/BNB kayitlari NULL'a cevrilir
+
+**Hata 11 - Helius API Key:**
+- Frontend: `src/solana.config.js` -> `import.meta.env.VITE_HELIUS_API_KEY` (yoksa public RPC'lere duser)
+- Backend: `verify-payment/index.ts` -> `Deno.env.get('HELIUS_API_KEY')`
+- `.env.example` guncellendi, Edge Function secrets dokumante edildi
+- **ACIK AKSIYON:** Eski commit'li key Helius dashboard'dan revoke edilmeli, yeni key olusturulmali, Netlify/Supabase env vars'a eklenmeli
+
+**Hata 14 - PostProcessing component kaldirildi:**
+- `src/components/PostProcessing.jsx` silindi
+- `App.jsx`'ten import + `<PostProcessing>` cagrisi kaldirildi
+- `package.json`'dan `@react-three/postprocessing` dependency cikarildi
+- `vite.config.js` three-vendor chunk'tan cikarildi
+
+**Hata 15:** Kullanici talebi uzerine dokunulmadi
+
+**Deploy Notlari:**
+- Frontend: `npm install` (postprocessing cikti), `npm run build`, Netlify env vars ekle (VITE_HELIUS_API_KEY)
+- Backend: `supabase functions deploy verify-payment`, `supabase secrets set HELIUS_API_KEY=...` (ve opsiyonel PAYMENT_TOKEN_MINT, TOKEN_SYMBOL, TOKEN_DECIMALS, PAYMENT_RECEIVER)
+- DB: `supabase db push` ile `20260423_fix_token_symbol_defaults.sql` calistir
+- Helius: Eski key'i revoke et, yeni key uret, domain-restricted (lumexia.net) olarak ayarla
+
+---
 
 ### 2026-04-16: Dokumantasyon Tutarlilik Gecisi
 

@@ -3,14 +3,14 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletMultiButton } from '@solana/wallet-adapter-base-ui';
 import { Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import {
-  getCoalBalance,
+  getTokenBalance,
   checkPaymentBalance,
-  transferCoalToken,
+  transferToken,
   formatAddress,
   getExplorerUrl,
   isMobileDevice
 } from '../utils/solanaWallet';
-import { getCoalPrice, calculateCoalAmount, formatPrice } from '../utils/jupiterPrice';
+import { getTokenPrice, formatPrice } from '../utils/jupiterPrice';
 import { getOrCreateUser } from '../utils/supabaseClient';
 import { TOKEN_CONFIG, PAYMENT_CONFIG, DEFAULT_RPC_ENDPOINT, formatTokenAmount } from '../solana.config';
 
@@ -37,16 +37,16 @@ const SOLANA_COLORS = {
   error: '#EF4444',
 };
 
-// Agreement Text Content - Updated for OILTOWN Token
-const AGREEMENT_TEXT = `Lumexia: Gameplay Participation Agreement & Risk Disclosure
+// Agreement Text Content - uses active payment token symbol from TOKEN_CONFIG
+const buildAgreementText = (tokenSymbol) => `Lumexia: Gameplay Participation Agreement & Risk Disclosure
 
 IMPORTANT: Please read the following terms carefully before participating in the Lumexia Racing Module. By clicking "ACCEPT", you acknowledge that you have read, understood, and agreed to be bound by these terms.
 
 1. Nature of the Game (Game of Skill)
 You acknowledge that the Lumexia Racing Module is a Game of Skill, not a game of chance or gambling. Your ranking on the leaderboard and eligibility for rewards are determined solely by your gameplay performance, reflexes, and strategy. The "Score" you achieve is the defining metric for reward distribution.
 
-2. Entry Fees and OILTOWN Token Usage
-To participate, users utilize OILTOWN tokens (on Solana blockchain) to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The OILTOWN tokens collected form the "Reward Pool" for the daily cycle.
+2. Entry Fees and ${tokenSymbol} Token Usage
+To participate, users utilize ${tokenSymbol} tokens (on Solana blockchain) to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The ${tokenSymbol} tokens collected form the "Reward Pool" for the daily cycle.
 
 3. Reward Distribution & Deductions
 The Reward Pool is distributed daily to the top 100 players based on their final scores. You explicitly agree to the following allocation of funds:
@@ -56,16 +56,18 @@ Prize Pool: The majority of the pool is distributed to the winners via an automa
 Operational Fee: A fixed deduction of 7.5% is taken from the total pool prior to distribution. This fee is allocated for Marketing activities and Weekly Token Burns to support the Lumexia ecosystem.
 
 4. No Guarantee of Winnings
-Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the daily cycle, you will not receive a share of the OILTOWN pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
+Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the daily cycle, you will not receive a share of the ${tokenSymbol} pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
 
 5. Cryptocurrency Risks
-You acknowledge that the value of OILTOWN token and SOL can fluctuate significantly. Lumexia is not responsible for any value loss due to market volatility, blockchain network errors, or wallet security breaches on the user's end.
+You acknowledge that the value of ${tokenSymbol} token and SOL can fluctuate significantly. Lumexia is not responsible for any value loss due to market volatility, blockchain network errors, or wallet security breaches on the user's end.
 
 6. Legal Compliance
 You represent and warrant that you are of legal age and that participating in skill-based crypto gaming is legal in your local jurisdiction. It is your sole responsibility to comply with the laws of your country of residence.
 
 7. Automated Execution
 Reward distributions are executed by smart contracts/automated algorithms. These transactions are irreversible. By playing, you accept the calculated results as final.`;
+
+const AGREEMENT_TEXT = buildAgreementText(TOKEN_CONFIG.symbol);
 
 const RealLauncherUI = ({ onStartGame }) => {
   const { publicKey, connected, connecting, wallets, select } = useWallet();
@@ -160,9 +162,9 @@ const RealLauncherUI = ({ onStartGame }) => {
   });
 
   // Token balances
-  const [coalBalance, setCoalBalance] = useState(0);
+  const [tokenBalance, setTokenBalance] = useState(0);
   const [solBalance, setSolBalance] = useState(0);
-  const [coalPrice, setCoalPrice] = useState(null);
+  const [tokenPrice, setTokenPrice] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
 
   // Save pending transaction state to localStorage
@@ -181,15 +183,15 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
   }, [state.pendingTxHash, state.isProcessing, state.selectedPackage, state.statusMessage, state.lastTransaction]);
 
-  // Fetch OILTOWN price periodically
+  // Fetch token price periodically
   useEffect(() => {
     const fetchPrice = async () => {
       try {
         setPriceLoading(true);
-        const price = await getCoalPrice();
-        setCoalPrice(price);
+        const price = await getTokenPrice();
+        setTokenPrice(price);
       } catch (error) {
-        console.error('Failed to fetch OILTOWN price:', error);
+        console.error(`Failed to fetch ${TOKEN_CONFIG.symbol} price:`, error);
       } finally {
         setPriceLoading(false);
       }
@@ -208,7 +210,7 @@ const RealLauncherUI = ({ onStartGame }) => {
 
       if (!connected || !publicKey) {
         console.log('[UI] Skipping - wallet not connected');
-        setCoalBalance(0);
+        setTokenBalance(0);
         setSolBalance(0);
         return;
       }
@@ -225,13 +227,13 @@ const RealLauncherUI = ({ onStartGame }) => {
       }
 
       try {
-        console.log('[UI] Fetching OILTOWN balance...');
-        const coalBal = await getCoalBalance(publicKey, connection);
-        console.log('[UI] OILTOWN balance:', coalBal);
-        setCoalBalance(coalBal);
+        console.log(`[UI] Fetching ${TOKEN_CONFIG.symbol} balance...`);
+        const tokenBal = await getTokenBalance(publicKey, connection);
+        console.log(`[UI] ${TOKEN_CONFIG.symbol} balance:`, tokenBal);
+        setTokenBalance(tokenBal);
       } catch (error) {
-        console.error('[UI] OILTOWN balance error:', error);
-        setCoalBalance(0);
+        console.error(`[UI] ${TOKEN_CONFIG.symbol} balance error:`, error);
+        setTokenBalance(0);
       }
     };
 
@@ -263,8 +265,8 @@ const RealLauncherUI = ({ onStartGame }) => {
         try {
           const solBalanceRaw = await connection.getBalance(publicKey);
           setSolBalance(solBalanceRaw / LAMPORTS_PER_SOL);
-          const coalBal = await getCoalBalance(publicKey, connection);
-          setCoalBalance(coalBal);
+          const tokenBal = await getTokenBalance(publicKey, connection);
+          setTokenBalance(tokenBal);
         } catch (error) {
           console.error('[UI] Error refreshing balances on foreground:', error);
         }
@@ -340,10 +342,10 @@ const RealLauncherUI = ({ onStartGame }) => {
     }
   };
 
-  // Calculate required OILTOWN for package
-  const getRequiredCoal = (usdAmount) => {
-    if (!coalPrice || coalPrice <= 0) return null;
-    return usdAmount / coalPrice;
+  // Calculate required token amount for package
+  const getRequiredTokens = (usdAmount) => {
+    if (!tokenPrice || tokenPrice <= 0) return null;
+    return usdAmount / tokenPrice;
   };
 
   // Ticket Selection Handler
@@ -353,13 +355,13 @@ const RealLauncherUI = ({ onStartGame }) => {
       return;
     }
 
-    const requiredCoal = getRequiredCoal(amount);
-    const coalDisplay = requiredCoal ? formatTokenAmount(requiredCoal) : '...';
+    const requiredTokens = getRequiredTokens(amount);
+    const tokenDisplay = requiredTokens ? formatTokenAmount(requiredTokens) : '...';
 
     setState(prev => ({
       ...prev,
       selectedPackage: amount,
-      statusMessage: `Selected: ${amount} credits (~${coalDisplay} OILTOWN)`
+      statusMessage: `Selected: ${amount} credits (~${tokenDisplay} ${TOKEN_CONFIG.symbol})`
     }));
   };
 
@@ -368,7 +370,7 @@ const RealLauncherUI = ({ onStartGame }) => {
     try {
       setState(prev => ({
         ...prev,
-        statusMessage: '⏳ Verifying OILTOWN payment on Solana...',
+        statusMessage: `⏳ Verifying ${TOKEN_CONFIG.symbol} payment on Solana...`,
         lastTransaction: signature,
         pendingTxHash: signature,
       }));
@@ -391,10 +393,10 @@ const RealLauncherUI = ({ onStartGame }) => {
         statusMessage: `✅ Payment successful! +${packageAmount} credits`
       }));
 
-      const requiredCoal = getRequiredCoal(packageAmount);
+      const requiredTokens = getRequiredTokens(packageAmount);
       alert(
         `✅ Payment Successful!\n\n` +
-        `OILTOWN Paid: ~${formatTokenAmount(requiredCoal || 0)} OIL\n` +
+        `${TOKEN_CONFIG.symbol} Paid: ~${formatTokenAmount(requiredTokens || 0)} ${TOKEN_CONFIG.symbol}\n` +
         `Credits added: ${packageAmount}\n` +
         `New balance: ${verifyResult.credits} credits\n\n` +
         `View transaction:\n${getExplorerUrl(signature)}\n\n` +
@@ -407,8 +409,8 @@ const RealLauncherUI = ({ onStartGame }) => {
           const solBalanceRaw = await connection.getBalance(publicKey);
           setSolBalance(solBalanceRaw / LAMPORTS_PER_SOL);
 
-          const coalBal = await getCoalBalance(publicKey, connection);
-          setCoalBalance(coalBal);
+          const tokenBal = await getTokenBalance(publicKey, connection);
+          setTokenBalance(tokenBal);
         } catch (error) {
           console.error('[UI] Error refreshing balances after payment:', error);
         }
@@ -465,12 +467,12 @@ const RealLauncherUI = ({ onStartGame }) => {
     try {
       const balanceCheck = await checkPaymentBalance(publicKey, packageAmount);
 
-      if (!balanceCheck.hasEnoughCoal) {
+      if (!balanceCheck.hasEnoughTokens) {
         alert(
-          `❌ Insufficient OILTOWN!\n\n` +
-          `Required: ~${formatTokenAmount(balanceCheck.requiredCoal)} OIL ($${packageAmount})\n` +
-          `Your balance: ${formatTokenAmount(balanceCheck.coalBalance)} OIL\n\n` +
-          `Please add more OILTOWN tokens to your wallet.`
+          `❌ Insufficient ${TOKEN_CONFIG.symbol}!\n\n` +
+          `Required: ~${formatTokenAmount(balanceCheck.requiredTokens)} ${TOKEN_CONFIG.symbol} ($${packageAmount})\n` +
+          `Your balance: ${formatTokenAmount(balanceCheck.tokenBalance)} ${TOKEN_CONFIG.symbol}\n\n` +
+          `Please add more ${TOKEN_CONFIG.symbol} tokens to your wallet.`
         );
         return;
       }
@@ -499,12 +501,12 @@ const RealLauncherUI = ({ onStartGame }) => {
         ...prev,
         isProcessing: true,
         statusMessage: isMobile
-          ? '⏳ Opening wallet... Confirm OILTOWN transfer'
-          : '⏳ Opening wallet... Please confirm OILTOWN transfer'
+          ? `⏳ Opening wallet... Confirm ${TOKEN_CONFIG.symbol} transfer`
+          : `⏳ Opening wallet... Please confirm ${TOKEN_CONFIG.symbol} transfer`
       }));
 
-      // Transfer OILTOWN tokens
-      const { signature, coalAmount, price } = await transferCoalToken(
+      // Transfer payment tokens
+      const { signature, tokenAmount, price } = await transferToken(
         walletAdapter,
         packageAmount
       );
@@ -515,7 +517,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         lastTransaction: signature,
         statusMessage: isMobile
           ? '⏳ Transaction sent! Confirming...'
-          : '⏳ OILTOWN transfer sent! Waiting for confirmation...'
+          : `⏳ ${TOKEN_CONFIG.symbol} transfer sent! Waiting for confirmation...`
       }));
 
       await processTransactionResult(signature, publicKey.toString(), packageAmount);
@@ -1133,9 +1135,9 @@ const RealLauncherUI = ({ onStartGame }) => {
                 borderRadius: '12px',
                 textAlign: 'center',
               }}>
-                <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '10px', marginBottom: '6px' }}>OILTOWN</p>
+                <p style={{ color: SOLANA_COLORS.textSecondary, fontSize: '10px', marginBottom: '6px' }}>{TOKEN_CONFIG.symbol}</p>
                 <p style={{ color: SOLANA_COLORS.green, fontSize: '13px', fontWeight: '700', margin: 0 }}>
-                  {formatTokenAmount(coalBalance)}
+                  {formatTokenAmount(tokenBalance)}
                 </p>
               </div>
               <div style={{
@@ -1151,9 +1153,9 @@ const RealLauncherUI = ({ onStartGame }) => {
                 </p>
               </div>
             </div>
-            {coalPrice && (
+            {tokenPrice && (
               <p style={{ color: SOLANA_COLORS.textMuted, fontSize: '11px', textAlign: 'center', marginTop: '10px', marginBottom: 0 }}>
-                OILTOWN: {formatPrice(coalPrice)} {priceLoading && '(updating...)'}
+                {TOKEN_CONFIG.symbol}: {formatPrice(tokenPrice)} {priceLoading && '(updating...)'}
               </p>
             )}
           </div>
@@ -1181,7 +1183,7 @@ const RealLauncherUI = ({ onStartGame }) => {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
             {[1, 5, 10].map((amount) => {
-              const requiredCoal = getRequiredCoal(amount);
+              const requiredTokens = getRequiredTokens(amount);
               const isSelected = state.selectedPackage === amount;
               return (
                 <div
@@ -1238,7 +1240,7 @@ const RealLauncherUI = ({ onStartGame }) => {
                     margin: 0,
                     lineHeight: 1.3,
                   }}>
-                    ~{requiredCoal ? formatTokenAmount(requiredCoal) : '...'} OIL
+                    ~{requiredTokens ? formatTokenAmount(requiredTokens) : '...'} {TOKEN_CONFIG.symbol}
                   </p>
                 </div>
               );
@@ -1352,7 +1354,7 @@ const RealLauncherUI = ({ onStartGame }) => {
           {state.isProcessing ? '⏳ Processing...'
             : !connected ? 'Connect Wallet First'
             : !state.selectedPackage ? 'Select a Package'
-            : 'Purchase Credits with OILTOWN'}
+            : `Purchase Credits with ${TOKEN_CONFIG.symbol}`}
         </button>
 
         {/* Status message */}
@@ -1379,7 +1381,7 @@ const RealLauncherUI = ({ onStartGame }) => {
             {[
               { icon: '◎', text: 'Connect your Solana wallet (Phantom/Solflare)', color: '#9945FF' },
               { icon: '🎮', text: 'Select game mode', color: '#14F195' },
-              { icon: '🛒', text: 'Purchase credits with OILTOWN tokens', color: '#14F195' },
+              { icon: '🛒', text: `Purchase credits with ${TOKEN_CONFIG.symbol} tokens`, color: '#14F195' },
               { icon: '🏎️', text: 'Start racing!', color: '#14F195' },
             ].map((step, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1407,7 +1409,7 @@ const RealLauncherUI = ({ onStartGame }) => {
           }}>
             <span style={{ fontSize: '14px' }}>🔒</span>
             <span style={{ color: '#5A5A6A', fontSize: '12px' }}>
-              Payments are made with OILTOWN tokens (Solana)
+              Payments are made with {TOKEN_CONFIG.symbol} tokens (Solana)
             </span>
           </div>
         </div>

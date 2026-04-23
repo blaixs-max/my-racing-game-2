@@ -172,12 +172,17 @@ Detay icin bkz. `TASK.md`.
 | RLS politikalari | Tum tablolarda USING(true) - herkes her seye erisebilir | Yuksek |
 | Sunucu tarafli skor dogrulama yok | Frontend'den hile mumkun, "Fair Play Protected" banner'i yaniltici | Yuksek |
 | App.jsx 2464 satir | Tek dosyada cok fazla bilesen | Yuksek |
-| Coal -> Oiltown | getCoalBalance, transferCoalToken gibi fonksiyon isimleri eski BNB donemi | Orta |
-| coins_collected kaydedilmiyor | Scores tablosunda sutun var ama GameOverUI submit_score'a gondermez | Orta |
+| coins_collected kaydedilmiyor (ERTELENDI) | Scores tablosunda sutun var ama GameOverUI submit_score'a gondermez, bkz TASK.md | Orta |
 | Tolerans tutarsizligi | Frontend %5 (solana.config.js) vs backend %10 (verify-payment) | Orta |
-| Post-processing | Bos EffectComposer render ediliyor, component tamamen kaldirilabilir | Dusuk |
-| Olu prop'lar | PostProcessing'e gecen speed, isNitroActive prop'lari kullanilmiyor | Dusuk |
 | Hardcoded degerler | Oyun sabitleri (hiz, mesafe, spawn oranlari) dosyada gomulu | Orta |
 | Kullanilmayan asset'ler | Car1/scene.gltf, suv.glb, coin.glb preload edilir ama render'da kullanilmaz | Dusuk |
-| Eski migration | 20241216_add_token_fields.sql LMX/BNB default'lari iceriyor (artik OILTOWN) | Dusuk |
 | FontAwesome CDN | Dis bagimllik, bundle'a alinabilir | Dusuk |
+
+## Yakin Zamanda Duzeltilenler (v5 - 2026-04-23)
+
+| Alan | Durum |
+|------|-------|
+| ~~Coal/Oiltown isimlendirme~~ | DUZELTILDI - jenerik isimlere rename (getTokenBalance, transferToken) |
+| ~~Post-processing bos composer~~ | DUZELTILDI - PostProcessing component tamamen kaldirildi |
+| ~~Helius API key git'te commit'li~~ | DUZELTILDI - env var'a tasindi, eski key revoke edilmeli |
+| ~~20241216 migration LMX/BNB default'lari~~ | DUZELTILDI - default NULL + yeni migration |
