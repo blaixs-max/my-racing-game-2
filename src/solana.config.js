@@ -35,13 +35,12 @@ export const DEFAULT_RPC_ENDPOINT = RPC_ENDPOINTS[0];
 // =============================================================================
 
 // Payment token - yeni token'a gecerken sadece buradaki degerleri guncelle.
-// TODO: Yeni coin secildiginde mint/name/symbol/logoUrl degistirilecek.
 export const TOKEN_CONFIG = {
-  mint: 'AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump',
-  name: 'OIL TOWN',
-  symbol: 'OILTOWN',
+  mint: 'H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump',
+  name: 'Tokabu',
+  symbol: 'TOKABU',
   decimals: 6,
-  logoUrl: '/oiltown-token-logo.png'
+  logoUrl: ''
 };
 
 // =============================================================================
