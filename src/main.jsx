@@ -1,3 +1,4 @@
+import './polyfills.js' // MUST be first — provides globalThis.Buffer for @solana/*
 import { StrictMode, useMemo } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
