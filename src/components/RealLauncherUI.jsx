@@ -166,6 +166,8 @@ const RealLauncherUI = ({ onStartGame }) => {
   const [solBalance, setSolBalance] = useState(0);
   const [tokenPrice, setTokenPrice] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [tokenBalanceError, setTokenBalanceError] = useState(null);
+  const [balanceRefreshKey, setBalanceRefreshKey] = useState(0);
 
   // Save pending transaction state to localStorage
   useEffect(() => {
@@ -212,6 +214,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         console.log('[UI] Skipping - wallet not connected');
         setTokenBalance(0);
         setSolBalance(0);
+        setTokenBalanceError(null);
         return;
       }
 
@@ -223,7 +226,7 @@ const RealLauncherUI = ({ onStartGame }) => {
         setSolBalance(solBal);
       } catch (error) {
         console.error('[UI] SOL balance error:', error);
-        setSolBalance(0);
+        // Keep last known SOL balance instead of resetting to 0.
       }
 
       try {
@@ -231,16 +234,18 @@ const RealLauncherUI = ({ onStartGame }) => {
         const tokenBal = await getTokenBalance(publicKey, connection);
         console.log(`[UI] ${TOKEN_CONFIG.symbol} balance:`, tokenBal);
         setTokenBalance(tokenBal);
+        setTokenBalanceError(null);
       } catch (error) {
         console.error(`[UI] ${TOKEN_CONFIG.symbol} balance error:`, error);
-        setTokenBalance(0);
+        // Keep last value visible; surface error for retry UI.
+        setTokenBalanceError(error?.message || 'Balance fetch failed');
       }
     };
 
     fetchBalances();
     const interval = connected ? setInterval(fetchBalances, 15000) : null;
     return () => interval && clearInterval(interval);
-  }, [connected, publicKey, connection]);
+  }, [connected, publicKey, connection, balanceRefreshKey]);
 
   // Re-check connection and pending transactions when app comes to foreground
   useEffect(() => {
@@ -1131,7 +1136,9 @@ const RealLauncherUI = ({ onStartGame }) => {
               <div style={{
                 padding: '12px 8px',
                 background: 'rgba(20,241,149,0.06)',
-                border: '1px solid rgba(20,241,149,0.15)',
+                border: tokenBalanceError
+                  ? `1px solid ${SOLANA_COLORS.warning}`
+                  : '1px solid rgba(20,241,149,0.15)',
                 borderRadius: '12px',
                 textAlign: 'center',
               }}>
@@ -1139,6 +1146,25 @@ const RealLauncherUI = ({ onStartGame }) => {
                 <p style={{ color: SOLANA_COLORS.green, fontSize: '13px', fontWeight: '700', margin: 0 }}>
                   {formatTokenAmount(tokenBalance)}
                 </p>
+                {tokenBalanceError && (
+                  <button
+                    type="button"
+                    onClick={() => setBalanceRefreshKey((k) => k + 1)}
+                    title={tokenBalanceError}
+                    style={{
+                      marginTop: '6px',
+                      background: 'transparent',
+                      border: `1px solid ${SOLANA_COLORS.warning}`,
+                      borderRadius: '8px',
+                      color: SOLANA_COLORS.warning,
+                      fontSize: '10px',
+                      padding: '3px 8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ↻ retry
+                  </button>
+                )}
               </div>
               <div style={{
                 padding: '12px 8px',

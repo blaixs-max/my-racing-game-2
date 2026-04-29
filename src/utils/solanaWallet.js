@@ -38,7 +38,8 @@ let cachedTokenProgramId = null;
 
 /**
  * Detect the token program (SPL Token or Token-2022) from the mint account.
- * pump.fun tokens use Token-2022, so we auto-detect instead of hardcoding.
+ * Retries on transient RPC failures. Throws if mint cannot be resolved —
+ * silently falling back to the wrong program would silently zero balances.
  * @param {Connection} conn - Solana connection
  * @returns {Promise<PublicKey>} Token program ID
  */
@@ -46,16 +47,30 @@ async function getTokenProgramId(conn) {
   if (cachedTokenProgramId) return cachedTokenProgramId;
 
   const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
-  const accountInfo = await conn.getAccountInfo(mintPubkey);
+  let lastError = null;
 
-  if (!accountInfo) {
-    console.warn('[Solana] Mint account not found, defaulting to TOKEN_PROGRAM_ID');
-    return TOKEN_PROGRAM_ID;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const accountInfo = await conn.getAccountInfo(mintPubkey);
+      if (accountInfo) {
+        cachedTokenProgramId = accountInfo.owner;
+        console.log('[Solana] Detected token program:', cachedTokenProgramId.toString());
+        return cachedTokenProgramId;
+      }
+      lastError = new Error('Mint account not found on RPC');
+      console.warn(`[Solana] getAccountInfo returned null (attempt ${attempt}/3)`);
+    } catch (e) {
+      lastError = e;
+      console.warn(`[Solana] getAccountInfo attempt ${attempt}/3 failed:`, e.message);
+    }
+    if (attempt < 3) {
+      await new Promise((r) => setTimeout(r, 500 * attempt));
+    }
   }
 
-  cachedTokenProgramId = accountInfo.owner;
-  console.log('[Solana] Detected token program:', cachedTokenProgramId.toString());
-  return cachedTokenProgramId;
+  throw new Error(
+    `Cannot detect token program for mint ${TOKEN_CONFIG.mint}: ${lastError?.message || 'unknown error'}`
+  );
 }
 
 /**
@@ -110,39 +125,37 @@ export async function getSolBalance(publicKey, conn = null) {
  * @returns {Promise<number>} Token balance
  */
 export async function getTokenBalance(publicKey, conn = null) {
+  const connection = conn || getConnection();
+  const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
+  const tokenProgramId = await getTokenProgramId(connection);
+
+  console.log(`[Solana] Fetching ${TOKEN_CONFIG.symbol} balance for:`, publicKey.toString());
+  console.log('[Solana] Using token program:', tokenProgramId.toString());
+
+  const ata = await getAssociatedTokenAddress(
+    mintPubkey,
+    publicKey,
+    false,
+    tokenProgramId,
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+
+  console.log('[Solana] Token ATA:', ata.toString());
+
   try {
-    const connection = conn || getConnection();
-    const mintPubkey = new PublicKey(TOKEN_CONFIG.mint);
-    const tokenProgramId = await getTokenProgramId(connection);
-
-    console.log(`[Solana] Fetching ${TOKEN_CONFIG.symbol} balance for:`, publicKey.toString());
-    console.log('[Solana] Using token program:', tokenProgramId.toString());
-
-    const ata = await getAssociatedTokenAddress(
-      mintPubkey,
-      publicKey,
-      false,
-      tokenProgramId,
-      ASSOCIATED_TOKEN_PROGRAM_ID
-    );
-
-    console.log('[Solana] Token ATA:', ata.toString());
-
-    try {
-      const tokenAccount = await getAccount(connection, ata, undefined, tokenProgramId);
-      const balance = fromRawAmount(Number(tokenAccount.amount));
-      console.log(`[Solana] ${TOKEN_CONFIG.symbol} balance:`, balance);
-      return balance;
-    } catch (e) {
-      if (e.name === 'TokenAccountNotFoundError') {
-        console.log('[Solana] No token account found, balance is 0');
-        return 0;
-      }
-      throw e;
+    const tokenAccount = await getAccount(connection, ata, undefined, tokenProgramId);
+    const balance = fromRawAmount(Number(tokenAccount.amount));
+    console.log(`[Solana] ${TOKEN_CONFIG.symbol} balance:`, balance);
+    return balance;
+  } catch (e) {
+    if (e.name === 'TokenAccountNotFoundError') {
+      console.log('[Solana] No token account found, balance is 0');
+      return 0;
     }
-  } catch (error) {
-    console.error(`[Solana] Error getting ${TOKEN_CONFIG.symbol} balance:`, error);
-    return 0;
+    // Surface real errors (RPC failures, deserialization, etc.) instead of
+    // silently returning 0 — caller decides how to display.
+    console.error(`[Solana] Error reading ${TOKEN_CONFIG.symbol} token account:`, e);
+    throw e;
   }
 }
 
