@@ -30,6 +30,11 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Deploy calculate-daily-rewards
-        run: supabase functions deploy calculate-daily-rewards --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+        # --no-verify-jwt: pg_cron calls this function via pg_net.http_post()
+        # without an auth header; verifying JWT here would 401-block it.
+        # The function only does idempotent DB calculation (delete + insert
+        # on reward_pool_distribution) — no payment, no user-mutating action.
+        # Stronger auth (X-Cron-Secret header) is planned in Sprint 4.
+        run: supabase functions deploy calculate-daily-rewards --no-verify-jwt --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

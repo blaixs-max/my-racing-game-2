@@ -1,4 +1,4 @@
-# Lumexia Racing Game - Proje Dokumantasyonu (v4 - 2026-04-30)
+# Lumexia Racing Game - Proje Dokumantasyonu (v5 - 2026-05-01)
 
 ## Genel Bakis
 
@@ -438,6 +438,26 @@ Onceki Ethereum-format regex'i (`/^0x[a-fA-F0-9]{40}$/`) Solana base58 regex'i i
 **Not:** Frontend'in `supabaseClient.js`'deki `useCredit()` fonksiyonu dogrudan DB'ye
 yazabilir; RLS gevsek oldugundan Edge Function bypass edilebilir (bkz. Guvenlik Riskleri).
 
+### calculate-daily-rewards/index.ts (Sprint 1.7a/b - 2026-05-01)
+
+**Trigger:** pg_cron job (zamanlanmis), her gece UTC midnight'ta
+
+**Akis:**
+1. Bugünkü `scores` tablosundan toplam oyun sayısını al (`COUNT`)
+2. USD havuzunu hesapla: `totalPoolUSD = totalGames * GAME_TO_USD` (`GAME_TO_USD = 1.0` — her oyun $1 USD, verify-payment paket fiyatı ile uyumlu)
+3. Treasury kesintisi: `netPoolUSD = totalPoolUSD * 0.925` (%7.5 marketing/burns)
+4. Bugünkü `daily_leaderboard`'dan top 100 oyuncuyu al
+5. Her oyuncunun bugün kaç oyun oynadığına bakıp boost uygula: 2+ oyun = `+games%` boost (örn. 5 oyun = 5% boost)
+6. Boosted score'a göre yeniden sırala
+7. Hisse puanları: 1.=125, 2.=100, 3.=75, 4.=50, 5.=25, 6-50=8, 51-100=4
+8. `unitValue = netPoolUSD / totalShares`
+9. Her oyuncuya: `rewardAmount = sharePoints * unitValue` (USD cinsinden)
+10. Bugünün eski `reward_pool_distribution` kayıtlarını sil, yeni kayıtları INSERT et
+
+**Auth:** `verify_jwt: false` (CI workflow `--no-verify-jwt` flag ile deploy ediliyor) — pg_cron `pg_net.http_post()` ile JWT'siz çağırır. Sprint 4'te `X-Cron-Secret` header ile güçlendirilecek.
+
+**Yazdığı tablo:** `reward_pool_distribution` (idempotent — bugünün kayıtları silinip yenidn yazılır)
+
 ---
 
 ## Veritabani Semasi ve Fonksiyonlari
@@ -455,6 +475,10 @@ yazabilir; RLS gevsek oldugundan Edge Function bypass edilebilir (bkz. Guvenlik 
 | last_played | TIMESTAMPTZ | Son oyun zamani |
 | created_at | TIMESTAMPTZ | Olusturma zamani |
 | updated_at | TIMESTAMPTZ | Guncelleme zamani (trigger ile otomatik) |
+| selected_team | VARCHAR | Günlük takım seçimi (Sprint 0.5 keşfi — kod tabanında henüz UI yok) |
+| team_selection_date | DATE | Takım seçildigi gün |
+| best_score | INTEGER | Kişisel en yüksek skor (Sprint 0.5 keşfi) |
+| total_games | INTEGER | Toplam oyun (total_games_played ile redundant gibi — Sprint 4'te netleşecek) |
 
 #### transactions
 | Sutun | Tip | Aciklama |
@@ -479,6 +503,35 @@ yazabilir; RLS gevsek oldugundan Edge Function bypass edilebilir (bkz. Guvenlik 
 | play_duration | INTEGER | Oyun suresi (saniye) |
 | game_mode | TEXT | 'normal' (gelecek: 'hard', 'expert') |
 | created_at | TIMESTAMPTZ | Kayit zamani |
+| team | VARCHAR | Hangi takım için skor (Sprint 0.5 keşfi) |
+| duration | INTEGER | Oyun suresi - duplicate of `play_duration` (Sprint 4'te netleşecek) |
+
+#### reward_pool_distribution (Sprint 0.5 keşfi)
+Daily reward dağıtım kayıtları. `calculate-daily-rewards` Edge Function tarafından her gece UTC midnight'ta yazılır.
+
+| Sutun | Tip | Aciklama |
+|-------|-----|----------|
+| id | UUID (PK) | Otomatik |
+| wallet_id | TEXT | Oyuncunun cuzdan adresi |
+| score | INTEGER | Boosted score (en yüksek günlük skor + günlük oynama bonusu) |
+| reward_amount | NUMERIC | USD cinsinden ödül miktarı (Sprint 1.7b sonrası — eski kayıtlar BNB) |
+| reward_date | DATE | Ödülün hesaplandığı gün |
+| created_at | TIMESTAMPTZ | Kayıt zamanı |
+
+#### rate_limits (Sprint 0.5 keşfi)
+Token bucket rate limiting kayıtları. `check_rate_limit()` SECURITY DEFINER fonksiyonu tarafından yönetilir.
+
+| Sutun | Tip | Aciklama |
+|-------|-----|----------|
+| key | TEXT (PK) | Genelde wallet adresi |
+| action | TEXT (PK) | 'use_credit', 'verify_payment' gibi |
+| request_count | INTEGER | Pencere içindeki istek sayısı |
+| window_start | TIMESTAMPTZ | Pencerenin başlangıcı |
+
+**RLS:** Aktif ama policy yok → service role only. **Açık risk:** anon role tabloyu SELECT'leyebiliyor (bkz. advisor `rls_enabled_no_policy`). Sprint 2'de düzeltilecek.
+
+#### leaderboard_history (kullanılmıyor)
+0 satır var. `daily_leaderboard_history` ile karışmasın. Sprint 0.5'te keşfedildi, Sprint 4 dokümantasyon temizliğinde değerlendirilecek.
 
 #### daily_leaderboard
 - Her wallet + her gun icin tek kayit (UNIQUE constraint)

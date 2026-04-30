@@ -6,8 +6,10 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-// 1 Game = 0.0015 BNB
-const GAME_TO_BNB = 0.0015
+// 1 Game = $1 USD (matches verify-payment package pricing: 1/5/10 USD)
+// USD chosen as the stable unit of account; frontend converts to TOKABU
+// at display time using the live token price (Jupiter / DexScreener).
+const GAME_TO_USD = 1.0
 
 // Hisse puanları referans tablosu
 function getSharePoints(rank: number): number {
@@ -35,9 +37,9 @@ Deno.serve(async (req) => {
 
     if (scoresError) throw scoresError
 
-    // Oyun sayısını BNB'ye çevir
-    const totalPoolBNB = (totalGames || 0) * GAME_TO_BNB
-    const netPoolBNB = totalPoolBNB * 0.925 // %7.5 kesinti
+    // Oyun sayısını USD havuzuna çevir
+    const totalPoolUSD = (totalGames || 0) * GAME_TO_USD
+    const netPoolUSD = totalPoolUSD * 0.925 // %7.5 kesinti (treasury / marketing / weekly burns)
 
     // 3. Bugünkü leaderboard'u al
     const { data: leaderboard, error: lbError } = await supabase
@@ -86,8 +88,8 @@ Deno.serve(async (req) => {
       totalShares += getSharePoints(index + 1)
     })
 
-    // 7. Birim değeri hesapla
-    const unitValue = totalShares > 0 ? netPoolBNB / totalShares : 0
+    // 7. Birim değeri hesapla (USD per share)
+    const unitValue = totalShares > 0 ? netPoolUSD / totalShares : 0
 
     // 8. Her oyuncunun ödülünü hesapla ve kaydet
     const rewardRecords = playersWithBonus.slice(0, 100).map((player, index) => {
@@ -121,8 +123,8 @@ Deno.serve(async (req) => {
         success: true,
         message: `Calculated rewards for ${rewardRecords.length} players`,
         totalGames: totalGames || 0,
-        totalPoolBNB,
-        netPoolBNB,
+        totalPoolUSD,
+        netPoolUSD,
         totalShares,
         unitValue,
         topPlayers: playersWithBonus.slice(0, 5).map(p => ({
