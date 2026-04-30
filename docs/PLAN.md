@@ -1,6 +1,6 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-05-01 (v8)
+> Son guncelleme: 2026-05-01 (v9)
 
 ## Mevcut Durum Ozeti
 
@@ -23,9 +23,14 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - API routes (`/api/dex`, `/api/ticker`) Solana/CoinGecko `solana` ID
 - pool-context BNB → USD; transactions-panel canlı Supabase `transactions` tablosu (realtime subscribe)
 
-**Kalan oncelikler (kritik sıraya göre):**
-1. **Kod kalitesi (Sprint 4 — kapsam daraltıldı)** — test kapsamı genişletme + dokümantasyon temizliği. ESLint + CI lint job (4.1) tamamlandı. App.jsx ve RealLauncherUI bölme planları **iptal** (kullanıcı kararı 2026-05-01; çalışan kod, regression riski yüksek, marjinal okunabilirlik kazancı).
-2. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler (memory'de detaylı plan)
+**Kalan oncelik:**
+1. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler. 8 katmanlı plan + otonom self-healing akışı memory'de (`project_test_sprint_plan.md`). Ön koşul: kullanıcının staging Supabase project açması.
+
+**Sprint 4 (Kod Kalitesi) tamamlandı:**
+- 4.1 ESLint flat config genişletme + CI lint job (PR #96) ✅
+- 4.2 jupiterPrice unit test suite (11 test, toplam 19) + plan iptalleri ✅
+- 4.3 README + PROJECT_DOCS + PLAN cilalama ✅
+- ~~App.jsx bölme~~ ve ~~RealLauncherUI bölme~~ **iptal** (kullanıcı kararı 2026-05-01; çalışan kod, regression riski yüksek, marjinal kazanç).
 
 **Sprint 3 (Otonom Supabase) tamamlandı:**
 - 3a Typed client + canonical env names (landing PR #14) ✅

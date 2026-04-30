@@ -1,6 +1,28 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v18)
+> Son guncelleme: 2026-05-01 (v19)
+
+---
+
+## 2026-05-01: Sprint 4.3 - Dokümantasyon temizliği
+
+Sprint 0-4 boyunca her PR'da yaptığımız docs sync sayesinde docs çoğunlukla güncel kaldı. Sprint 4.3 küçük cilalama:
+
+**`README.md`** — Vite template default'undan Lumexia'ya özelleştirildi:
+- Proje özeti, tech stack
+- `npm install / dev / test / build / lint / preview` komutları
+- `.env.local` örneği + INTEGRATION.md referansı
+- Docs index (PROJECT_DOCS, PLAN, TASK, INTEGRATION, CLAUDE.md)
+- Üç CI workflow tablosu
+
+**`PROJECT_DOCS.md` (v6 → v7):**
+- "Genel Bakis" altına Sprint 0-4 altyapı özeti eklendi (branch protection, workflow'lar, Edge Function sayısı, RLS durumu, test sayısı, Landing repo TS senkronu)
+- Landing repo + INTEGRATION.md referansı
+- Supabase project ID açıkça belirtildi
+
+**`PLAN.md`** — versiyon ve durum güncellemesi (Sprint 4 tamamlandı işareti).
+
+**Risk:** SIFIR — sadece dokümantasyon. Sprint 4 (kod kalitesi) burada kapanır; sıradaki büyük adım Sprint 5 (E2E test mimarisi).
 
 ---
 
