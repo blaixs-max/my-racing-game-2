@@ -24,7 +24,8 @@ CREATE OR REPLACE FUNCTION public.submit_score(
     p_wallet TEXT,
     p_score INTEGER,
     p_duration INTEGER,
-    p_distance INTEGER
+    p_distance INTEGER,
+    p_coins INTEGER DEFAULT 0
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -32,7 +33,6 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_user_id UUID;
-    v_result JSONB;
 BEGIN
     -- 1. Kullanıcıyı bul
     SELECT id INTO v_user_id
@@ -52,6 +52,7 @@ BEGIN
         score,
         distance,
         play_duration,
+        coins_collected,
         created_at
     ) VALUES (
         v_user_id,
@@ -59,6 +60,7 @@ BEGIN
         p_score,
         p_distance,
         p_duration,
+        GREATEST(p_coins, 0),
         NOW()
     );
 

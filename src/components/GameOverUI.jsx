@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store';
 import { supabase } from '../utils/supabaseClient';
 
-const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu }) => {
+const GameOverUI = ({ score, totalDistance, nearMissCount, coinsCollected = 0, onRestart, onMainMenu }) => {
   const credits = useGameStore(state => state.credits);
   const walletAddress = useGameStore(state => state.walletAddress);
   const startTime = useGameStore(state => state.startTime);
@@ -51,7 +51,8 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, onRestart, onMainMenu
             p_wallet: walletAddress,
             p_score: finalScore,
             p_duration: duration,
-            p_distance: Math.floor(totalDistance)
+            p_distance: Math.floor(totalDistance),
+            p_coins: coinsCollected
         });
 
         if (!error) {

@@ -2424,6 +2424,7 @@ export default function App() {
           score={useGameStore.getState().score}
           totalDistance={useGameStore.getState().totalDistance}
           nearMissCount={useGameStore.getState().nearMissCount}
+          coinsCollected={useGameStore.getState().coinsCollected}
           onRestart={useGameStore.getState().startGame}
           onMainMenu={() => setGameState('launcher')}
         />
