@@ -538,11 +538,10 @@ const VEHICLE_DIMENSIONS = {
 
 useGLTF.preload('/models/ferrari.glb');
 useGLTF.preload('/models/truck.glb');
-useGLTF.preload('/models/sport_car.glb'); // F1 Car
+useGLTF.preload('/models/sport_car.glb'); // F1 Car (player)
 useGLTF.preload('/models/tree.glb');
-useGLTF.preload('/models/Car1/scene.gltf'); // Sedan replacement
-useGLTF.preload('/models/Car 2/scene.gltf'); // SUV replacement
-useGLTF.preload('/models/Car 3/scene.gltf'); // Pickup replacement
+useGLTF.preload('/models/Car 2/scene.gltf'); // SUV
+useGLTF.preload('/models/Car 3/scene.gltf'); // Sedan
 
 function CarModel({ modelPath, color, scale = 1, rotation = [0, 0, 0] }) {
   const { scene } = useGLTF(modelPath);
