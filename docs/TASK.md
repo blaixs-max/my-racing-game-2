@@ -1,6 +1,56 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-04-30 (v6 - TOKABU balance bug full fix: Buffer polyfill + console.error + Edge Function redeploy)
+> Son guncelleme: 2026-05-01 (v7)
+
+---
+
+## 2026-05-01: Sprint 1.7b - calculate-daily-rewards USD geçişi + 401 fix
+
+**Edge Function:** `supabase/functions/calculate-daily-rewards/index.ts`
+- `GAME_TO_BNB = 0.0015` → `GAME_TO_USD = 1.0` (verify-payment ile birim hizalama, $1 USD per game)
+- `totalPoolBNB`/`netPoolBNB` → `totalPoolUSD`/`netPoolUSD`
+- `unitValue` USD/share cinsinden
+- `reward_pool_distribution.reward_amount` artık USD cinsinden yazılıyor
+
+**Deploy workflow:** `.github/workflows/deploy-edge-functions.yml`
+- `Deploy calculate-daily-rewards` adımına `--no-verify-jwt` flag eklendi
+- pg_cron `pg_net.http_post()` ile çağırıyor; JWT yok → 401 dönüyordu, artık geçecek
+- Yorum eklendi: gelecekte `X-Cron-Secret` header kontrolü ile güçlendirme planlanıyor (Sprint 4)
+
+**Etkilenen tablo (write):** `reward_pool_distribution` — yarınki cron'dan sonra USD kayıtlar düşmeli
+**Davranis dogrulamasi:** Edge Function logs'ta cron çağrısı 401 yerine 200 dönmeli; yeni kayıtlar `reward_amount` alanı USD cinsinden (örn. 0.5 = $0.50)
+
+**Açık not:** `reward_pool_distribution` tablosunda eski 4 BNB değerli kayıt kalıyor — temizlik isterseniz manuel SQL: `DELETE FROM reward_pool_distribution WHERE reward_date < CURRENT_DATE`
+
+---
+
+## 2026-04-30: Sprint 1.7a - calculate-daily-rewards Edge Function repo'ya kurtarıldı
+
+**Sorun:** `calculate-daily-rewards` 4 ay önce manuel Supabase Dashboard üzerinden deploy edilmiş, repo'da yoktu. Eğer prod'dan silinirse git'te yedek yoktu.
+
+**Çözüm:** `supabase/functions/calculate-daily-rewards/index.ts` prod'daki içeriğin birebir kopyası olarak repo'ya eklendi. `.github/workflows/deploy-edge-functions.yml`'a `Deploy calculate-daily-rewards` adımı eklendi. Içerik aynı, davranış değişmedi.
+
+**PR:** #85 (merged)
+
+---
+
+## 2026-04-30: Sprint 0 - Otonomluk altyapısı
+
+**Branch protection (her iki repo):**
+- `main`'e doğrudan push yasak (sadece PR ile)
+- Force push yasak, branch silme yasak
+- 1 onay zorunlu, stale review dismiss
+- Required conversation resolution
+- Racing'de status check zorunlu: `test` ve `build`
+
+**CI test gate** (`.github/workflows/ci.yml`):
+- Her PR'da `npm test` + `npm run build` paralel job'lar
+- Test geçmeden merge mümkün değil
+- Lint job dahil değil — `eslint.config.js` eksik (Sprint 4.3'te düzeltilecek)
+
+**Memory altyapısı:** Hafızaya 6 dosya eklendi — prod safety, ekosistem, repo URL'leri, v0.app sync riski, Supabase MCP read-only, docs sync kuralı.
+
+**PR:** #84 (merged)
 
 ---
 

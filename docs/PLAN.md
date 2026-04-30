@@ -1,10 +1,28 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-04-30 (v6)
+> Son guncelleme: 2026-05-01 (v7)
 
 ## Mevcut Durum Ozeti
 
-Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor (cuzdan baglama -> bakiye gosterimi -> kredi satin alma -> oyun baslatma -> kredi dusumu). Faz 0 + balance bug'i tamamen cozuldu. Vitest altyapisi mevcut (8 test). Kalan oncelikler **guvenlik tarafinda**: RLS sikistirma, sunucu tarafli skor dogrulama, rate limiting.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Calisma surdurulebilir hale geldi: Sprint 0 (otonomluk altyapisi) + Sprint 1.7a (Edge Function repo'ya kurtarma) + Sprint 1.7b (USD geçişi + 401 fix) tamamlandi.
+
+**Tamamlanmis altyapi (2026-04-30 → 2026-05-01):**
+- Branch protection her iki repo'da aktif (main'e direkt push yasak, force push yasak, 1 review zorunlu, CI status check)
+- CI test gate (`.github/workflows/ci.yml`) — her PR'da `npm test` + `npm run build` zorunlu
+- Edge Function recovery: `calculate-daily-rewards` Supabase prod'dan repo'ya geri alindi (4 ay sonra) ve CI deploy hattina baglandi
+- Rate limiting (use-credit 30/dk, verify-payment 10/dk) — uretimde calisiyor
+- Bug #4 coins_collected — submit_score imzasi guncel, GameOverUI gonderiyor
+- Buffer polyfill, Vitest setup (8 test), price tolerance %7 hizalanmis, 11 ESLint hatasi temizlenmis
+
+**Kalan oncelikler (kritik sıraya göre):**
+1. **Landing page chain/token migration** (BSC/LMX → Solana/TOKABU) — SEO her gün yanlis indeksliyor
+2. **Anti-cheat sunucu tarafli skor dogrulama** — `submit_score` RPC sadece INSERT, tutarlilik kontrolü yok; "Fair Play Protected" banner yaniltici
+3. **RLS sikistirma** — `scores` ve `users` tablolarinda `WITH CHECK (true)` insert policy'leri, `submit_score` RPC anon role callable
+4. **`rate_limits` tablosuna RLS policy** — anon SELECT şu an açık, saldırgan rate limit mantığını gözleyebilir
+5. **Migration discipline** — yerel `supabase/migrations/` altındaki 4 SQL Supabase migration tablosunda kayıtsız
+6. **Function search_path mutable** — 8 fonksiyon (search path injection riski)
+
+Detaylı yol haritası: `~/.claude/plans/ncelikle-t-m-dosyalar-ve-jiggly-naur.md` (v3)
 
 ---
 
