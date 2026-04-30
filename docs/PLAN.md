@@ -1,26 +1,35 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-05-01 (v7)
+> Son guncelleme: 2026-05-01 (v8)
 
 ## Mevcut Durum Ozeti
 
-Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Calisma surdurulebilir hale geldi: Sprint 0 (otonomluk altyapisi) + Sprint 1.7a (Edge Function repo'ya kurtarma) + Sprint 1.7b (USD geçişi + 401 fix) tamamlandi.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0 (otonomluk altyapisi) + Sprint 1 (landing migration: 6 PR) + Sprint 1.7a/b (Edge Function recovery + USD/JWT fix) + Sprint 1.8 (PAYMENT_RECEIVER env var) tamamlandi.
 
 **Tamamlanmis altyapi (2026-04-30 → 2026-05-01):**
 - Branch protection her iki repo'da aktif (main'e direkt push yasak, force push yasak, 1 review zorunlu, CI status check)
 - CI test gate (`.github/workflows/ci.yml`) — her PR'da `npm test` + `npm run build` zorunlu
-- Edge Function recovery: `calculate-daily-rewards` Supabase prod'dan repo'ya geri alindi (4 ay sonra) ve CI deploy hattina baglandi
+- Edge Function recovery: `calculate-daily-rewards` Supabase prod'dan repo'ya geri alindi (4 ay sonra) ve CI deploy hattina baglandi; BNB → USD geçişi + JWT bypass yapıldı
+- `verify-payment` Edge Function `PAYMENT_RECEIVER_ADDRESS` env var adını destekliyor (geriye uyumlu)
 - Rate limiting (use-credit 30/dk, verify-payment 10/dk) — uretimde calisiyor
 - Bug #4 coins_collected — submit_score imzasi guncel, GameOverUI gonderiyor
 - Buffer polyfill, Vitest setup (8 test), price tolerance %7 hizalanmis, 11 ESLint hatasi temizlenmis
 
+**Landing page (lumexia.net) tamamen Solana/TOKABU dünyasında:**
+- SEO meta tags + structured-data (organizationSchema, videoGameSchema, faqSchema) Solana/Phantom/Jupiter referansları
+- UI metinleri: faq-section, footer, strategy-section MetaMask → Phantom, PancakeSwap → Jupiter, $LMX → $TOKABU
+- dashboard-hero placeholder hex CONTRACT_ADDRESS → gerçek TOKABU mint
+- token-stats: ticker TOKABU/USD, SOL/USD, BTC/USD, ETH/USD; DexScreener iframe Solana chain
+- API routes (`/api/dex`, `/api/ticker`) Solana/CoinGecko `solana` ID
+- pool-context BNB → USD; transactions-panel canlı Supabase `transactions` tablosu (realtime subscribe)
+
 **Kalan oncelikler (kritik sıraya göre):**
-1. **Landing page chain/token migration** (BSC/LMX → Solana/TOKABU) — SEO her gün yanlis indeksliyor
-2. **Anti-cheat sunucu tarafli skor dogrulama** — `submit_score` RPC sadece INSERT, tutarlilik kontrolü yok; "Fair Play Protected" banner yaniltici
-3. **RLS sikistirma** — `scores` ve `users` tablolarinda `WITH CHECK (true)` insert policy'leri, `submit_score` RPC anon role callable
-4. **`rate_limits` tablosuna RLS policy** — anon SELECT şu an açık, saldırgan rate limit mantığını gözleyebilir
-5. **Migration discipline** — yerel `supabase/migrations/` altındaki 4 SQL Supabase migration tablosunda kayıtsız
-6. **Function search_path mutable** — 8 fonksiyon (search path injection riski)
+1. **Anti-cheat sunucu tarafli skor dogrulama** — `submit_score` RPC sadece INSERT, tutarlilik kontrolü yok; "Fair Play Protected" banner yaniltici
+2. **RLS sikistirma** — `scores` ve `users` tablolarinda `WITH CHECK (true)` insert policy'leri, `submit_score` RPC anon role callable
+3. **`rate_limits` tablosuna RLS policy** — anon SELECT şu an açık, saldırgan rate limit mantığını gözleyebilir
+4. **Migration discipline** — yerel `supabase/migrations/` altındaki 4 SQL Supabase migration tablosunda kayıtsız
+5. **Function search_path mutable** — 8 fonksiyon (search path injection riski)
+6. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
 
 Detaylı yol haritası: `~/.claude/plans/ncelikle-t-m-dosyalar-ve-jiggly-naur.md` (v3)
 
