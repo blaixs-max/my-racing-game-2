@@ -601,16 +601,25 @@ Anti-cheat tarafından reddedilen skor gönderimleri için forensic log. `submit
 - ON CONFLICT DO NOTHING (duplicate handling)
 - daily_leaderboard tablosunu temizler
 
-### RLS Politikalari
-**TUMU COK ACIK** - `USING(true)`:
-- users: SELECT, INSERT, UPDATE herkese acik
-- transactions: SELECT, INSERT herkese acik
-- scores: SELECT, INSERT herkese acik
-- daily_leaderboard: SELECT, INSERT, UPDATE, DELETE herkese acik
-- daily_leaderboard_history: SELECT, INSERT herkese acik
+### RLS Politikalari (Sprint 2.1 sonrası — 2026-05-01)
 
-**RISK:** Herhangi bir kullanici diger kullanicilarin verilerini okuyabilir,
-kendi skorlarini ekleyebilir, ve potansiyel olarak baskalarinin verilerini degistirebilir.
+**SELECT (anon erişimi):**
+- users, transactions, scores, daily_leaderboard, daily_leaderboard_history, reward_pool_distribution → "Allow public read" policy aktif (landing page'in leaderboard ve transactions panel'ı için gereklidir)
+- rate_limits, suspicious_scores → policy yok = service-role only
+
+**INSERT/UPDATE/DELETE (anon erişimi):**
+- Hiçbir tabloda anon INSERT policy YOK. Tüm INSERT'ler Edge Function'lar üzerinden service role ile yapılır:
+  - `users` ve `transactions` → verify-payment Edge Function
+  - `scores` → submit-score Edge Function (anti-cheat geçtikten sonra `submit_score` RPC service role)
+  - `daily_leaderboard` → `update_daily_leaderboard()` trigger (scores INSERT'ine bağlı)
+  - `suspicious_scores` → submit-score Edge Function (anomali log)
+  - `reward_pool_distribution` → calculate-daily-rewards Edge Function (pg_cron tetiklemesi)
+
+**SECURITY DEFINER fonksiyonlar:**
+- `submit_score`, `check_rate_limit`, `update_daily_leaderboard`, `archive_daily_leaderboard`, `cleanup_rate_limits` → EXECUTE anon ve authenticated için REVOKE edildi (Sprint 2.1)
+- Çağrı yolu: Edge Function'lar (service role), trigger'lar (role bypass), pg_cron (postgres role)
+
+**Anti-cheat:** submit-score Edge Function, frontend skor gönderiminin tek meşru yolu. Doğrulama kuralları: `duration ≥ 10s`, `distance ≤ 60 m/s × duration`, `coins ≤ floor(distance/50)`, `score ≤ distance × 200`, `clientStartTime` drift ≤ 5sn.
 
 ---
 

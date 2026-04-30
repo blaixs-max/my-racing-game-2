@@ -24,14 +24,20 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - pool-context BNB → USD; transactions-panel canlı Supabase `transactions` tablosu (realtime subscribe)
 
 **Kalan oncelikler (kritik sıraya göre):**
-1. **RLS sikistirma + RPC EXECUTE revoke** — `scores`/`users` tablolarinda `WITH CHECK (true)` insert policy'leri, `submit_score` ve diğer SECURITY DEFINER RPC'leri anon role callable; `rate_limits` tablosunda RLS policy yok (anon SELECT açık)
-2. **Otonom Supabase bağlantısı** — env standardize, types, realtime güvenliği
-3. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
-4. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler (memory'de planlandı)
+1. **Otonom Supabase bağlantısı** — env standardize, types, realtime güvenliği
+2. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
+3. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler (memory'de planlandı)
 
-**Anti-cheat aktif (Sprint 2.2a + 2.2b):** Frontend skor gönderme akışı `submit-score` Edge Function üzerinden. Sunucu tarafli doğrulama: hız (60 m/s ceiling), coin yoğunluğu (50m/coin), skor üst sınırı (200/m), zaman drift (5sn). Anomali → suspicious_scores forensic log + 422.
+**Sprint 2 (Güvenlik) tamamlandı:**
+- 2.5 Function search_path mutable → 9 fonksiyona pinned ✅
+- 2.4 Migration discipline → CI/CD otomatik apply ✅
+- 2.2a Anti-cheat altyapı → submit-score Edge Function + suspicious_scores tablo ✅
+- 2.2b + 2.3 Frontend cutover + banner → GameOverUI submit-score'a geçti, doğru cümle ✅
+- 2.1 RLS lockdown → INSERT'ler service-role only, duplicate SELECT'ler temizlendi, SECURITY DEFINER fonksiyonlardan EXECUTE revoke ✅
 
-**Migration discipline (Sprint 2.4) kuruldu:** Yerel migration dosyaları 14 haneli formatta, `.github/workflows/deploy-migrations.yml` ile CI üzerinden otomatik apply. Yeni migration eklemek artık sadece PR aç + merge.
+**Anti-cheat akışı:** Frontend → submit-score Edge Function → validate (hız 60 m/s, coin/m, score/m, zaman drift) → suspicious_scores log (anomali) veya scores INSERT (geçerli, service role).
+
+**Migration discipline:** 14 haneli format + CI auto-apply.
 
 Detaylı yol haritası: `~/.claude/plans/ncelikle-t-m-dosyalar-ve-jiggly-naur.md` (v3)
 
