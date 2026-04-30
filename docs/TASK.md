@@ -1,6 +1,42 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v7)
+> Son guncelleme: 2026-05-01 (v8)
+
+---
+
+## 2026-05-01: Sprint 1.8 - PAYMENT_RECEIVER env var ad tutarlılığı
+
+**Edge Function:** `supabase/functions/verify-payment/index.ts`
+**Sorun:** Supabase Custom Secrets'ta `PAYMENT_RECEIVER_ADDRESS` adıyla tanımlı (2025-12-11) ama Edge Function `PAYMENT_RECEIVER` arıyordu. Edge Function default değere düşüyordu (canlı receiver `T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg` ile uyumlu — kazara çalışıyordu).
+
+**Çözüm (geriye uyumlu fallback chain):**
+```ts
+const PAYMENT_RECEIVER =
+  Deno.env.get('PAYMENT_RECEIVER_ADDRESS')   // güncel secret adı
+  ?? Deno.env.get('PAYMENT_RECEIVER')        // legacy
+  ?? 'T6Ekv...';                              // hardcoded fallback
+```
+
+**Etkilenen yerler (read-only, dokunulmadı):** Aynı dosyada `PAYMENT_RECEIVER` constant'ı 3 yerde karşılaştırma için kullanılıyor (satır 192, 504, 532) — sadece env okuma genişletildi.
+
+**Etki:** Edge Function v18 olarak deploy olur. Receiver değişikliği artık sadece Secret güncelleyerek yapılabilir.
+
+---
+
+## 2026-05-01: Sprint 1 (Landing Migration) - 6 PR Tamamlandı
+
+Landing page (`v0-lumexia-landing-page-V0`) tamamen BSC/$LMX → Solana/TOKABU'ya geçirildi:
+
+| PR | Sprint | İçerik |
+|----|--------|--------|
+| #8  | 1.1 | `lib/token-config.ts` — tek doğruluk kaynağı |
+| #9  | 1.2 | SEO meta tags + structured-data (organizationSchema, videoGameSchema, faqSchema) |
+| #10 | 1.3 | UI metinleri (faq-section, footer, strategy-section): MetaMask → Phantom, PancakeSwap → Jupiter, BNB → SOL, $LMX → $TOKABU |
+| #11 | 1.4 | dashboard-hero CONTRACT_ADDRESS placeholder fix (gerçek TOKABU mint), token-stats BSC adresi temizlendi |
+| #12 | 1.5 | API routes (`/api/dex`, `/api/ticker`) BSC → Solana, ticker mapping |
+| #13 | 1.6 | pool-context BNB → USD, transactions-panel sample data → canlı Supabase verisi |
+
+**Sonuç:** lumexia.net SEO, UI, API, ve canlı veri tamamen Solana/TOKABU dünyasında. Google bir sonraki crawl'da düzeltilmiş içeriği indeksleyecek.
 
 ---
 

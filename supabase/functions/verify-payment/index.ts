@@ -5,7 +5,8 @@
 //   PAYMENT_TOKEN_MINT    - Token mint adresi (zorunlu)
 //   TOKEN_SYMBOL          - Token kodu (DB'ye yazilir, ornek: OILTOWN)
 //   TOKEN_DECIMALS        - Token decimals (default 6)
-//   PAYMENT_RECEIVER      - Odeme alici cuzdan adresi (zorunlu)
+//   PAYMENT_RECEIVER_ADDRESS (or PAYMENT_RECEIVER, deprecated)
+//                         - Odeme alici cuzdan adresi (zorunlu)
 //   HELIUS_API_KEY        - Helius RPC API key (opsiyonel, yoksa public RPC kullanilir)
 //
 // Set etmek icin:
@@ -49,7 +50,13 @@ const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'OILTOWN';
 const TOKEN_DECIMALS = Number(Deno.env.get('TOKEN_DECIMALS') ?? '6');
 
 // Payment Receiver Wallet Address (Solana)
-const PAYMENT_RECEIVER = Deno.env.get('PAYMENT_RECEIVER') ?? 'T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg';
+// Reads PAYMENT_RECEIVER_ADDRESS first (current secret name), then
+// PAYMENT_RECEIVER (legacy/deprecated), then falls back to the canonical
+// production receiver. Both env vars produce the same constant here.
+const PAYMENT_RECEIVER =
+  Deno.env.get('PAYMENT_RECEIVER_ADDRESS')
+  ?? Deno.env.get('PAYMENT_RECEIVER')
+  ?? 'T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg';
 
 // Jupiter Price API for dynamic pricing
 const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price';
