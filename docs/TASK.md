@@ -1,6 +1,29 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v16)
+> Son guncelleme: 2026-05-01 (v17)
+
+---
+
+## 2026-05-01: Sprint 4.1 - ESLint config genişletme + CI lint job
+
+**Bağlam düzeltmesi:** Sprint 0.5 keşfinde Explore agent yanlışlıkla "eslint.config.js YOK" demişti. Aslında dosya **vardı ve çalışıyordu** (commit `ae55434` "11 ESLint hatası temizlendi" iş bunu kullanıyordu). Sprint 0.2'de CI gate'e lint dahil edilmemesi sadece konservatif bir tercihti.
+
+**Bu PR'da yapılan:**
+
+**`eslint.config.js`** ignore listesi genişletildi:
+- Eski: `['dist']` (sadece)
+- Yeni: `['dist', 'node_modules', '.claude', '.netlify', 'supabase/functions']`
+- `supabase/functions` Deno + TS, ayrı toolchain — bunu ignore etmek lint'in gereksiz Deno hataları üretmesini engeller
+- `.claude` Claude Code metadata, lint dışı
+- `.netlify` deploy artifacts
+
+**CI workflow:** `.github/workflows/ci.yml`'a `lint` job eklendi
+- `continue-on-error: true` ile başlatıldı (ilk rollout için soft-fail)
+- 1-2 PR sonra `continue-on-error: false` ile required check yapılır
+
+**Etki:** Sprint 4 sonrası refactor'larda eslint hatalı kod yakalar. App.jsx ve RealLauncherUI bölme öncesi guard kurulur.
+
+**Risk:** DÜŞÜK — config genişletme ve soft-fail job. Mevcut kod etkilenmez.
 
 ---
 

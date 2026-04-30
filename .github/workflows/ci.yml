@@ -26,3 +26,18 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+
+  lint:
+    # Sprint 4.1: starts soft (continue-on-error) so any pre-existing
+    # warnings the new config surfaces do not block the rollout. After
+    # one or two PRs we tighten this to a required check.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint

@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Sprint 4.1: extended ignore list. Edge Functions are Deno + TypeScript
+  // with their own toolchain; .claude is local Claude Code metadata.
+  globalIgnores(['dist', 'node_modules', '.claude', '.netlify', 'supabase/functions']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
