@@ -58,8 +58,8 @@ export const PAYMENT_CONFIG = {
     10: { credits: 10, usdValue: 10 }
   },
 
-  // Price tolerance for verification (5%)
-  priceTolerance: 0.05,
+  // Price tolerance for verification (7%, must match verify-payment Edge Function)
+  priceTolerance: 0.07,
 
   // Minimum SOL balance required for transaction fees
   minSolBalance: 0.005,

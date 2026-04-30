@@ -54,8 +54,9 @@ const PAYMENT_RECEIVER = Deno.env.get('PAYMENT_RECEIVER') ?? 'T6EkvAVdHPRr6Ngub1
 // Jupiter Price API for dynamic pricing
 const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price';
 
-// Allow 10% tolerance for price fluctuation (crypto is volatile)
-const PRICE_TOLERANCE = 0.10;
+// Allow 7% tolerance for price fluctuation (crypto is volatile).
+// Must stay in sync with src/solana.config.js -> PAYMENT_CONFIG.priceTolerance.
+const PRICE_TOLERANCE = 0.07;
 
 interface TransactionData {
   transactionSignature: string;
