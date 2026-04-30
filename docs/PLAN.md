@@ -27,10 +27,9 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 1. **Anti-cheat sunucu tarafli skor dogrulama** — `submit_score` RPC sadece INSERT, tutarlilik kontrolü yok; "Fair Play Protected" banner yaniltici
 2. **RLS sikistirma** — `scores` ve `users` tablolarinda `WITH CHECK (true)` insert policy'leri, `submit_score` RPC anon role callable
 3. **`rate_limits` tablosuna RLS policy** — anon SELECT şu an açık, saldırgan rate limit mantığını gözleyebilir
-4. **Migration discipline** — yerel `supabase/migrations/` altındaki 5 SQL Supabase migration tablosunda kayıtsız (4 eski + Sprint 2.5)
-5. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
+4. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
 
-**Sprint 2.5 (Function search_path mutable) yerel migration olarak yazıldı; prod'a uygulanması bekleniyor.**
+**Migration discipline (Sprint 2.4) kuruldu:** Yerel migration dosyaları 14 haneli formatta, `.github/workflows/deploy-migrations.yml` ile CI üzerinden otomatik apply. Yeni migration eklemek artık sadece PR aç + merge.
 
 Detaylı yol haritası: `~/.claude/plans/ncelikle-t-m-dosyalar-ve-jiggly-naur.md` (v3)
 

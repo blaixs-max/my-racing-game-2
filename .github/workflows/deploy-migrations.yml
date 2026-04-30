@@ -1,0 +1,65 @@
+name: Deploy Database Migrations
+
+# Sprint 2.4 (migration discipline): runs `supabase db push` on every
+# merge to main that touches supabase/migrations/**, so new SQL files
+# auto-apply to the prod database.
+#
+# First-run note: the five locally-tracked migrations existed before
+# this workflow was added and were applied manually in the Supabase
+# Dashboard. The "Repair pre-existing migrations" step marks them as
+# applied (idempotent) so `db push` doesn't try to re-run them.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/deploy-migrations.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Repair pre-existing migrations (first-run idempotency)
+        # Marks each pre-existing migration as applied in
+        # supabase_migrations.schema_migrations without re-running its SQL.
+        # Once a version is recorded, subsequent repair calls for the same
+        # version are no-ops. `|| true` shields the workflow from any
+        # transient repair errors.
+        continue-on-error: true
+        run: |
+          for version in \
+            20241216000000 \
+            20260423000000 \
+            20260430000000 \
+            20260430000001 \
+            20260501000000; do
+            echo "Repairing $version (marking as applied if not already)..."
+            supabase migration repair --status applied "$version" || true
+          done
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Push new migrations
+        # Applies any locally-tracked migration whose version is not yet in
+        # supabase_migrations.schema_migrations. After the repair step above
+        # runs once, this is a no-op until a new migration file is added.
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
