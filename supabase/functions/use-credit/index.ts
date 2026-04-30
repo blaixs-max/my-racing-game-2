@@ -64,6 +64,27 @@ serve(async (req) => {
       );
     }
 
+    // Rate limit: max 30 credit uses per wallet per minute. Generous enough
+    // for normal play (≤1 game/sec); a script burning the wallet's credits
+    // hits the cap immediately.
+    const { data: allowed, error: rlError } = await supabase.rpc('check_rate_limit', {
+      p_key: walletAddress,
+      p_action: 'use_credit',
+      p_max_requests: 30,
+      p_window_seconds: 60,
+    });
+    if (rlError) {
+      // If the rate-limit table is not yet migrated, fail open (logging) so
+      // we do not break the live deploy. After the migration is applied,
+      // rlError stops appearing and the limit is enforced.
+      console.warn('⚠️ Rate limit check failed (failing open):', rlError.message);
+    } else if (allowed === false) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Rate limit exceeded. Try again in a minute.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`🎮 Using ${amount} credit(s) for wallet: ${walletAddress}`);
 
     // Get current user

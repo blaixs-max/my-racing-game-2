@@ -54,8 +54,9 @@ const PAYMENT_RECEIVER = Deno.env.get('PAYMENT_RECEIVER') ?? 'T6EkvAVdHPRr6Ngub1
 // Jupiter Price API for dynamic pricing
 const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price';
 
-// Allow 10% tolerance for price fluctuation (crypto is volatile)
-const PRICE_TOLERANCE = 0.10;
+// Allow 7% tolerance for price fluctuation (crypto is volatile).
+// Must stay in sync with src/solana.config.js -> PAYMENT_CONFIG.priceTolerance.
+const PRICE_TOLERANCE = 0.07;
 
 interface TransactionData {
   transactionSignature: string;
@@ -112,6 +113,24 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Invalid package amount. Must be 1, 5, or 10' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Rate limit: max 10 verify-payment calls per wallet per minute. A real
+    // purchase needs at most a couple of retries; anything above this is a
+    // script (or a misbehaving client).
+    const { data: rlAllowed, error: rlError } = await supabase.rpc('check_rate_limit', {
+      p_key: userAddress,
+      p_action: 'verify_payment',
+      p_max_requests: 10,
+      p_window_seconds: 60,
+    });
+    if (rlError) {
+      console.warn('⚠️ Rate limit check failed (failing open):', rlError.message);
+    } else if (rlAllowed === false) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Try again in a minute.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

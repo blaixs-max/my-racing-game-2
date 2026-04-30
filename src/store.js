@@ -119,6 +119,7 @@ export const useGameStore = create((set, get) => ({
   cameraShake: 0,
   totalDistance: 0,
   nearMissCount: 0,
+  coinsCollected: 0,
   startTime: 0, // Oyun süresi için
   currentLevel: 1,
   lastLevelUpDistance: 0,
@@ -206,6 +207,7 @@ export const useGameStore = create((set, get) => ({
       gameOver: false,
       totalDistance: 0,
       nearMissCount: 0,
+      coinsCollected: 0,
       currentLevel: 1,
       lastLevelUpDistance: 0,
       roadSegments: [],
@@ -316,6 +318,7 @@ export const useGameStore = create((set, get) => ({
     set((state) => ({
       score: state.score + 100,
       coins: state.coins.filter(c => c.id !== id),
+      coinsCollected: state.coinsCollected + 1,
       message: "+100 GOLD"
     }));
     setTimeout(() => set({ message: "" }), 600);
@@ -486,7 +489,6 @@ export const useGameStore = create((set, get) => ({
         // Quick lane availability check using cached data
         for (let j = 0; j < possibleLanes.length; j++) {
           const testLane = possibleLanes[j];
-          const targetX = testLane * 4.5;
           const laneEnemies = laneOccupancy[String(testLane)] || [];
 
           let isLaneClear = true;

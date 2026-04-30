@@ -1,12 +1,12 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-04-23 (v5 - Tokenize rename + Helius env + migration fix + PostProcessing kaldirma)
+> Son guncelleme: 2026-04-30 (v6 - TOKABU balance bug full fix: Buffer polyfill + console.error + Edge Function redeploy)
 
 ---
 
 ## Ertelenmis / Not Dusulenler (Gelecekte Cozulmek Uzere)
 
-### BUG #4: `coins_collected` submit_score RPC'ye gonderilmiyor (ERTELEND]I)
+### BUG #4: `coins_collected` submit_score RPC'ye gonderilmiyor (ERTELENDI)
 **Dosya:** `src/components/GameOverUI.jsx:50`, `supabase-functions.sql:23` (submit_score)
 **Durum:** Ileriki faz icin not dusuldu, simdi dokunulmayacak
 **Ozet:**
@@ -22,6 +22,52 @@
 ---
 
 ## Tamamlanan Gorevler
+
+---
+
+### 2026-04-30: TOKABU Balance Bug Full Fix + CI Redeploy (v6)
+
+**Bulgu zinciri (smoking gun: SOL gosteriliyor, TOKABU=0):**
+1. Eski `vite.config.js` -> `drop_console: true` tum console.* call'larini strip ediyordu
+2. Eski `getTokenBalance` outer catch RPC hatasini yutup 0 donduruyordu
+3. **Vite default'ta Buffer polyfill yok** -> `globalThis.Buffer === undefined`
+4. `@solana/spl-token` getAccount deserializer Buffer.from / Buffer.alloc kullaniyor (bundle'da 42 + 14 referans)
+5. SOL `connection.getBalance` Buffer kullanmiyordu, calisiyordu - asimetri ipucu
+6. `Buffer.from()` cagrisi `ReferenceError: Buffer is not defined` firlatiyordu, sessizce 0 donduruluyordu
+
+**Cozumler (3 commit):**
+
+**Commit `28b4c8b` - surface balance fetch errors:**
+- `vite.config.js`: `drop_console: true` -> `pure_funcs: ['console.log', 'console.debug', 'console.info']`. error/warn korundu.
+- `src/utils/solanaWallet.js`:
+  - `getTokenProgramId`: 3x retry, basarisizlikta throw (sessiz fallback yok)
+  - `getTokenBalance`: outer catch kaldirildi; sadece TokenAccountNotFoundError 0 doner, gerisi throw
+- `src/components/RealLauncherUI.jsx`:
+  - `tokenBalanceError` + `balanceRefreshKey` state
+  - Fail durumunda son balance korunur, turuncu border + ↻ retry butonu
+
+**Commit `66d2a43` - Vitest setup + 8 regression test:**
+- `vitest@4.1.5` devDep eklendi
+- `src/utils/solanaWallet.test.js`: happy path, TokenAccountNotFoundError, RPC error throw, deserialization throw, getTokenProgramId 3x retry, TOKEN_CONFIG sanity
+- `npm test` / `npm run test:watch` script'leri
+
+**Commit `d9d4899` - Buffer polyfill (asil bug):**
+- `src/polyfills.js` (yeni): `import { Buffer as NodeBuffer } from 'buffer'; if (typeof globalThis.Buffer === 'undefined') globalThis.Buffer = NodeBuffer;`
+- `src/main.jsx`: ilk import `./polyfills.js`
+- `buffer@6.0.3` zaten transitive dep, yeni paket yok
+
+**Commit `59baf7e` - CI redeploy use-credit:**
+- `.github/workflows/deploy-edge-functions.yml`: `Deploy use-credit` step eklendi
+- Path filter'a workflow dosyasinin kendisi de eklendi (yoksa workflow degisiklikleri tetiklemiyor)
+- PR #77'deki use-credit Solana regex fix'i ilk kez deploy oldu (eskiden Ethereum regex hala canliydi -> tum cuzdanlar "Invalid wallet" aliyordu -> "Failed to start game")
+
+**Etkilenen testler (Playwright + curl probe):**
+- ✅ Production browser'da `globalThis.Buffer === function`
+- ✅ Helius RPC'den TOKABU balance 3494.123463 doniyor
+- ✅ use-credit Solana adresine "User not found" (404) doner (eskiden 400 "Invalid wallet")
+- ✅ Vitest 8/8 gecti
+
+**Acik aksiyon (kullaniciya):** YOK - tum stack senkron, oyun oynanabilir.
 
 ---
 
@@ -202,13 +248,19 @@ Eksik: RealLauncherUI'nin detayli UI bilesenleri (~59KB dosya, cok buyuk)
 
 ---
 
-## Sonraki Adimlar (Oncelik Sirasina Gore)
+## Sonraki Adimlar (Oncelik Sirasina Gore - v6 sonrasi)
 
-1. ~~**ACIL: Bug #1 duzelt** - use-credit Ethereum -> Solana dogrulama~~ TAMAMLANDI + MERGED
-2. ~~**ACIL: Bug #2 duzelt** - quitGame() 'menu' -> 'launcher'~~ TAMAMLANDI + MERGED
-3. ~~**ACIL: Bug #3 duzelt** - RainbowKit CSS kaldir~~ TAMAMLANDI + MERGED
-4. **Test altyapisi kur** - Vitest + store.js testleri (RISK: bug fix'ler test olmadan merge edildi)
-5. **RLS politikalarini sikistir** - wallet bazli erisim kurallari
-6. **Sunucu tarafli skor dogrulama** - anti-cheat Edge Function
-7. **Coal -> Oiltown isimlendirme** - fonksiyon adlari guncelle
-8. **App.jsx bolme** - 2464 satir -> mantiksal alt dosyalar
+1. ~~Bug #1-3 (Faz 0)~~ TAMAMLANDI + MERGED
+2. ~~Coal/Oiltown isimlendirme jenerik tokenize~~ TAMAMLANDI (v5)
+3. ~~Test altyapisi kur~~ TAMAMLANDI (v6) - Vitest + 8 test mevcut
+4. ~~Buffer polyfill / TOKABU balance bug~~ TAMAMLANDI (v6)
+5. ~~use-credit Edge Function redeploy~~ TAMAMLANDI (v6)
+6. **GUVENLIK - YUKSEK: RLS politikalarini sikistir** - wallet bazli erisim kurallari (USING(true) -> wallet match)
+7. **GUVENLIK - YUKSEK: Sunucu tarafli skor dogrulama** - anti-cheat Edge Function (frontend skor gondermesi serbest, GameOverUI banner yaniltici)
+8. **GUVENLIK - ORTA: Rate limiting** - submit_score, use-credit, verify-payment
+9. **BUG #4 (ertelenmis): coins_collected** - submit_score imzasi + GameOverUI gecisi
+10. **TUTARLILIK: Frontend %5 vs backend %10 fiyat tolerans** - tek degere hizala
+11. **REFACTOR: App.jsx bolme** - 2456 satir -> mantiksal alt dosyalar
+12. **KOD KALITESI: ESLint** - 11 pre-existing hata var (formatAddress unused, tokenAmount unused vs)
+13. **TEST GENISLET** - store.js, GameOverUI, Edge Function entegrasyon testleri
+14. **TYPESCRIPT** - opsiyonel, kademeli .jsx -> .tsx

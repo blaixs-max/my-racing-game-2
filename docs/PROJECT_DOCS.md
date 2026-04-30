@@ -1,13 +1,13 @@
-# Lumexia Racing Game - Proje Dokumantasyonu (v3 - Kod ile hizalandi)
+# Lumexia Racing Game - Proje Dokumantasyonu (v4 - 2026-04-30)
 
 ## Genel Bakis
 
-Lumexia Racing Game, Solana blockchain uzerinde OILTOWN token ile calisan, 3D tarayici tabanli bir araba yarisi oyunudur. Oyuncular kripto cuzdan baglayarak kredi satin alir, trafik arasinda slalom yaparak puan toplar ve liderlik tablosunda yarisirler.
+Lumexia Racing Game, Solana blockchain uzerinde TOKABU token ile calisan, 3D tarayici tabanli bir araba yarisi oyunudur. Oyuncular kripto cuzdan baglayarak kredi satin alir, trafik arasinda slalom yaparak puan toplar ve liderlik tablosunda yarisirler.
 
-**Canli URL:** Netlify uzerinden deploy ediliyor (lumexia.net)
+**Canli URL:** Netlify uzerinden deploy ediliyor (game.lumexia.net)
 **Veritabani:** Supabase (PostgreSQL)
 **Blockchain:** Solana Mainnet-Beta
-**Token Mint:** `AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump` (OILTOWN, pump.fun - Token-2022 otomatik algilama)
+**Token Mint:** `H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump` (TOKABU, regular SPL Token, decimals=6)
 **Odeme Alicisi:** `T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg`
 
 ---
@@ -408,7 +408,7 @@ updatePriority: -50        // Dusuk oncelik (render'dan once)
 6. Transfer dogrulama:
    - Gonderici == kullanici adresi
    - Alici == PAYMENT_RECEIVER
-   - Token == PAYMENT_TOKEN_MINT (OILTOWN)
+   - Token == PAYMENT_TOKEN_MINT (TOKABU varsayilan, env ile degistirilebilir)
    - Miktar >= minExpectedAmount
 7. Veritabani islemleri:
    - Kullanici getir/olustur
@@ -656,8 +656,8 @@ VITE_WALLETCONNECT_PROJECT_ID=<optional>
 SUPABASE_URL=<auto>
 SUPABASE_SERVICE_ROLE_KEY=<auto>
 HELIUS_API_KEY=<private-key-no-domain-restriction>
-PAYMENT_TOKEN_MINT=<token-mint-address>               # default: OILTOWN mint
-TOKEN_SYMBOL=<token-symbol>                           # default: OILTOWN
+PAYMENT_TOKEN_MINT=<token-mint-address>               # current: TOKABU mint
+TOKEN_SYMBOL=<token-symbol>                           # current: TOKABU
 TOKEN_DECIMALS=<token-decimals>                       # default: 6
 PAYMENT_RECEIVER=<receiver-wallet-address>            # default: current receiver
 ```

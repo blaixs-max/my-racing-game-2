@@ -6,7 +6,6 @@ import {
   getTokenBalance,
   checkPaymentBalance,
   transferToken,
-  formatAddress,
   getExplorerUrl,
   isMobileDevice
 } from '../utils/solanaWallet';
@@ -511,7 +510,7 @@ const RealLauncherUI = ({ onStartGame }) => {
       }));
 
       // Transfer payment tokens
-      const { signature, tokenAmount, price } = await transferToken(
+      const { signature } = await transferToken(
         walletAdapter,
         packageAmount
       );
