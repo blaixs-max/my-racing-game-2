@@ -56,7 +56,7 @@ describe('getTokenPrice', () => {
   });
 
   it('returns DexScreener price (highest-liquidity pair) on success', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({
         pairs: [
@@ -69,11 +69,11 @@ describe('getTokenPrice', () => {
 
     const price = await getTokenPrice();
     expect(price).toBe(0.0015);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to Jupiter when DexScreener returns no pairs', async () => {
-    global.fetch = vi.fn()
+    globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ pairs: [] }),
@@ -87,11 +87,11 @@ describe('getTokenPrice', () => {
 
     const price = await getTokenPrice();
     expect(price).toBe(0.002);
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to Jupiter when DexScreener throws', async () => {
-    global.fetch = vi.fn()
+    globalThis.fetch = vi.fn()
       .mockRejectedValueOnce(new Error('DexScreener down'))
       .mockResolvedValueOnce({
         ok: true,
@@ -105,7 +105,7 @@ describe('getTokenPrice', () => {
   });
 
   it('throws when both DexScreener and Jupiter fail and cache is empty', async () => {
-    global.fetch = vi.fn()
+    globalThis.fetch = vi.fn()
       .mockRejectedValueOnce(new Error('DexScreener network'))
       .mockRejectedValueOnce(new Error('Jupiter network'));
 
@@ -113,7 +113,7 @@ describe('getTokenPrice', () => {
   });
 
   it('serves cached price within the cache window without re-fetching', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({
         pairs: [{ liquidity: { usd: 100 }, priceUsd: '0.001' }],
@@ -125,7 +125,7 @@ describe('getTokenPrice', () => {
 
     expect(first).toBe(0.001);
     expect(second).toBe(0.001);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -142,7 +142,7 @@ describe('calculateTokenAmount', () => {
   });
 
   it('computes tokenAmount = usdAmount / price for a valid price', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({
         pairs: [{ liquidity: { usd: 100 }, priceUsd: '0.001' }],
@@ -154,15 +154,24 @@ describe('calculateTokenAmount', () => {
     expect(result.tokenAmount).toBe(1000); // 1 USD / 0.001 per token
   });
 
-  it('throws when DexScreener returns price of zero', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        pairs: [{ liquidity: { usd: 100 }, priceUsd: '0' }],
-      }),
-    });
+  it('propagates the underlying getTokenPrice failure when no source resolves', async () => {
+    // When DexScreener returns priceUsd: '0', getDexScreenerPrice returns 0,
+    // which getTokenPrice's `if (price)` filters out as falsy. The function
+    // then falls through to Jupiter; if that also fails (here: rejected),
+    // the cache is empty so getTokenPrice throws "Unable to fetch token
+    // price". calculateTokenAmount surfaces that error verbatim — its
+    // own `Invalid <symbol> price` guard is defensive and not reachable
+    // from this path.
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          pairs: [{ liquidity: { usd: 100 }, priceUsd: '0' }],
+        }),
+      })
+      .mockRejectedValueOnce(new Error('Jupiter network'));
 
-    await expect(calculateTokenAmount(1)).rejects.toThrow(/Invalid .* price/);
+    await expect(calculateTokenAmount(1)).rejects.toThrow(/Unable to fetch token price/);
   });
 });
 
@@ -179,7 +188,7 @@ describe('getTokenPriceWithRetry', () => {
   });
 
   it('returns the price on first-attempt success without retrying', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({
         pairs: [{ liquidity: { usd: 100 }, priceUsd: '0.001' }],
@@ -188,6 +197,6 @@ describe('getTokenPriceWithRetry', () => {
 
     const price = await getTokenPriceWithRetry(3);
     expect(price).toBe(0.001);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
