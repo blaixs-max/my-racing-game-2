@@ -1,6 +1,31 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v8)
+> Son guncelleme: 2026-05-01 (v9)
+
+---
+
+## 2026-05-01: Sprint 2.5 - Function search_path mutable sertleştirme
+
+**Migration:** `supabase/migrations/20260501_function_search_path.sql`
+
+**Sorun:** Supabase advisor 9 fonksiyonun `search_path` ayarının "mutable" olduğunu işaretliyordu. SECURITY DEFINER fonksiyonlarda search_path injection riski: saldırgan kendi schema'sını öne alıp fonksiyon body'sindeki unqualified `now()`, tablo referansı vb. çağrılarını yakalayabilir.
+
+**Etkilenen fonksiyonlar:**
+- `update_updated_at_column` (trigger)
+- `distribute_daily_team_bonus`
+- `update_team_selection`
+- `archive_daily_leaderboard`
+- `update_daily_leaderboard`
+- `submit_score`
+- `check_rate_limit`
+- `cleanup_rate_limits`
+- `end_the_day`
+
+**Çözüm:** Migration DO bloğu dinamik olarak `pg_proc`'tan imzaları çözer ve her birine `ALTER FUNCTION ... SET search_path = public, pg_temp` uygular. Body değişmiyor, sadece metadata.
+
+**Risk:** DÜŞÜK — davranış aynı kalır, reversible (`RESET search_path`).
+
+**Açık aksiyon:** Migration prod'a kullanıcı tarafından uygulanmalı (Supabase Dashboard SQL Editor ya da `supabase db push`). Sprint 2.4'te migration discipline kurulduktan sonra otomatikleşir.
 
 ---
 
