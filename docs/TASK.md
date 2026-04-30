@@ -1,6 +1,33 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v9)
+> Son guncelleme: 2026-05-01 (v10)
+
+---
+
+## 2026-05-01: Sprint 2.4 - Migration discipline (tam CI/CD)
+
+**Sorun:** Yerel `supabase/migrations/` altında 5 SQL dosyası vardı (8 haneli timestamp), Supabase migration tablosunda sadece 2 kayıt (14 haneli timestamp). Yerel migration'lar zaten uygulanmıştı (manuel Dashboard üzerinden) ama disiplinsiz halde — `supabase db reset` yapılırsa rate_limits/coins_collected/search_path sertleştirmesi vb. kaybolurdu.
+
+**Çözüm:**
+
+**1. Yerel dosyaları 14 haneli formata rename:**
+- `20241216_add_token_fields.sql` → `20241216000000_*`
+- `20260423_fix_token_symbol_defaults.sql` → `20260423000000_*`
+- `20260430_rate_limits.sql` → `20260430000000_*`
+- `20260430_submit_score_coins_collected.sql` → `20260430000001_*` (saatlik fark, aynı tarihten)
+- `20260501_function_search_path.sql` → `20260501000000_*`
+
+**2. CI workflow:** `.github/workflows/deploy-migrations.yml`
+- Trigger: push to main + paths `supabase/migrations/**`
+- Steps: setup-cli → link → **repair (first-run idempotent)** → `supabase db push`
+- Repair adımı: 5 mevcut migration'ı `--status applied` ile işaretler, SQL'i tekrar çalıştırmaz
+- Push adımı: yeni eklenen migration'ları otomatik apply eder
+
+**3. GitHub Secret:** `SUPABASE_DB_PASSWORD` eklendi (kullanıcı tarafından, reset edilmiş şifre).
+
+**Etki:** Bundan sonra yeni migration dosyası eklendiğinde, PR merge edilince otomatik prod'a uygulanır. Sprint 2.5'in manuel Dashboard adımı son olur.
+
+**Risk:** ORTA — CI artık prod DB'ye yazabilir. Branch protection (1 review zorunlu) ve CI test gate koruyucu.
 
 ---
 
