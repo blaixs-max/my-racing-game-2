@@ -1,6 +1,30 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v10)
+> Son guncelleme: 2026-05-01 (v11)
+
+---
+
+## 2026-05-01: Sprint 2.4 follow-up - Stub migrations + repair listesi genişletme
+
+**Sorun:** PR #89 sonrası `deploy-migrations` workflow ilk kez çalıştığında `supabase db push` adımı şu hatayla fail etti:
+
+> Remote migration versions not found in local migrations directory.
+> 20251207161419, 20251207161705
+
+Supabase'de daha önce manuel oluşturulmuş 2 migration (`reward_pool_distribution` tablosu ve `setup_daily_rewards_cron`) yerel git history'de yoktu. CLI yerel ↔ remote inconsistency olarak gördü.
+
+**Çözüm:**
+
+1. **2 stub dosyası eklendi:**
+   - `20251207161419_create_reward_pool_distribution_table.sql`
+   - `20251207161705_setup_daily_rewards_cron.sql`
+   - İçerik: SQL yorumları (zaten apply edilmiş, body boş, repair bunları "applied" işaretliyor)
+
+2. **Workflow repair listesi:** 5 → 7 versiyon (yeni 2 stub eklendi)
+
+**Etki:** Yerel ile remote eşit, `db push` no-op çalışır. Bundan sonra yeni migration'lar disiplinli akışta apply olur.
+
+**Açık not:** İdeal çözüm `supabase db pull` ile gerçek SQL içeriklerini çekmekti, ama CI'da pull yapmak istemiyoruz (yön sorunu). Stub yaklaşımı pragmatik. Gerçek SQL içeriklerini görmek için Supabase Dashboard → Database → Migrations.
 
 ---
 

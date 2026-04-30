@@ -1,0 +1,19 @@
+-- Stub for git history consistency.
+--
+-- The actual migration was applied directly via the Supabase Dashboard
+-- on 2025-12-07, before Sprint 2.4 introduced migration discipline. The
+-- version is already recorded as applied in
+-- supabase_migrations.schema_migrations on prod.
+--
+-- This file exists only so `supabase db push` does not flag this
+-- version as "remote-only" and refuse to apply later locally-tracked
+-- migrations. The repair step in deploy-migrations.yml marks this
+-- version as `--status applied`, so the CLI never executes the body
+-- below.
+--
+-- The actual migration created the `public.reward_pool_distribution`
+-- table — see docs/PROJECT_DOCS.md for its current shape.
+--
+-- If you need to alter the schema this migration set up, do so via a
+-- NEW migration file with a fresh 14-digit timestamp. Do not edit this
+-- file.
