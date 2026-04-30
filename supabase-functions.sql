@@ -20,6 +20,11 @@
 -- Oyun bittiğinde skoru kaydetmek için kullanılır
 -- Frontend'den çağrılır: supabase.rpc('submit_score', {...})
 
+-- Drop legacy 4-param signature first so PostgreSQL does not keep both
+-- and resolve the call as ambiguous (the new one has DEFAULT on p_coins,
+-- which would make a 4-arg call match both signatures).
+DROP FUNCTION IF EXISTS public.submit_score(TEXT, INTEGER, INTEGER, INTEGER);
+
 CREATE OR REPLACE FUNCTION public.submit_score(
     p_wallet TEXT,
     p_score INTEGER,

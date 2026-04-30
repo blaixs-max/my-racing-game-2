@@ -7,15 +7,20 @@
 --   picked up during the run.
 --
 --   This migration:
---     1) Recreates submit_score with an additional p_coins parameter
---        (defaulting to 0 so older callers keep working until the
---        frontend ships the new payload).
---     2) Writes p_coins into scores.coins_collected on INSERT.
+--     1) DROPS the legacy 4-parameter submit_score so PostgreSQL does not
+--        keep both signatures and resolve the call as ambiguous.
+--     2) Creates submit_score with an additional p_coins parameter
+--        (defaulting to 0 so older callers without p_coins keep working).
+--     3) Writes p_coins into scores.coins_collected on INSERT.
 --
 --   Frontend GameOverUI.jsx now passes coinsCollected from the Zustand
 --   store; older clients that omit the argument will continue to land
 --   the row with coins_collected = 0 (current behavior preserved).
 
+-- 1) Remove the legacy signature so the new DEFAULT-bearing one is unique
+DROP FUNCTION IF EXISTS public.submit_score(TEXT, INTEGER, INTEGER, INTEGER);
+
+-- 2) Create the new signature with p_coins (default 0)
 CREATE OR REPLACE FUNCTION public.submit_score(
     p_wallet TEXT,
     p_score INTEGER,

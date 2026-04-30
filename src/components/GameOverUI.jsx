@@ -46,14 +46,33 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, coinsCollected = 0, o
         return;
       }
 
+      // Helper: detect a Supabase/PostgREST error that means submit_score's
+      // signature does not include p_coins yet (migration not applied).
+      const isMissingCoinsParam = (err) =>
+        err?.code === 'PGRST202' ||
+        /Could not find the function|function .* does not exist|no function matches/i.test(err?.message || '');
+
       try {
-        const { error } = await supabase.rpc('submit_score', {
+        let { error } = await supabase.rpc('submit_score', {
             p_wallet: walletAddress,
             p_score: finalScore,
             p_duration: duration,
             p_distance: Math.floor(totalDistance),
             p_coins: coinsCollected
         });
+
+        // Backwards compatibility: if the live DB still has the pre-migration
+        // signature (no p_coins parameter), retry once without it so scores
+        // still land while ops applies the migration.
+        if (error && isMissingCoinsParam(error)) {
+          console.warn('⚠️ submit_score missing p_coins — retrying with legacy signature');
+          ({ error } = await supabase.rpc('submit_score', {
+              p_wallet: walletAddress,
+              p_score: finalScore,
+              p_duration: duration,
+              p_distance: Math.floor(totalDistance)
+          }));
+        }
 
         if (!error) {
           setSaveStatus('saved');
