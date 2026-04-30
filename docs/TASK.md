@@ -1,6 +1,44 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v13)
+> Son guncelleme: 2026-05-01 (v14)
+
+---
+
+## 2026-05-01: Sprint 2.1 - RLS lockdown (INSERT, duplicate SELECT, EXECUTE revoke)
+
+**Migration:** `supabase/migrations/20260501000002_rls_lockdown.sql`
+
+3 bölümlü güvenlik sertleştirmesi:
+
+**1. INSERT policy lockdown:**
+- `public.scores` "Anyone can insert scores" DROP — Sprint 2.2b sonrası frontend submit-score Edge Function üzerinden gönderiyor (service role); anon doğrudan INSERT yapamamalı
+- `public.users` "Anyone can insert users" DROP — verify-payment Edge Function service role ile user yaratıyor
+
+**2. Duplicate SELECT policy temizliği:**
+6 tablodan duplicate policy'ler kaldırıldı (her birinde 3 → 1 SELECT policy):
+- daily_leaderboard, daily_leaderboard_history, reward_pool_distribution
+- scores, transactions, users
+
+"Allow public read" tutuldu (anon SELECT erişimi sürüyor — landing page leaderboard, transactions panel vs. çalışmaya devam eder).
+
+**3. SECURITY DEFINER EXECUTE revoke:**
+5 fonksiyon anon ve authenticated için revoke edildi:
+- `submit_score` (Edge Function service role kullanır)
+- `check_rate_limit` (Edge Function'lar service role)
+- `update_daily_leaderboard` (trigger, role bypass)
+- `archive_daily_leaderboard` (pg_cron postgres role)
+- `cleanup_rate_limits` (service role admin only)
+
+**4. rate_limits tablosuna açıklayıcı COMMENT:**
+RLS aktif, policy yok = tasarım gereği service-role-only. Advisor `rls_enabled_no_policy` INFO uyarısı bu komutla belgeleniyor.
+
+**Etki (advisor warning'leri):**
+- ✅ `rls_policy_always_true` (scores, users) → kaybolur
+- ✅ `anon_security_definer_function_executable` (5 fonksiyon) → kaybolur
+- ✅ `authenticated_security_definer_function_executable` (4 fonksiyon) → kaybolur
+- ✅ `multiple_permissive_policies` (6 tablo × 5 role = 30 uyarı) → kaybolur
+
+**Risk:** YÜKSEK — RLS değişiklikleri canlıyı etkileyebilir. Mitigation: tüm Edge Function'lar service_role kullanır (RLS bypass), pg_cron postgres role ile çalışır.
 
 ---
 
