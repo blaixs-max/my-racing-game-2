@@ -1,4 +1,4 @@
-# Lumexia Racing Game - Proje Dokumantasyonu (v5 - 2026-05-01)
+# Lumexia Racing Game - Proje Dokumantasyonu (v6 - 2026-05-01)
 
 ## Genel Bakis
 
@@ -438,6 +438,27 @@ Onceki Ethereum-format regex'i (`/^0x[a-fA-F0-9]{40}$/`) Solana base58 regex'i i
 **Not:** Frontend'in `supabaseClient.js`'deki `useCredit()` fonksiyonu dogrudan DB'ye
 yazabilir; RLS gevsek oldugundan Edge Function bypass edilebilir (bkz. Guvenlik Riskleri).
 
+### submit-score/index.ts (Sprint 2.2a — 2026-05-01)
+
+**Trigger:** Frontend HTTP POST (Sprint 2.2b sonrası `GameOverUI.jsx` doğrudan RPC yerine bunu çağırır)
+
+**Akış:**
+1. CORS preflight kontrolü
+2. Wallet base58 doğrulama (eksikse 400)
+3. Rate limit (`check_rate_limit('submit_score', 6/dk)`); aşılmışsa 429
+4. Anti-cheat doğrulama (kurallar `submit-score/index.ts` `validate()` fonksiyonunda):
+   - `duration >= 10` saniye
+   - `distance <= 60 * duration` (200 km/h üst sınır)
+   - `coins <= floor(distance / 50)`
+   - `score <= distance * 200`
+   - `clientStartTime` drift `<= 5sn`
+5. Anomali varsa → `suspicious_scores` INSERT → 422 (`reasons` array ile)
+6. Geçerse → `submit_score` RPC service role ile → 200
+
+**Yazdığı tablolar:** `suspicious_scores` (anomali) veya `scores` + `daily_leaderboard` (geçerli, RPC trigger ile)
+
+**Auth:** `verify_jwt: true` (default) — frontend Supabase client'ın anon key'i ile çağırır.
+
 ### calculate-daily-rewards/index.ts (Sprint 1.7a/b - 2026-05-01)
 
 **Trigger:** pg_cron job (zamanlanmis), her gece UTC midnight'ta
@@ -532,6 +553,25 @@ Token bucket rate limiting kayıtları. `check_rate_limit()` SECURITY DEFINER fo
 
 #### leaderboard_history (kullanılmıyor)
 0 satır var. `daily_leaderboard_history` ile karışmasın. Sprint 0.5'te keşfedildi, Sprint 4 dokümantasyon temizliğinde değerlendirilecek.
+
+#### suspicious_scores (Sprint 2.2a — 2026-05-01)
+Anti-cheat tarafından reddedilen skor gönderimleri için forensic log. `submit-score` Edge Function tarafından yazılır.
+
+| Sutun | Tip | Aciklama |
+|-------|-----|----------|
+| id | UUID (PK) | Otomatik |
+| wallet_address | TEXT | Cuzdan adresi (anon değil) |
+| score | INTEGER | Reddedilen skor değeri |
+| distance | INTEGER | Reddedilen mesafe |
+| duration | INTEGER | Reddedilen süre (saniye) |
+| coins_collected | INTEGER | Reddedilen coin sayısı |
+| near_miss_count | INTEGER (nullable) | İstemcinin gönderdiği near miss |
+| game_mode | TEXT (nullable) | classic / doubleOrNothing |
+| reasons | TEXT[] | Sıralı: 'speed_violation', 'coin_density', 'score_anomaly', 'duration_too_short', 'time_mismatch', 'invalid_score', 'invalid_distance', 'invalid_coins' |
+| payload | JSONB | Ham istek body (forensic) |
+| created_at | TIMESTAMPTZ | Otomatik |
+
+**RLS:** Aktif, policy YOK → sadece service_role yazabilir/okuyabilir. Dashboard üzerinden admin görüntülenebilir.
 
 #### daily_leaderboard
 - Her wallet + her gun icin tek kayit (UNIQUE constraint)
