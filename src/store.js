@@ -486,7 +486,6 @@ export const useGameStore = create((set, get) => ({
         // Quick lane availability check using cached data
         for (let j = 0; j < possibleLanes.length; j++) {
           const testLane = possibleLanes[j];
-          const targetX = testLane * 4.5;
           const laneEnemies = laneOccupancy[String(testLane)] || [];
 
           let isLaneClear = true;

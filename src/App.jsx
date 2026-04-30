@@ -1671,10 +1671,6 @@ const AudioListenerController = () => {
 
 // New GameContent component to encapsulate Canvas children
 const GameContent = () => {
-  // Get game state for post-processing effects
-  const speed = useGameStore(state => state.speed);
-  const isNitroActive = useGameStore(state => state.isNitroActive);
-
   return (
     <>
       <PerspectiveCamera
@@ -2165,7 +2161,7 @@ function Game() {
 const LoadingScreen = () => {
   const { progress, active } = useProgress();
   const setGameState = useGameStore(state => state.setGameState);
-  const { isMobile, isPortrait, width, height } = useResponsive();
+  const { isMobile } = useResponsive();
 
   const [finished, setFinished] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
@@ -2205,24 +2201,6 @@ const LoadingScreen = () => {
   }, [active, progress, setGameState, finished, modelsPreloaded]);
 
   if (!shouldRender) return null;
-
-  // Responsive sizing for banner image (larger to fit full image)
-  const bannerHeight = isMobile
-    ? (isPortrait ? height * 0.55 : height * 0.65)
-    : height * 0.65;
-
-  const bannerWidth = isMobile
-    ? (isPortrait ? width * 0.95 : width * 0.9)
-    : width * 0.85;
-
-  // Responsive text sizing (smaller for loading text)
-  const titleSize = isMobile
-    ? (isPortrait ? '18px' : '16px')
-    : '28px';
-
-  const percentSize = isMobile
-    ? (isPortrait ? '16px' : '14px')
-    : '24px';
 
   return (
     <div style={{

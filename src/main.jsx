@@ -14,7 +14,8 @@ import '@solana/wallet-adapter-react-ui/styles.css'
 import App from './App.jsx'
 import { DEFAULT_RPC_ENDPOINT, WALLET_CONFIG } from './solana.config.js'
 
-// Solana Wallet Provider Component
+// Solana Wallet Provider Component.
+// eslint-disable-next-line react-refresh/only-export-components
 function SolanaWalletProvider({ children }) {
   // Configure wallets
   const wallets = useMemo(() => [
