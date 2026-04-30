@@ -1,6 +1,38 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v11)
+> Son guncelleme: 2026-05-01 (v12)
+
+---
+
+## 2026-05-01: Sprint 2.2a - Anti-cheat altyapısı (Edge Function + suspicious_scores)
+
+**Sorun:** `submit_score` RPC sadece INSERT yapıyor; tutarlılık kontrolü yok. Oyuncu browser console'dan `supabase.rpc('submit_score', {...})` çağırıp keyfi skor gönderebilir. GameOverUI'daki "Fair Play Protected" banner yanıltıcıydı.
+
+**Çözüm (altyapı kısmı):**
+
+**1. Yeni migration:** `supabase/migrations/20260501000001_suspicious_scores_table.sql`
+- `public.suspicious_scores` tablosu (forensic log)
+- Sütunlar: wallet, score, distance, duration, coins, near_miss_count, game_mode, reasons[], payload(jsonb)
+- RLS aktif, policy yok → service_role only
+
+**2. Yeni Edge Function:** `supabase/functions/submit-score/index.ts`
+- POST endpoint, frontend'in `submit_score` RPC çağrısının yerine geçer
+- Anti-cheat kuralları:
+  - `wallet` base58 doğrulama
+  - `duration >= 10` saniye
+  - `distance <= 60 m/s × duration` (200 km/h tolerans)
+  - `coins <= floor(distance / 50)`
+  - `score <= distance × 200`
+  - `clientStartTime` drift `<= 5sn`
+- Anomali → suspicious_scores INSERT → 422
+- Geçer → service role ile `submit_score` RPC → 200
+- Rate limit: wallet başına 6/dk
+
+**3. CI workflow:** `.github/workflows/deploy-edge-functions.yml` → submit-score deploy adımı eklendi
+
+**Bu PR sonrası:** Edge Function deploy olur ama frontend hâlâ doğrudan RPC kullanır → davranış değişmez. Sprint 2.2b'de frontend Edge Function'a geçirilir.
+
+**Risk:** ORTA — yeni Edge Function ve tablo, prod davranışı değişmiyor (frontend henüz çağırmıyor).
 
 ---
 
