@@ -1,14 +1,25 @@
-# Lumexia Racing Game - Proje Dokumantasyonu (v6 - 2026-05-01)
+# Lumexia Racing Game - Proje Dokumantasyonu (v7 - 2026-05-01)
 
 ## Genel Bakis
 
 Lumexia Racing Game, Solana blockchain uzerinde TOKABU token ile calisan, 3D tarayici tabanli bir araba yarisi oyunudur. Oyuncular kripto cuzdan baglayarak kredi satin alir, trafik arasinda slalom yaparak puan toplar ve liderlik tablosunda yarisirler.
 
 **Canli URL:** Netlify uzerinden deploy ediliyor (game.lumexia.net)
-**Veritabani:** Supabase (PostgreSQL)
+**Landing site:** lumexia.net (ayrı repo: v0-lumexia-landing-page-V0). İki repo'nun Supabase noktasında nasıl buluştuğu için bkz. `docs/INTEGRATION.md`.
+**Veritabani:** Supabase (PostgreSQL 17, project `cldjwajhcepyzvmwjcmz`)
 **Blockchain:** Solana Mainnet-Beta
 **Token Mint:** `H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump` (TOKABU, regular SPL Token, decimals=6)
 **Odeme Alicisi:** `T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg`
+
+**Sprint 0-4 sonrası altyapı durumu (2026-05-01):**
+- Branch protection her iki repo'da aktif; PR + 1 review + CI status check zorunlu
+- Üç GitHub Actions workflow: `ci.yml` (test/build/lint), `deploy-edge-functions.yml`, `deploy-migrations.yml`
+- 4 Edge Function: verify-payment, use-credit, calculate-daily-rewards, **submit-score (anti-cheat, Sprint 2.2a)**
+- 9 Postgres tablo + 2 view (`alltime_leaderboard`, `daily_team_scores`)
+- RLS lockdown tamamlandı: scores ve users INSERT service-role-only; SECURITY DEFINER fonksiyonlardan EXECUTE PUBLIC revoke
+- Migration discipline: 14-haneli timestamp + CI auto-apply
+- Frontend Vitest suite: 19 test (Sprint 4.2 sonrası)
+- Landing repo'da Supabase client `Database` tipiyle type-safe (Sprint 3a auto-generated `lib/database.types.ts`)
 
 ---
 
