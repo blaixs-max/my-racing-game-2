@@ -24,10 +24,12 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - pool-context BNB → USD; transactions-panel canlı Supabase `transactions` tablosu (realtime subscribe)
 
 **Kalan oncelikler (kritik sıraya göre):**
-1. **Anti-cheat sunucu tarafli skor dogrulama** — `submit_score` RPC sadece INSERT, tutarlilik kontrolü yok; "Fair Play Protected" banner yaniltici
-2. **RLS sikistirma** — `scores` ve `users` tablolarinda `WITH CHECK (true)` insert policy'leri, `submit_score` RPC anon role callable
-3. **`rate_limits` tablosuna RLS policy** — anon SELECT şu an açık, saldırgan rate limit mantığını gözleyebilir
-4. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
+1. **RLS sikistirma + RPC EXECUTE revoke** — `scores`/`users` tablolarinda `WITH CHECK (true)` insert policy'leri, `submit_score` ve diğer SECURITY DEFINER RPC'leri anon role callable; `rate_limits` tablosunda RLS policy yok (anon SELECT açık)
+2. **Otonom Supabase bağlantısı** — env standardize, types, realtime güvenliği
+3. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
+4. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler (memory'de planlandı)
+
+**Anti-cheat aktif (Sprint 2.2a + 2.2b):** Frontend skor gönderme akışı `submit-score` Edge Function üzerinden. Sunucu tarafli doğrulama: hız (60 m/s ceiling), coin yoğunluğu (50m/coin), skor üst sınırı (200/m), zaman drift (5sn). Anomali → suspicious_scores forensic log + 422.
 
 **Migration discipline (Sprint 2.4) kuruldu:** Yerel migration dosyaları 14 haneli formatta, `.github/workflows/deploy-migrations.yml` ile CI üzerinden otomatik apply. Yeni migration eklemek artık sadece PR aç + merge.
 

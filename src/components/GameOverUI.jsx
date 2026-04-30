@@ -46,54 +46,65 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, coinsCollected = 0, o
         return;
       }
 
-      // Helper: detect a Supabase/PostgREST error that means submit_score's
-      // signature does not include p_coins yet (migration not applied).
-      const isMissingCoinsParam = (err) =>
-        err?.code === 'PGRST202' ||
-        /Could not find the function|function .* does not exist|no function matches/i.test(err?.message || '');
-
       try {
-        let { error } = await supabase.rpc('submit_score', {
-            p_wallet: walletAddress,
-            p_score: finalScore,
-            p_duration: duration,
-            p_distance: Math.floor(totalDistance),
-            p_coins: coinsCollected
+        // Sprint 2.2b: scores now go through the submit-score Edge Function
+        // for server-side anti-cheat validation. The function inserts into
+        // public.scores via the existing submit_score RPC (service role) on
+        // success, or into public.suspicious_scores with a 422 on failure.
+        const { data, error } = await supabase.functions.invoke('submit-score', {
+          body: {
+            wallet: walletAddress,
+            score: finalScore,
+            distance: Math.floor(totalDistance),
+            duration,
+            coins: coinsCollected,
+            nearMisses: nearMissCount,
+            gameMode,
+            clientStartTime: Math.floor(startTime / 1000),
+          },
         });
 
-        // Backwards compatibility: if the live DB still has the pre-migration
-        // signature (no p_coins parameter), retry once without it so scores
-        // still land while ops applies the migration.
-        if (error && isMissingCoinsParam(error)) {
-          console.warn('⚠️ submit_score missing p_coins — retrying with legacy signature');
-          ({ error } = await supabase.rpc('submit_score', {
-              p_wallet: walletAddress,
-              p_score: finalScore,
-              p_duration: duration,
-              p_distance: Math.floor(totalDistance)
-          }));
-        }
-
-        if (!error) {
+        if (!error && data?.ok) {
           setSaveStatus('saved');
           console.log("✅ Score saved successfully!");
-        } else {
-          console.error("Score Error:", error);
-          if (retryCount < 3) {
-             console.log(`Retrying... (${retryCount + 1}/3)`);
-             setTimeout(() => saveScore(retryCount + 1), 2000 * (retryCount + 1));
-          } else {
-             setSaveStatus('error');
-             setErrorMessage(error.message || "Failed to save score");
-          }
+          return;
         }
-      } catch (error) {
-        console.error("Score Exception:", error);
+
+        const reason = data?.error || error?.message || 'unknown_error';
+        console.error("Score submission failed:", { error, data });
+
+        // Anti-cheat rejection — retrying would fail the same way.
+        if (reason === 'score_rejected') {
+          setSaveStatus('error');
+          setErrorMessage('Score rejected — flagged for review');
+          return;
+        }
+        if (reason === 'rate_limited') {
+          setSaveStatus('error');
+          setErrorMessage('Too many submissions. Try again in a minute.');
+          return;
+        }
+        if (reason === 'invalid_wallet') {
+          setSaveStatus('error');
+          setErrorMessage('Wallet not recognised. Reconnect and try again.');
+          return;
+        }
+
+        // Transient (network, 5xx, RPC failure) — retry up to 3 times.
         if (retryCount < 3) {
-           setTimeout(() => saveScore(retryCount + 1), 2000 * (retryCount + 1));
+          console.log(`Retrying... (${retryCount + 1}/3)`);
+          setTimeout(() => saveScore(retryCount + 1), 2000 * (retryCount + 1));
         } else {
-           setSaveStatus('error');
-           setErrorMessage(error.message || "Network error");
+          setSaveStatus('error');
+          setErrorMessage(reason);
+        }
+      } catch (err) {
+        console.error("Score submission exception:", err);
+        if (retryCount < 3) {
+          setTimeout(() => saveScore(retryCount + 1), 2000 * (retryCount + 1));
+        } else {
+          setSaveStatus('error');
+          setErrorMessage(err?.message || "Network error");
         }
       }
     };
@@ -342,10 +353,10 @@ const GameOverUI = ({ score, totalDistance, nearMissCount, coinsCollected = 0, o
             <span style={{ fontSize: '24px' }}>🛡️</span>
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: '#FFD700', fontSize: '13px', fontWeight: '600', margin: '0 0 4px 0' }}>
-                Fair Play Protected
+                Anti-Cheat Protected
               </p>
               <p style={{ color: '#B8860B', fontSize: '11px', margin: 0 }}>
-                All scores are verified on-chain. Cheaters will be detected.
+                Scores are validated server-side before being recorded.
               </p>
             </div>
             <span style={{ fontSize: '24px' }}>⚔️</span>

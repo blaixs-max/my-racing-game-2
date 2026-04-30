@@ -1,6 +1,33 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v12)
+> Son guncelleme: 2026-05-01 (v13)
+
+---
+
+## 2026-05-01: Sprint 2.2b + 2.3 - Frontend cutover + banner cümle düzeltme
+
+**Frontend:** `src/components/GameOverUI.jsx`
+
+**Değişiklik:** Skor gönderme akışı Sprint 2.2a'da kurulan `submit-score` Edge Function üzerinden geçiyor.
+
+- Eski: `supabase.rpc('submit_score', {...})` doğrudan RPC, anti-cheat yok
+- Yeni: `supabase.functions.invoke('submit-score', { body: {...} })`, anti-cheat doğrulaması + suspicious_scores log
+
+**Kaldırılan kod:** `isMissingCoinsParam` legacy retry akışı (migration applied, gereksiz).
+
+**Yeni hata yönetimi:**
+- `score_rejected` (422) → "Score rejected — flagged for review", retry yapma
+- `rate_limited` (429) → "Too many submissions. Try again in a minute.", retry yapma
+- `invalid_wallet` (400) → "Wallet not recognised. Reconnect and try again.", retry yapma
+- Transient hata (network, 5xx, RPC fail) → 3 retry linear backoff
+
+**Banner cümle:**
+- Eski: "Fair Play Protected — All scores are verified on-chain. Cheaters will be detected." (yanıltıcı)
+- Yeni: "Anti-Cheat Protected — Scores are validated server-side before being recorded." (doğru)
+
+**Risk:** ORTA-YÜKSEK — canlı skor akışı yeni Edge Function'a geçiyor. Anti-cheat kuralları konservatif ama hatalı false positive olursa gerçek skorlar reddedilir. Forensic suspicious_scores log'u var.
+
+**Açık aksiyon:** Sprint 2.1 (RLS + RPC EXECUTE revoke) sırada — frontend Edge Function dışında submit_score RPC'sini de doğrudan çağıramayacak.
 
 ---
 
