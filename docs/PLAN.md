@@ -1,8 +1,10 @@
 # Lumexia Racing Game - Gelistirme Plani
 
+> Son guncelleme: 2026-04-30 (v6)
+
 ## Mevcut Durum Ozeti
 
-Proje, calisir durumda bir 3D yaris oyunu. Solana blockchain entegrasyonu, kredi sistemi, liderlik tablosu ve temel oyun mekanikleri tamamlanmis durumda. **Faz 0 kritik bug'lari duzeltildi.** Kalan oncelikler: test altyapisi, sunucu tarafli dogrulama, RLS sikistirma, tip guvenligi.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor (cuzdan baglama -> bakiye gosterimi -> kredi satin alma -> oyun baslatma -> kredi dusumu). Faz 0 + balance bug'i tamamen cozuldu. Vitest altyapisi mevcut (8 test). Kalan oncelikler **guvenlik tarafinda**: RLS sikistirma, sunucu tarafli skor dogrulama, rate limiting.
 
 ---
 
@@ -18,21 +20,22 @@ Detay icin bkz. `TASK.md`.
 
 ## Faz 1: Temel Altyapi Iyilestirmeleri (Oncelik: Yuksek)
 
-### 1.1 Test Altyapisi Kurulumu
-- [ ] Vitest kurulumu ve yapilandirmasi
+### 1.1 Test Altyapisi (Kismen Tamamlandi)
+- [x] Vitest kurulumu ve yapilandirmasi (v6)
+- [x] solanaWallet.js icin birim testleri (8 test, balance error path'leri)
 - [ ] Store (game logic) icin birim testleri
 - [ ] Carpisma algilama testleri (VEHICLE_DIMENSIONS, COLLISION_PADDING)
 - [ ] Skor hesaplama testleri (classic vs D/N)
 - [ ] Dusman AI testleri (serit degistirme, spawn algoritmasi)
-- [ ] Utility fonksiyonlari (jupiterPrice, solanaWallet) testleri
-- [ ] CI/CD pipeline'a test entegrasyonu
+- [ ] Utility fonksiyonlari (jupiterPrice) testleri
+- [ ] CI/CD pipeline'a test entegrasyonu (npm test)
 
 ### 1.2 Kod Kalitesi
-- [ ] ESLint kurallarini genisletme
+- [ ] ESLint 11 pre-existing hatasi (formatAddress unused, tokenAmount unused, store.js targetX, main.jsx fast-refresh)
 - [ ] Prettier entegrasyonu
-- [ ] Gereksiz console.log'lari temizleme (dev ortaminda birakma)
-- [ ] Tutarsiz isimlendirmelerin duzeltilmesi (Coal -> Oiltown)
-- [ ] App.jsx bolme (2464 satir -> mantiksal alt dosyalar)
+- [x] Gereksiz console.log'lari uretimde strip (vite pure_funcs ile, v6)
+- [x] Tutarsiz isimlendirmelerin duzeltilmesi (Coal -> generic token, v5)
+- [ ] App.jsx bolme (2456 satir -> mantiksal alt dosyalar)
 
 ### 1.3 TypeScript Gecisi (Opsiyonel - Buyuk is)
 - [ ] tsconfig.json olusturma
@@ -163,20 +166,33 @@ Detay icin bkz. `TASK.md`.
 
 ---
 
-## Teknik Borc
+## Teknik Borc (v6 sonrasi guncel)
 
 | Alan | Aciklama | Oncelik |
 |------|----------|---------|
-| Test yok | Hicbir test mevcut degil | Kritik |
-| TypeScript yok | Tip guvenligi eksik | Yuksek |
-| RLS politikalari | Tum tablolarda USING(true) - herkes her seye erisebilir | Yuksek |
-| Sunucu tarafli skor dogrulama yok | Frontend'den hile mumkun, "Fair Play Protected" banner'i yaniltici | Yuksek |
-| App.jsx 2464 satir | Tek dosyada cok fazla bilesen | Yuksek |
-| coins_collected kaydedilmiyor (ERTELENDI) | Scores tablosunda sutun var ama GameOverUI submit_score'a gondermez, bkz TASK.md | Orta |
+| RLS politikalari | Tum tablolarda USING(true) - herkes her seyi okur/yazar | **Kritik** |
+| Sunucu tarafli skor dogrulama yok | Frontend'den hile mumkun, "Fair Play Protected" banner'i yaniltici | **Kritik** |
+| Rate limiting yok | submit_score, use-credit, verify-payment limitsiz | Yuksek |
+| App.jsx 2456 satir | Tek dosyada cok fazla bilesen | Yuksek |
+| Test kapsami sinirli | Sadece solanaWallet test'leri var; store/GameOverUI/Edge Function eksik | Yuksek |
+| ESLint 11 pre-existing hata | formatAddress unused, tokenAmount/price unused, fast-refresh | Orta |
+| coins_collected kaydedilmiyor (BUG #4) | submit_score imzasinda yok, GameOverUI gondermiyor | Orta |
 | Tolerans tutarsizligi | Frontend %5 (solana.config.js) vs backend %10 (verify-payment) | Orta |
 | Hardcoded degerler | Oyun sabitleri (hiz, mesafe, spawn oranlari) dosyada gomulu | Orta |
+| TypeScript yok | Tip guvenligi eksik | Dusuk |
 | Kullanilmayan asset'ler | Car1/scene.gltf, suv.glb, coin.glb preload edilir ama render'da kullanilmaz | Dusuk |
 | FontAwesome CDN | Dis bagimllik, bundle'a alinabilir | Dusuk |
+| three-vendor 1144 KB | Tek chunk, code-split mumkun | Dusuk |
+
+## Yakin Zamanda Duzeltilenler (v6 - 2026-04-30)
+
+| Alan | Durum |
+|------|-------|
+| ~~TOKABU bakiye 0 gozukuyor~~ | DUZELTILDI - Buffer polyfill (`src/polyfills.js`), kok neden Vite'in Buffer'i polyfill etmemesi |
+| ~~`drop_console: true` her seyi gizliyor~~ | DUZELTILDI - sadece log/debug/info strip, error/warn korundu |
+| ~~`getTokenBalance` sessiz 0 dondurur~~ | DUZELTILDI - throw ediliyor, UI'da error state + retry butonu |
+| ~~use-credit Edge Function eski Ethereum regex~~ | DUZELTILDI - workflow'a deploy adimi eklendi, redeploy yapildi |
+| ~~Test altyapisi yok~~ | EKLENDI - Vitest + 8 regression test |
 
 ## Yakin Zamanda Duzeltilenler (v5 - 2026-04-23)
 
@@ -184,5 +200,5 @@ Detay icin bkz. `TASK.md`.
 |------|-------|
 | ~~Coal/Oiltown isimlendirme~~ | DUZELTILDI - jenerik isimlere rename (getTokenBalance, transferToken) |
 | ~~Post-processing bos composer~~ | DUZELTILDI - PostProcessing component tamamen kaldirildi |
-| ~~Helius API key git'te commit'li~~ | DUZELTILDI - env var'a tasindi, eski key revoke edilmeli |
+| ~~Helius API key git'te commit'li~~ | DUZELTILDI - env var'a tasindi |
 | ~~20241216 migration LMX/BNB default'lari~~ | DUZELTILDI - default NULL + yeni migration |
