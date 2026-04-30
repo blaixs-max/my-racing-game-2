@@ -116,6 +116,24 @@ serve(async (req) => {
       );
     }
 
+    // Rate limit: max 10 verify-payment calls per wallet per minute. A real
+    // purchase needs at most a couple of retries; anything above this is a
+    // script (or a misbehaving client).
+    const { data: rlAllowed, error: rlError } = await supabase.rpc('check_rate_limit', {
+      p_key: userAddress,
+      p_action: 'verify_payment',
+      p_max_requests: 10,
+      p_window_seconds: 60,
+    });
+    if (rlError) {
+      console.warn('⚠️ Rate limit check failed (failing open):', rlError.message);
+    } else if (rlAllowed === false) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Try again in a minute.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`🔍 Verifying ${TOKEN_SYMBOL} payment on Solana:`, { transactionSignature, userAddress, packageAmount });
 
     // 1. CHECK IF TRANSACTION ALREADY PROCESSED
