@@ -1,6 +1,22 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v14)
+> Son guncelleme: 2026-05-01 (v15)
+
+---
+
+## 2026-05-01: Sprint 2.1 follow-up - REVOKE EXECUTE FROM PUBLIC
+
+**Migration:** `supabase/migrations/20260501000003_revoke_public_execute.sql`
+
+**Sorun:** Sprint 2.1 PR #93'te 5 SECURITY DEFINER fonksiyondan `REVOKE EXECUTE ... FROM anon, authenticated` yaptık. Ama Postgres default grant'i `EXECUTE TO PUBLIC` ve PUBLIC anon/authenticated'i kapsıyor. Targeted revoke no-op oldu; advisor uyarıları düşmedi.
+
+**Çözüm:** `REVOKE EXECUTE FROM PUBLIC` ile aynı 5 fonksiyon kapatıldı. `service_role` kendi explicit grant'i var, etkilenmez (ayrıca RLS bypass eder).
+
+**Etkilenen fonksiyonlar:** submit_score, update_daily_leaderboard, archive_daily_leaderboard, check_rate_limit, cleanup_rate_limits.
+
+**Bonus:** `suspicious_scores` tablosuna açıklayıcı COMMENT eklendi (rate_limits gibi).
+
+**Doğrulama:** Migration apply sonrası advisor `anon_security_definer_function_executable` ve `authenticated_security_definer_function_executable` 0'a düşmeli.
 
 ---
 
