@@ -1,6 +1,35 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v15)
+> Son guncelleme: 2026-05-01 (v16)
+
+---
+
+## 2026-05-01: Sprint 3 - Otonom Supabase bağlantısı (3 PR)
+
+Landing repo'daki Supabase entegrasyonu sertleştirildi + cross-repo entegrasyon dokümante edildi.
+
+**3a — Typed Supabase client + canonical env names (landing PR #14):**
+- `lib/database.types.ts` (yeni, auto-generated via Supabase MCP) — 9 tablo + 2 view + 7 fonksiyon tipleri
+- `lib/supabase.ts` — `createBrowserClient<Database>` ile type-safe; legacy `NEXT_PUBLIC_LEADERBOARD_SUPABASE_*` fallback'ı kaldırıldı; canonical pair: `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- 5 tip alias: DailyLeaderboardEntry, Transaction, Score, User, RewardPoolDistribution
+- Bonus keşif: `alltime_leaderboard` ve `daily_team_scores` view'ları (PROJECT_DOCS'ta yoktu)
+
+**3b — Realtime hardening (landing PR #15):**
+- `lib/pool-context.tsx` event `*` → `INSERT` (scores write-once); 1sn debounce
+- `components/transactions-panel.tsx` 1sn debounce eklendi (event zaten INSERT idi, Sprint 1.6'dan)
+- Etki: burst INSERT senaryolarında (verify-payment retry, anti-cheat reject) gereksiz refetch'ler tek çağrıda toplanır
+
+**3 wrap-up — Cross-repo integration doc (racing PR — bu PR):**
+- `docs/INTEGRATION.md` (yeni) — iki repo'nun Supabase noktasında nasıl buluştuğunu özetler:
+  - Tablo bazlı r/w sorumlulukları
+  - Edge Function caller'ları + auth modu
+  - Env var adları (Vite vs Next, secrets, CI)
+  - Realtime channel'lar + filter + debounce
+  - TS tip refresh recipe
+  - Migration discipline
+  - Cross-repo smoke walk
+
+**Risk:** DÜŞÜK — type-only + subscription filter daraltma + yeni doc. Davranış değişikliği yok.
 
 ---
 
