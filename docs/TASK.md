@@ -1,6 +1,32 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v17)
+> Son guncelleme: 2026-05-01 (v18)
+
+---
+
+## 2026-05-01: Sprint 4.2 - Test kapsamı + plan iptalleri
+
+**Yeni dosya:** `src/utils/jupiterPrice.test.js` — 11 test:
+
+- **formatPrice** (4 test): 4 fiyat aralığında format kontrolü (≥1, [0.01,1), [0.0001,0.01), <0.0001)
+- **getTokenPrice** (5 test): DexScreener happy path (highest-liquidity pair), Jupiter fallback (boş pairs + DexScreener throw), her iki kaynak fail throw, cache hit
+- **calculateTokenAmount** (2 test): usdAmount/price hesabı + sıfır price throw
+- **getTokenPriceWithRetry** (1 test): first-attempt success
+
+**Test sayısı:** 8 → 19. RealLauncherUI'nin kredi satın alma akışında kullanılan fiyat hesabı kanıt altında.
+
+**Plan iptalleri (kullanıcı kararı 2026-05-01):**
+- ❌ App.jsx 2434 satır bölme — iptal
+- ❌ RealLauncherUI 1642 satır bölme — iptal
+
+Sebep: çalışan kod, regression riski yüksek, marjinal okunabilirlik kazancı. Memory'de `feedback_no_large_file_refactor.md` ile kalıcılaştırıldı.
+
+**Sprint 4 yeni kapsamı:**
+- 4.1 ESLint + CI lint job ✅ (PR #96)
+- 4.2 Test kapsamı + plan iptalleri (bu PR)
+- 4.3 (yeni numara) Dokümantasyon temizliği
+
+**Risk:** ÇOK DÜŞÜK — yalnızca yeni test dosyası + docs/PLAN güncellemesi. Mevcut kod hiç dokunulmaz.
 
 ---
 

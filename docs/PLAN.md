@@ -24,8 +24,8 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - pool-context BNB → USD; transactions-panel canlı Supabase `transactions` tablosu (realtime subscribe)
 
 **Kalan oncelikler (kritik sıraya göre):**
-1. **Kod kalitesi** — App.jsx 2434 satır bölme, RealLauncherUI 1642 satır bölme, eslint.config.js, test kapsamı genişletme
-2. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler (memory'de planlandı)
+1. **Kod kalitesi (Sprint 4 — kapsam daraltıldı)** — test kapsamı genişletme + dokümantasyon temizliği. ESLint + CI lint job (4.1) tamamlandı. App.jsx ve RealLauncherUI bölme planları **iptal** (kullanıcı kararı 2026-05-01; çalışan kod, regression riski yüksek, marjinal okunabilirlik kazancı).
+2. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler (memory'de detaylı plan)
 
 **Sprint 3 (Otonom Supabase) tamamlandı:**
 - 3a Typed client + canonical env names (landing PR #14) ✅
