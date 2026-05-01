@@ -1,6 +1,51 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v20)
+> Son guncelleme: 2026-05-01 (v21)
+
+---
+
+## 2026-05-01: Sprint 6 PR 6.1 - 48 saat cycle reset (backend + UI legal)
+
+**Bağlam:** Kullanıcı 7-maddelik notepad'inden 4. madde: "Oyun reset süresi 48 saat olucak". Mevcut sistem her gece 00:00 UTC'de daily archive + reward calc çalıştırıyordu (24h cycle). Kullanıcı bunu 48h yapmak istedi.
+
+**Tasarım kararları:**
+- **Anchor:** `2026-05-01` (deploy günü). Tüm cycle'lar buradan even-day farkıyla başlar.
+- **Cycle hesabı:** `cycle_start(D) = D - ((D - 2026-05-01) % 2)`. Her tarih için içinde bulunduğu cycle'ın başlangıç günü.
+- **Schema migration YOK:** `daily_leaderboard.play_date` kolonu aynı kalır, sadece içeriği "today" yerine "cycle_start" olur. UNIQUE (wallet_address, play_date) → 1 wallet × 1 cycle = 1 satır.
+- **Cron schedule değişmez:** `0 0 * * *` (daily). Fonksiyonlar self-skip eder. `*/2` cron'un ay-boundary problemi (Mayıs 31 + Haziran 1 = 24h gap) bertaraf.
+- **Race condition fix:** `calculate-daily-rewards` Edge Function `daily_leaderboard` boş bulursa `daily_leaderboard_history` fallback yapar. Archive cron'u (jobid=1) ile calc cron'u (jobid=3) ikisi de 00:00'da fire ettiği için sırada belirsizlik vardı; bu fallback timing'e bağımlılığı bitirir.
+
+**Migration `20260501160000_cycle_48h.sql`:**
+- `update_daily_leaderboard()` trigger: `today := CURRENT_DATE` → `cycle_start := CURRENT_DATE - ((CURRENT_DATE - DATE '2026-05-01')::int % 2)`. Her score INSERT'te play_date olarak cycle_start yazılır. Top 100 cleanup `play_date = cycle_start` üzerinde çalışır (önceki cycle rows'una dokunmaz).
+- `archive_daily_leaderboard()`: tüm rows yerine `play_date < current_cycle_start` rows'u archive. Daily çalışsa bile sadece bitmiş cycle'ı temizler. ON CONFLICT DO NOTHING idempotent.
+
+**Edge Function `calculate-daily-rewards/index.ts`:**
+- Cycle-end day kontrolü: `daysSinceAnchor > 0 && daysSinceAnchor % 2 === 0`. Değilse 200 + skip mesajı (anchor günü = day 0 da skip).
+- "Today" filtresi → previous cycle window: `gte(prevCycleStart) lt(cycleStart)` (48h aralık).
+- `daily_leaderboard` query'sine `eq('play_date', prevCycleStartIso)` eklendi. Boş dönerse `daily_leaderboard_history` fallback.
+- `reward_pool_distribution.reward_date` artık cycle_start (yarın değil, cycle'ın başladığı gün).
+
+**UI metin değişikliği (RealLauncherUI.jsx legal agreement):**
+- "Reward Pool for the daily cycle" → "Reward Pool for the 48-hour cycle"
+- "distributed daily to the top 100" → "distributed every 48 hours to the top 100"
+- "end of the daily cycle" → "end of the 48-hour cycle"
+
+**Risk: ORTA-YÜKSEK:**
+- Trigger fonksiyon değişiyor (her score INSERT'inde çalışan kod yolu)
+- Archive fonksiyon değişiyor (daily çalışan)
+- Edge Function logic tamamen yeniden yazıldı
+- Mitigasyon: idempotent migration (CREATE OR REPLACE), schema unchanged, geriye dönük data etkilenmez (sadece ileri write semantiği), history fallback timing race'ine karşı koruma, cycle-end skip mantığı non-cycle days'te side-effect yok
+
+**Bu PR'da YOK (sonraki PR'lar):**
+- Landing repo: pool USD + SOL ikili display, 48h timer, FAQ + structured-data updates → ayrı PR (Sprint 6 PR 6.5, landing repo'da açılacak)
+- `daily_leaderboard` ve `reward_pool_distribution` tablo isimleri rename edilmedi — schema migration + landing types regen + tüm referanslar değişir, gereksiz risk. Mantık 48h, isim "daily" kalır (pratik misnomer).
+
+**Verification stratejisi (post-deploy):**
+- Migration apply → daily_leaderboard'a manuel score insert → play_date = 2026-05-01 mi kontrol
+- `SELECT archive_daily_leaderboard()` manuel → "No expired cycles to archive (intra-cycle day)" döner mi
+- `calculate-daily-rewards` curl → `daysSinceAnchor=0` için "Not a cycle-end day" skip döner mi
+- Yarın (2026-05-02): aynı testler, hâlâ Cycle 1 içinde olmalı
+- 2026-05-03 00:00: cron tetikler, archive expired Cycle 1 rows'unu süpürür, calc Cycle 1 için reward hesaplar
 
 ---
 
