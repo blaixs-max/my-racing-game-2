@@ -8,8 +8,12 @@
 // Edge cases (unknown sender, amount mismatch, price unavailable, etc.)
 // get logged to `unverified_payments` for admin review.
 //
-// Auth: only callers presenting the service_role key in the Authorization
-// header may invoke. Cron passes that key automatically; admins use curl.
+// Auth: only callers presenting a service_role JWT in the Authorization
+// header may invoke. We decode the JWT and check the `role` claim rather
+// than doing a literal equality match against SUPABASE_SERVICE_ROLE_KEY,
+// because the Supabase platform may reformat the header in transit and
+// because env-var caching can desync from a recently-rotated key.
+// Signature validation is handled at the platform level (verify_jwt=true).
 //
 // Body: { dryRun?: boolean, source?: string }
 //   dryRun=true  -> scan + log only, no DB writes
@@ -106,6 +110,23 @@ interface ReconcileResult {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Returns true iff Authorization header carries a JWT whose `role` claim
+// is `service_role`. Signature is already validated by the platform.
+function isServiceRoleJwt(authHeader: string): boolean {
+  const m = authHeader.match(/^Bearer\s+(.+)$/);
+  if (!m) return false;
+  const parts = m[1].trim().split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(
+      atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')),
+    );
+    return payload?.role === 'service_role';
+  } catch {
+    return false;
+  }
 }
 
 async function rpc(method: string, params: unknown[], maxRetries = 3): Promise<unknown> {
@@ -427,17 +448,9 @@ serve(async (req) => {
     });
   }
 
-  // Auth: require service_role key in Authorization header. Cron passes
-  // this; manual triggers (admin curl) do too.
-  const expectedToken = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!expectedToken) {
-    return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  // Auth: require a service_role JWT in the Authorization header.
   const authHeader = req.headers.get('Authorization') ?? '';
-  if (authHeader !== `Bearer ${expectedToken}`) {
+  if (!isServiceRoleJwt(authHeader)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -448,9 +461,17 @@ serve(async (req) => {
   const dryRun = body.dryRun === true;
   const source = body.source ?? 'manual';
 
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!serviceRoleKey) {
+    return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
-    expectedToken,
+    serviceRoleKey,
   );
 
   const result: ReconcileResult = {
