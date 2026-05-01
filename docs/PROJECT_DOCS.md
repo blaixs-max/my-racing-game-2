@@ -509,25 +509,30 @@ yazabilir; RLS gevsek oldugundan Edge Function bypass edilebilir (bkz. Guvenlik 
 
 **Auth:** `verify_jwt: true` (default) — frontend Supabase client'ın anon key'i ile çağırır.
 
-### calculate-daily-rewards/index.ts (Sprint 1.7a/b - 2026-05-01)
+### calculate-daily-rewards/index.ts (Sprint 6 PR 6.1 — 48h cycle, 2026-05-01)
 
-**Trigger:** pg_cron job (zamanlanmis), her gece UTC midnight'ta
+**Trigger:** pg_cron job, her gece 00:00 UTC. Cycle-end day değilse self-skip.
 
-**Akis:**
-1. Bugünkü `scores` tablosundan toplam oyun sayısını al (`COUNT`)
-2. USD havuzunu hesapla: `totalPoolUSD = totalGames * GAME_TO_USD` (`GAME_TO_USD = 1.0` — her oyun $1 USD, verify-payment paket fiyatı ile uyumlu)
-3. Treasury kesintisi: `netPoolUSD = totalPoolUSD * 0.925` (%7.5 marketing/burns)
-4. Bugünkü `daily_leaderboard`'dan top 100 oyuncuyu al
-5. Her oyuncunun bugün kaç oyun oynadığına bakıp boost uygula: 2+ oyun = `+games%` boost (örn. 5 oyun = 5% boost)
-6. Boosted score'a göre yeniden sırala
-7. Hisse puanları: 1.=125, 2.=100, 3.=75, 4.=50, 5.=25, 6-50=8, 51-100=4
-8. `unitValue = netPoolUSD / totalShares`
-9. Her oyuncuya: `rewardAmount = sharePoints * unitValue` (USD cinsinden)
-10. Bugünün eski `reward_pool_distribution` kayıtlarını sil, yeni kayıtları INSERT et
+**Cycle anchor:** `2026-05-01`. Tüm cycle'lar buradan even-day farkıyla başlar. Anchor + Migration `20260501160000_cycle_48h.sql` içindeki trigger ile birebir aynı.
 
-**Auth:** `verify_jwt: false` (CI workflow `--no-verify-jwt` flag ile deploy ediliyor) — pg_cron `pg_net.http_post()` ile JWT'siz çağırır. Sprint 4'te `X-Cron-Secret` header ile güçlendirilecek.
+**Akış:**
+1. **Cycle-end check:** `daysSinceAnchor = floor((now - anchor) / 86400000)`. `daysSinceAnchor > 0 && daysSinceAnchor % 2 === 0` ise cycle-end. Değilse 200 + skip mesajı.
+2. **Previous cycle window:** `prevCycleStart = cycleStart - 2 gün`. Bütün filtreler bu pencerede.
+3. `scores` tablosundan total games (cycle window): `gte(prevCycleStart) lt(cycleStart)`
+4. USD havuzu: `totalPoolUSD = totalGames * GAME_TO_USD = totalGames * 1.0`
+5. Treasury kesintisi: `netPoolUSD = totalPoolUSD * 0.925`
+6. **Leaderboard read with fallback:** Önce `daily_leaderboard` `play_date = prevCycleStartIso` filtre. Boş dönerse (archive cron daha önce sweep ettiyse) `daily_leaderboard_history` aynı filtreyle. Race condition fix.
+7. Her oyuncunun cycle window'unda kaç oyun oynadığını al (boost için)
+8. Boost: `2+ oyun = +games%` (örn. 5 oyun = 5% boost)
+9. Boosted score'a göre yeniden sırala, top 100 al
+10. Hisse puanları: 1.=125, 2.=100, 3.=75, 4.=50, 5.=25, 6-50=8, 51-100=4
+11. `unitValue = netPoolUSD / totalShares`
+12. Her oyuncu: `rewardAmount = sharePoints * unitValue`, `reward_date = prevCycleStartIso`
+13. Idempotency: `reward_pool_distribution.delete().eq('reward_date', prevCycleStartIso)` → `insert(rewardRecords)`
 
-**Yazdığı tablo:** `reward_pool_distribution` (idempotent — bugünün kayıtları silinip yenidn yazılır)
+**Auth:** `verify_jwt: false` (CI workflow `--no-verify-jwt` flag ile deploy ediliyor) — pg_cron `pg_net.http_post()` ile JWT'siz çağırır.
+
+**Yazdığı tablo:** `reward_pool_distribution` (idempotent — cycle'ın eski kayıtları silinip yeniden yazılır)
 
 ---
 
@@ -644,13 +649,14 @@ Anti-cheat tarafından reddedilen skor gönderimleri için forensic log. `submit
 **RLS:** Aktif, policy YOK → service_role only. Admin Dashboard SQL Editor'dan inceler ve manuel `transactions` insert + `users` update yapıp `resolved=TRUE` işaretler.
 
 #### daily_leaderboard
-- Her wallet + her gun icin tek kayit (UNIQUE constraint)
-- Trigger ile otomatik guncellenir
-- Top 100 disindakiler otomatik silinir
+- **Sprint 6 PR 6.1 sonrası:** Tablo ismi "daily" kalsa da semantik 48h cycle. `play_date` artık cycle_start (her 2 günde bir, anchor 2026-05-01).
+- Her wallet × her cycle için tek kayit (UNIQUE `wallet_address, play_date`)
+- Trigger ile otomatik guncellenir (her score INSERT'te `cycle_start = CURRENT_DATE - ((CURRENT_DATE - DATE '2026-05-01')::int % 2)` üzerine upsert)
+- Top 100 disindakiler otomatik silinir (current cycle scope'unda)
 
 #### daily_leaderboard_history
-- Gecmis gunlerin arsivi
-- Gece 00:00 UTC'de pg_cron ile kopyalanir
+- Bitmiş cycle'ların arsivi
+- pg_cron her gece 00:00 UTC'de tetikler ama `archive_daily_leaderboard()` sadece `play_date < current_cycle_start` rows'u taşır → intra-cycle days no-op, cycle-end days bitmiş cycle'ı süpürür
 
 ### Stored Procedures
 
@@ -659,17 +665,20 @@ Anti-cheat tarafından reddedilen skor gönderimleri için forensic log. `submit
 - SECURITY DEFINER: servis rolu ile calisir
 - Trigger: `trg_update_daily_leaderboard` otomatik tetiklenir
 
-#### update_daily_leaderboard() [TRIGGER]
+#### update_daily_leaderboard() [TRIGGER] (Sprint 6 PR 6.1 sonrası)
 - scores'a INSERT oldigunda otomatik calisir
-- Ayni gun + ayni wallet: en yüksek skoru guncelle
-- Yeni kayit: yeni satir ekle
-- Top 100 disindakileri sil
+- `cycle_start` hesaplar (anchor 2026-05-01 even-day arithmetic), play_date olarak yazar
+- Ayni cycle + ayni wallet: en yüksek skoru guncelle (`GREATEST`), `games_played_today += 1` (cycle içi cumulative)
+- Yeni cycle: yeni satir ekle
+- Top 100 disindakileri sil (sadece current cycle scope'unda)
 
-#### archive_daily_leaderboard()
+#### archive_daily_leaderboard() (Sprint 6 PR 6.1 sonrası)
 - pg_cron ile her gece 00:00 UTC (03:00 TR) calisir
-- daily_leaderboard -> daily_leaderboard_history kopyalar
-- ON CONFLICT DO NOTHING (duplicate handling)
-- daily_leaderboard tablosunu temizler
+- Sadece `play_date < current_cycle_start` rows'u (bitmiş cycle) → daily_leaderboard_history kopyalar
+- ON CONFLICT (wallet_address, play_date) DO NOTHING (duplicate handling)
+- Sonra DELETE FROM daily_leaderboard WHERE play_date < current_cycle_start
+- Intra-cycle days: idempotent no-op (`No expired cycles to archive`)
+- Cycle-end days (her 2. gün): bitmiş cycle'ı süpürür
 
 ### RLS Politikalari (Sprint 2.1 sonrası — 2026-05-01)
 

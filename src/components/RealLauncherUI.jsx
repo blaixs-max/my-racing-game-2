@@ -45,17 +45,17 @@ IMPORTANT: Please read the following terms carefully before participating in the
 You acknowledge that the Lumexia Racing Module is a Game of Skill, not a game of chance or gambling. Your ranking on the leaderboard and eligibility for rewards are determined solely by your gameplay performance, reflexes, and strategy. The "Score" you achieve is the defining metric for reward distribution.
 
 2. Entry Fees and ${tokenSymbol} Token Usage
-To participate, users utilize ${tokenSymbol} tokens (on Solana blockchain) to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The ${tokenSymbol} tokens collected form the "Reward Pool" for the daily cycle.
+To participate, users utilize ${tokenSymbol} tokens (on Solana blockchain) to acquire game credits (Jetons). You understand that this transaction is final and non-refundable. The ${tokenSymbol} tokens collected form the "Reward Pool" for the 48-hour cycle.
 
 3. Reward Distribution & Deductions
-The Reward Pool is distributed daily to the top 100 players based on their final scores. You explicitly agree to the following allocation of funds:
+The Reward Pool is distributed every 48 hours to the top 100 players based on their final scores. You explicitly agree to the following allocation of funds:
 
 Prize Pool: The majority of the pool is distributed to the winners via an automated algorithm.
 
 Operational Fee: A fixed deduction of 7.5% is taken from the total pool prior to distribution. This fee is allocated for Marketing activities and Weekly Token Burns to support the Lumexia ecosystem.
 
 4. No Guarantee of Winnings
-Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the daily cycle, you will not receive a share of the ${tokenSymbol} pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
+Participation does not guarantee a reward. If you do not rank within the top 100 players by the end of the 48-hour cycle, you will not receive a share of the ${tokenSymbol} pool for that specific session. You acknowledge the risk of financial loss associated with gameplay.
 
 5. Cryptocurrency Risks
 You acknowledge that the value of ${tokenSymbol} token and SOL can fluctuate significantly. Lumexia is not responsible for any value loss due to market volatility, blockchain network errors, or wallet security breaches on the user's end.
