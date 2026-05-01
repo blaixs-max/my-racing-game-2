@@ -55,7 +55,9 @@ const isValidSolanaAddress = (a: string): boolean =>
 // score-per-meter outliers) while allowing legitimate skilled play.
 const MAX_SPEED_M_PER_S = 60;       // 200 km/h ≈ 55 m/s; +10% tolerance
 const MIN_GAME_DURATION = 10;       // seconds; bot-like below this
-const MIN_M_PER_COIN = 50;          // coin spawn density floor
+const MIN_M_PER_COIN = 10;          // coin spawn density floor (relaxed from 50
+                                    // after legit plays at ~24 m/coin tripped
+                                    // the rule — see suspicious_scores 2026-05-01)
 const MAX_SCORE_PER_M = 200;        // empirical score-density ceiling
 const TIME_DRIFT_TOLERANCE = 5;     // seconds for clientStartTime
 // -----------------------------------------------------------------------
