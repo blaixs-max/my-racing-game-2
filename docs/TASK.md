@@ -1,6 +1,58 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v19)
+> Son guncelleme: 2026-05-01 (v20)
+
+---
+
+## 2026-05-01: Sprint 4.5 - Payment self-healing (kritik bug fix + auto-reconciliation)
+
+**Bağlam:** Kullanıcı prod'da "Transaction is not a TOKABU token transfer" hatası bildirdi. Kök sebep: `verify-payment` Edge Function'ın varsayılan fallback değerleri eski OILTOWN token'ı (mint `Aakms...pump`, symbol `OILTOWN`). Supabase Secrets gerçek değerleri set ediyordu ama eğer secret yanlış/eksik kalırsa kullanıcılar TOKABU gönderip credit alamadan kalır (sessiz veri kaybı).
+
+Kullanıcı talebi: "TOKABU gitmiş ama credit almamış" senaryosuna **otomatik ve kalıcı** çözüm.
+
+**1. `verify-payment` hardening:**
+- Fallback değerleri OILTOWN → TOKABU (mint `H8xQ...pump`, symbol `TOKABU`). Secret bozulsa dahi doğru token için doğrulama yapar.
+- `isTokenTransfer = false` dalına detaylı `console.warn` (configured mint + receiver) — gelecek bug teşhisi için.
+
+**2. Yeni: `reconcile-payments` Edge Function:**
+- Receiver cüzdanın (`T6Ekv...mGg`) son `SIGNATURE_LIMIT=100` Solana TX'ini Helius RPC üzerinden scan eder.
+- Her TOKABU transfer için: DB'de `transactions.transaction_hash` UNIQUE constraint ile idempotent kontrol → yoksa validate et (sender bul, fiyat çek, paket eşleştir, user auto-create), credit ekle.
+- Edge case'ler (`unknown_user` artık olmaz çünkü auto-create var; `amount_mismatch`, `price_unavailable`, `no_sender_found`) `unverified_payments` tablosuna log'lanır → admin manuel inceler.
+- `dryRun: true` flag'i ile DB'ye yazmadan sadece log'a "ne yapardı" yazar — ilk deploy sonrası test için.
+- Auth: sadece `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` ile çağrılabilir (cron + admin curl).
+- Tunables: `SIGNATURE_LIMIT=100`, `SCAN_WINDOW_DAYS=30`, `PRICE_TOLERANCE=0.07`, `PACKAGE_USD=[1,5,10]`.
+
+**3. Yeni migration `20260501120000_unverified_payments.sql`:**
+- `unverified_payments` tablosu: `transaction_hash UNIQUE`, sender/receiver/mint/amount, `reason`, `resolved` boolean + `resolved_tx_id` admin tracking için.
+- 2 index: sender_wallet, partial unresolved.
+- RLS enabled, no policies → service_role only (forensic erişim Dashboard üzerinden).
+
+**Self-healing akış:**
+```
+[Kullanıcı TOKABU gönderir]
+   ↓
+[verify-payment çalışır] ──başarılı──> credit verilir
+   │
+   └──başarısız──> [reconcile-payments cron her 15 dk]
+                     ↓
+                   [orphan TX tespit] ──valid──> credit verilir + user auto-create
+                                       └──invalid──> unverified_payments → admin
+```
+
+**Risk: ORTA** — yeni Edge Function + tablo + Helius RPC dependency, ancak:
+- DRY_RUN flag ile ilk live test güvenli
+- Idempotent (UNIQUE constraint) — yanlışlıkla çift credit imkansız
+- 7% paket eşleşme tolerance — sahte/yanlış miktar TX'leri unverified_payments'a düşer
+- Sender/receiver/mint validation — yanlış token sessizce kabul edilmez
+
+**Post-merge plan:**
+1. CI deploy: Edge Function + migration otomatik prod'a iner.
+2. `PAYMENT_TOKEN_MINT`, `TOKEN_SYMBOL`, `TOKEN_DECIMALS`, `PAYMENT_RECEIVER_ADDRESS` secret'ları zaten set edildi (kullanıcı bu PR öncesi yaptı).
+3. Manuel `dryRun: true` curl → log'larda "newlyCredited" sayısı kontrol edilir.
+4. Tatmin olunca `dryRun: false` ile gerçek backfill (geçmiş 30 gün orphan TX'leri varsa otomatik credit edilir).
+5. pg_cron her 15 dk çağırması Dashboard SQL Editor üzerinden enable edilir (PR description'da SQL var).
+
+**CI gate:** `npm test` 20/20 ✓, `npm run build` ✓, `npm run lint` ✓.
 
 ---
 

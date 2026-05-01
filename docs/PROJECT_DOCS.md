@@ -14,8 +14,8 @@ Lumexia Racing Game, Solana blockchain uzerinde TOKABU token ile calisan, 3D tar
 **Sprint 0-4 sonrası altyapı durumu (2026-05-01):**
 - Branch protection her iki repo'da aktif; PR + 1 review + CI status check zorunlu
 - Üç GitHub Actions workflow: `ci.yml` (test/build/lint), `deploy-edge-functions.yml`, `deploy-migrations.yml`
-- 4 Edge Function: verify-payment, use-credit, calculate-daily-rewards, **submit-score (anti-cheat, Sprint 2.2a)**
-- 9 Postgres tablo + 2 view (`alltime_leaderboard`, `daily_team_scores`)
+- 5 Edge Function: verify-payment, use-credit, calculate-daily-rewards, submit-score (anti-cheat, Sprint 2.2a), **reconcile-payments (self-healing, Sprint 4.5)**
+- 10 Postgres tablo + 2 view (`alltime_leaderboard`, `daily_team_scores`)
 - RLS lockdown tamamlandı: scores ve users INSERT service-role-only; SECURITY DEFINER fonksiyonlardan EXECUTE PUBLIC revoke
 - Migration discipline: 14-haneli timestamp + CI auto-apply
 - Frontend Vitest suite: 19 test (Sprint 4.2 sonrası)
@@ -468,6 +468,45 @@ yazabilir; RLS gevsek oldugundan Edge Function bypass edilebilir (bkz. Guvenlik 
 
 **Yazdığı tablolar:** `suspicious_scores` (anomali) veya `scores` + `daily_leaderboard` (geçerli, RPC trigger ile)
 
+### reconcile-payments/index.ts (Sprint 4.5 — 2026-05-01)
+
+**Amaç:** Self-healing payment reconciliation. `verify-payment` herhangi bir sebeple başarısız olursa kullanıcının TOKABU'su çöpe gitmesin — receiver cüzdanın on-chain TX history'sini periyodik scan eder, orphan transferleri tespit edip otomatik credit ekler.
+
+**Trigger:**
+- pg_cron her 15 dakikada bir (Dashboard SQL Editor'dan enable; cron SQL'i PR description'da)
+- Manuel admin curl (auth: `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`)
+- Body: `{ "dryRun": true|false, "source": "cron"|"manual" }`
+
+**Akış:**
+1. Auth: `Bearer SERVICE_ROLE_KEY` mismatch → 401
+2. Helius RPC: `getSignaturesForAddress(PAYMENT_RECEIVER, limit=100)`
+3. `SCAN_WINDOW_DAYS=30` cutoff — daha eski TX'ler skip
+4. Her signature için:
+   - `transactions.transaction_hash` UNIQUE check → varsa skip (`alreadyCredited`)
+   - `unverified_payments.transaction_hash` check → varsa skip
+   - `getTransaction` ile full TX → `meta.err` varsa skip
+   - `findTokabuTransferToReceiver(tx)` → preTokenBalances/postTokenBalances delta analizi
+   - `findSenderForMint(tx)` → bakiye azalan owner veya ilk signer fallback
+   - Jupiter/DexScreener'dan TOKABU price (cached for entire scan)
+   - `matchPackage(usdValue)` → 1/5/10 USD ± 7% tolerance, eşleşmezse `unverified_payments` insert (`amount_mismatch_$X.XX`)
+   - User auto-create eksikse (verify-payment paterni)
+   - DRY_RUN ise log + return; aksi halde `transactions` INSERT + `users` UPDATE (UNIQUE constraint idempotency)
+
+**Edge case'ler `unverified_payments` tablosuna yazılır:**
+- `no_sender_found` — TX'te sender tespit edilemedi
+- `price_unavailable` — Jupiter + DexScreener ikisi de fail
+- `amount_mismatch_$X.XX` — TX miktarı 1/5/10 paketlerinden hiçbirine 7% içinde eşleşmiyor
+
+**Tunables (kod sabiti):**
+- `SIGNATURE_LIMIT=100` — RPC fetch başına signature sayısı
+- `SCAN_WINDOW_DAYS=30` — cutoff
+- `PRICE_TOLERANCE=0.07` — verify-payment ile senkron
+- `PACKAGE_USD=[1,5,10]` — paket eşleşme set'i
+
+**Yazdığı tablolar:** `transactions` (başarılı reconcile), `users` (credit update veya auto-create), `unverified_payments` (admin review için).
+
+**İdempotency:** `transactions.transaction_hash UNIQUE` constraint sayesinde aynı TX iki kez credit edilmez. Race durumunda ikinci INSERT 23505 döner, kod `alreadyCredited` sayar.
+
 **Auth:** `verify_jwt: true` (default) — frontend Supabase client'ın anon key'i ile çağırır.
 
 ### calculate-daily-rewards/index.ts (Sprint 1.7a/b - 2026-05-01)
@@ -583,6 +622,26 @@ Anti-cheat tarafından reddedilen skor gönderimleri için forensic log. `submit
 | created_at | TIMESTAMPTZ | Otomatik |
 
 **RLS:** Aktif, policy YOK → sadece service_role yazabilir/okuyabilir. Dashboard üzerinden admin görüntülenebilir.
+
+#### unverified_payments (Sprint 4.5 — 2026-05-01)
+`reconcile-payments` Edge Function'ın auto-credit edemediği TX'ler için admin review log'u. Receiver cüzdana TOKABU gelmiş ama paket eşleşmesi/sender tespit/fiyat sorunu nedeniyle credit verilemediyse buraya yazılır.
+
+| Sutun | Tip | Aciklama |
+|-------|-----|----------|
+| id | UUID (PK) | Otomatik |
+| transaction_hash | TEXT UNIQUE | Solana TX signature (idempotent) |
+| sender_wallet | TEXT | Gönderen cüzdan (boş olabilir, `no_sender_found` durumunda) |
+| receiver_wallet | TEXT | Alıcı (genelde PAYMENT_RECEIVER) |
+| token_mint | TEXT | TOKABU mint |
+| token_amount | NUMERIC | Transfer edilen TOKABU miktarı |
+| block_time | TIMESTAMPTZ | TX block zamanı |
+| reason | TEXT | `unknown_user` / `amount_mismatch_$X.XX` / `price_unavailable` / `no_sender_found` |
+| resolved | BOOLEAN | Admin manuel çözdü mü |
+| resolved_tx_id | UUID FK→transactions(id) | Çözüm: hangi credit grant TX'iyle kapatıldı |
+| notes | TEXT | Admin notu (manuel SQL ile) |
+| created_at | TIMESTAMPTZ | Otomatik |
+
+**RLS:** Aktif, policy YOK → service_role only. Admin Dashboard SQL Editor'dan inceler ve manuel `transactions` insert + `users` update yapıp `resolved=TRUE` işaretler.
 
 #### daily_leaderboard
 - Her wallet + her gun icin tek kayit (UNIQUE constraint)

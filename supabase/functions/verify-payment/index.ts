@@ -3,7 +3,7 @@
 //
 // Token ayarlari Supabase Secrets uzerinden yapilir:
 //   PAYMENT_TOKEN_MINT    - Token mint adresi (zorunlu)
-//   TOKEN_SYMBOL          - Token kodu (DB'ye yazilir, ornek: OILTOWN)
+//   TOKEN_SYMBOL          - Token kodu (DB'ye yazilir, ornek: TOKABU)
 //   TOKEN_DECIMALS        - Token decimals (default 6)
 //   PAYMENT_RECEIVER_ADDRESS (or PAYMENT_RECEIVER, deprecated)
 //                         - Odeme alici cuzdan adresi (zorunlu)
@@ -45,8 +45,10 @@ const SOLANA_MAINNET_RPCS = [
 ];
 
 // Payment Token Configuration (env vars, fallback degerleri frontend ile senkron)
-const PAYMENT_TOKEN_MINT = Deno.env.get('PAYMENT_TOKEN_MINT') ?? 'AakmsJ4vebK1Uk3eWPRPx89WzEDq2knvN2sgGcXEpump';
-const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'OILTOWN';
+// Fallback degerleri TOKABU. OILTOWN artik gecerli degil — secret bozulursa
+// dahi Edge Function dogru token icin dogrulama yapar.
+const PAYMENT_TOKEN_MINT = Deno.env.get('PAYMENT_TOKEN_MINT') ?? 'H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump';
+const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'TOKABU';
 const TOKEN_DECIMALS = Number(Deno.env.get('TOKEN_DECIMALS') ?? '6');
 
 // Payment Receiver Wallet Address (Solana)
@@ -189,6 +191,15 @@ serve(async (req) => {
 
     // 4. VALIDATE TOKEN TRANSFER DETAILS
     if (!txData.isTokenTransfer) {
+      // Detailed log so admin can diagnose why detection failed (mint
+      // mismatch, wrong receiver, RPC inconsistency, etc.). reconcile-payments
+      // will pick up and recover any genuinely-paid TX from the receiver
+      // wallet's history; this log helps explain why verify-payment missed it.
+      console.warn(
+        `[verify-payment] No ${TOKEN_SYMBOL} transfer found. ` +
+        `tx=${transactionSignature} configured_mint=${PAYMENT_TOKEN_MINT} ` +
+        `configured_receiver=${PAYMENT_RECEIVER}`
+      );
       return new Response(
         JSON.stringify({ error: `Transaction is not a ${TOKEN_SYMBOL} token transfer` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
