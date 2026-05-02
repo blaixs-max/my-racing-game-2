@@ -1,6 +1,47 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-01 (v21)
+> Son guncelleme: 2026-05-02 (v22)
+
+---
+
+## 2026-05-02: Sprint 6 PR 6.5 - Landing 48h cycle copy + Cycle Ranking section reorder
+
+**Bağlam:** Sprint 6 PR 6.1 (48h cycle backend, racing repo PR #102) prod'a indikten sonra landing repo (`v0-lumexia-landing-page-V0`) UI'sının da 48h cycle yansıtması gerekiyordu. Önceki chat'te (2026-05-01) landing repo `claude/landing-cycle-text-cleanup` branch'inde Pool Value + Pool Reset hero panelleri eklendi, app/page.tsx LeaderboardSection üst seviyeye taşındı, features-grid metinleri güncellendi — ancak commit edilmeden chat resim limiti dolduğu için sonlandırıldı. 2026-05-02 chat'inde devam edildi.
+
+**Bu chat'te yapılan değişiklikler:**
+
+1. **Türkçe → İngilizce (`48a2b32`):** dashboard-hero.tsx'teki "Sonraki Dağıtıma Kalan Süre" → "Time until next distribution".
+2. **İlk push (`48a2b32`):** 3 dosya, +211/-77 satır — Pool panels + section reorder + features metinleri commit edildi, PR #17 açıldı.
+3. **Hero kompaktlama (`9e9db83`):** Kullanıcı 1. resim referansı verdi (lumexia.net canlı tasarımı); Pool panellerinin boyutu küçültüldü (min-h 760/600 → 560/440, icon/font/padding daraltıldı).
+4. **Pool panel revert (`89dc0d7`):** Kullanıcı kararı 2026-05-02: Pool Value + Pool Reset panelleri **tamamen kaldırıldı** (racing-car artwork'u kapatıyordu). Hero baseline (origin/main) yapısına döndü, sadece "DAILY RANKING" → "CYCLE RANKING" buton metni korundu.
+
+**Final PR #17 (squash merge `74ec528`, admin override):**
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `app/page.tsx` | LeaderboardSection üstte, TransactionsPanel altta (4 satır) |
+| `components/dashboard-hero.tsx` | "DAILY RANKING" → "CYCLE RANKING" (mobile + desktop, 4 satır) |
+| `components/features-grid.tsx` | "Daily Reward Distribution" → "Cycle Reward Distribution" + 48h cycle copy (6 satır) |
+
+**Toplam:** +8 / -6 satır. Pool panel kodu commit history'de duruyor (`48a2b32` ↔ `9e9db83`), ileride başka PR'da geri eklenebilir.
+
+**Açık aksiyon (kullanıcı):** v0.app prompt'unda landing 3 dosyaya dokunma (memory: `feedback_v0_sync_risk.md`).
+
+**Risk:** DÜŞÜK — sadece 8/6 satır, hero baseline yapısı korundu, layout/stil değişikliği yok.
+
+**PR 6.4 (Racing UI 48h metinleri) gereksiz çıktı:** Racing repo'sunda kullanıcıya görünen "Daily/today" zaman metinleri yok (PR 6.1'de legal agreement zaten "48-hour cycle" yapılmıştı; leaderboard görüntüleme zaten landing'de). PR 6.4 yol haritasından kapatıldı.
+
+---
+
+## 2026-05-01: Sprint 4.5 follow-up - Anti-cheat coin density relax (PR #103)
+
+**Sorun:** Sprint 2.2a'da kurulan submit-score Edge Function anti-cheat kuralı `coins <= floor(distance / 50)` şeklinde idi — yani 50m'de bir coin maks. Gerçek oyuncular bu eşiği geçince score `score_rejected` ile reddediliyordu.
+
+**Çözüm:** `coins <= floor(distance / 10)` — 10m'de bir coin (5x daha gevşek). Hâlâ açıkça abuse'leri yakalar (örn. 100m'de 50 coin kabul edilmez), ama meşru gameplay için yeterli.
+
+**Etki:** Kullanıcı prod'da test etti, sorun yok ✓ (2026-05-02 doğrulaması).
+
+**Risk:** DÜŞÜK — sadece eşik değişikliği, validate logic aynı.
 
 ---
 

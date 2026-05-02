@@ -1,30 +1,43 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-05-01 (v9)
+> Son guncelleme: 2026-05-02 (v10)
 
 ## Mevcut Durum Ozeti
 
-Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0 (otonomluk altyapisi) + Sprint 1 (landing migration: 6 PR) + Sprint 1.7a/b (Edge Function recovery + USD/JWT fix) + Sprint 1.8 (PAYMENT_RECEIVER env var) tamamlandi.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 (payment self-healing) + Sprint 6 PR 6.1 (48h cycle backend) + PR 6.5 (landing 48h UI) tamamlandi.
 
-**Tamamlanmis altyapi (2026-04-30 → 2026-05-01):**
+**Son merge edilen PR'lar (kronolojik):**
+- Racing PR #99/#100/#101: Payment self-healing (verify-payment hardening + reconcile-payments Edge Function + JWT auth fix) — 2026-05-01
+- Racing PR #102: Sprint 6 PR 6.1 — 48h cycle reset (backend + UI legal) — 2026-05-01
+- Racing PR #103: Anti-cheat coin density 1/50m → 1/10m relax — 2026-05-01 (kullanıcı 2026-05-02 prod'da test etti, sorun yok ✓)
+- Landing PR #17: Sprint 6 PR 6.5 — 48h cycle copy + Cycle Ranking section reorder — 2026-05-02 (squash `74ec528`, admin override)
+
+**Tamamlanmis altyapi:**
 - Branch protection her iki repo'da aktif (main'e direkt push yasak, force push yasak, 1 review zorunlu, CI status check)
 - CI test gate (`.github/workflows/ci.yml`) — her PR'da `npm test` + `npm run build` zorunlu
-- Edge Function recovery: `calculate-daily-rewards` Supabase prod'dan repo'ya geri alindi (4 ay sonra) ve CI deploy hattina baglandi; BNB → USD geçişi + JWT bypass yapıldı
+- Edge Function recovery: `calculate-daily-rewards` Supabase prod'dan repo'ya geri alindi ve CI deploy hattina baglandi; BNB → USD geçişi + JWT bypass yapıldı
 - `verify-payment` Edge Function `PAYMENT_RECEIVER_ADDRESS` env var adını destekliyor (geriye uyumlu)
+- `reconcile-payments` Edge Function (orphan TX backfill, 100 imza taraması, idempotent UNIQUE constraint)
+- `unverified_payments` tablosu (forensic admin log, service-role only)
 - Rate limiting (use-credit 30/dk, verify-payment 10/dk) — uretimde calisiyor
 - Bug #4 coins_collected — submit_score imzasi guncel, GameOverUI gonderiyor
-- Buffer polyfill, Vitest setup (8 test), price tolerance %7 hizalanmis, 11 ESLint hatasi temizlenmis
+- Buffer polyfill, Vitest setup (19 test), price tolerance %7 hizalanmis, 11 ESLint hatasi temizlenmis
+- 48h cycle: trigger fonksiyon `cycle_start = CURRENT_DATE - ((CURRENT_DATE - DATE '2026-05-01')::int % 2)` hesabi yapar; archive cron prev-cycle rows'unu temizler; calculate-daily-rewards cycle-end day kontrolü ile self-skip eder
 
-**Landing page (lumexia.net) tamamen Solana/TOKABU dünyasında:**
-- SEO meta tags + structured-data (organizationSchema, videoGameSchema, faqSchema) Solana/Phantom/Jupiter referansları
-- UI metinleri: faq-section, footer, strategy-section MetaMask → Phantom, PancakeSwap → Jupiter, $LMX → $TOKABU
-- dashboard-hero placeholder hex CONTRACT_ADDRESS → gerçek TOKABU mint
-- token-stats: ticker TOKABU/USD, SOL/USD, BTC/USD, ETH/USD; DexScreener iframe Solana chain
-- API routes (`/api/dex`, `/api/ticker`) Solana/CoinGecko `solana` ID
-- pool-context BNB → USD; transactions-panel canlı Supabase `transactions` tablosu (realtime subscribe)
+**Landing page (lumexia.net):**
+- Tamamen Solana/TOKABU dünyasında (SEO meta + structured-data + UI metinleri + API routes)
+- Sprint 6 PR 6.5 ile 48h cycle UI: features-grid "Cycle Reward Distribution" + dashboard-hero "CYCLE RANKING" buton + LeaderboardSection üst seviyede (DashboardHero altında, TransactionsPanel üstünde)
+- Realtime subscriptions debounce'lı (Sprint 3b)
+
+**Sprint 6 kalan PR'lar:**
+- PR 6.2 — `reward_distributions` tablosu (idempotency tracking, manuel hibrit transfer altyapısı)
+- PR 6.3 — `export-reward-payload` Edge Function (admin CSV/JSON cycle payload)
+- PR 6.6 — Sprint 6 toplu docs sync (PROJECT_DOCS + INTEGRATION cycle-end mantığı)
+- ~~PR 6.4~~ Racing UI 48h metinleri — **GEREKSİZ** (kullanıcıya görünen "Daily" referansı yok; leaderboard zaten landing'de; PR 6.1 legal agreement metni zaten "48-hour cycle")
 
 **Kalan oncelik:**
-1. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler. 8 katmanlı plan + otonom self-healing akışı memory'de (`project_test_sprint_plan.md`). Ön koşul: kullanıcının staging Supabase project açması.
+1. Sprint 6 kalan PR'lar (6.2, 6.3, 6.6)
+2. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler. 8 katmanlı plan + otonom self-healing akışı memory'de (`project_test_sprint_plan.md`). Ön koşul: kullanıcının staging Supabase project açması.
 
 **Sprint 4 (Kod Kalitesi) tamamlandı:**
 - 4.1 ESLint flat config genişletme + CI lint job (PR #96) ✅
