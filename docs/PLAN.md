@@ -1,16 +1,28 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-05-02 (v10)
+> Son guncelleme: 2026-05-02 (v11)
 
 ## Mevcut Durum Ozeti
 
-Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 (payment self-healing) + Sprint 6 PR 6.1 (48h cycle backend) + PR 6.5 (landing 48h UI) tamamlandi.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 (payment self-healing) + Sprint 6 (48h cycle backend + landing UI + leaderboard fix) tamamlandi.
+
+**Aktif sprint durumu (2026-05-02):**
+
+| Sprint | Durum | Not |
+|--------|-------|-----|
+| 0-4 | ✅ Tamam | Otonomluk altyapısı, landing migration, anti-cheat, kod kalitesi |
+| 4.5 | ✅ Tamam | Payment self-healing |
+| 5 (E2E test) | ❌ İPTAL | Kullanıcı kararı 2026-05-02 |
+| 6 (48h cycle + UI) | ✅ KAPALI | Tüm PR'lar prod'da |
+| 7 (transfer otomasyonu) | ⏸️ ASKIDA | Ödeme süreci kararı bekliyor (memory: `project_payment_process_pending.md`) |
 
 **Son merge edilen PR'lar (kronolojik):**
 - Racing PR #99/#100/#101: Payment self-healing (verify-payment hardening + reconcile-payments Edge Function + JWT auth fix) — 2026-05-01
 - Racing PR #102: Sprint 6 PR 6.1 — 48h cycle reset (backend + UI legal) — 2026-05-01
 - Racing PR #103: Anti-cheat coin density 1/50m → 1/10m relax — 2026-05-01 (kullanıcı 2026-05-02 prod'da test etti, sorun yok ✓)
-- Landing PR #17: Sprint 6 PR 6.5 — 48h cycle copy + Cycle Ranking section reorder — 2026-05-02 (squash `74ec528`, admin override)
+- Landing PR #17: Sprint 6 PR 6.5 — 48h cycle copy + Cycle Ranking section reorder — 2026-05-02 (squash `74ec528`)
+- Racing PR #104: docs sync (TASK + PLAN) — 2026-05-02 (squash `a249a06`)
+- Landing PR #18: Cycle Ranking UI fix — 48h window + bonus formula uyumu + LMX/SOL — 2026-05-02 (squash `b0f03f7`)
 
 **Tamamlanmis altyapi:**
 - Branch protection her iki repo'da aktif (main'e direkt push yasak, force push yasak, 1 review zorunlu, CI status check)
@@ -29,15 +41,24 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - Sprint 6 PR 6.5 ile 48h cycle UI: features-grid "Cycle Reward Distribution" + dashboard-hero "CYCLE RANKING" buton + LeaderboardSection üst seviyede (DashboardHero altında, TransactionsPanel üstünde)
 - Realtime subscriptions debounce'lı (Sprint 3b)
 
-**Sprint 6 kalan PR'lar:**
-- PR 6.2 — `reward_distributions` tablosu (idempotency tracking, manuel hibrit transfer altyapısı)
-- PR 6.3 — `export-reward-payload` Edge Function (admin CSV/JSON cycle payload)
-- PR 6.6 — Sprint 6 toplu docs sync (PROJECT_DOCS + INTEGRATION cycle-end mantığı)
-- ~~PR 6.4~~ Racing UI 48h metinleri — **GEREKSİZ** (kullanıcıya görünen "Daily" referansı yok; leaderboard zaten landing'de; PR 6.1 legal agreement metni zaten "48-hour cycle")
+**Sprint 6 PR durumu (kapalı):**
+- PR 6.1 — 48h cycle backend + legal UI ✅ (#102)
+- ~~PR 6.2~~ — `reward_distributions` ALTER → **Sprint 7'ye taşındı** (`reward_pool_distribution`'a `paid_at`/`paid_tx_hash` eklemek; askıda)
+- ~~PR 6.3~~ — `export-reward-payload` Edge Function → **İPTAL** (calculate-daily-rewards zaten per-wallet ödülü tabloya yazıyor; Dashboard SQL yeterli)
+- ~~PR 6.4~~ — Racing UI 48h metinleri → **GEREKSİZ** (UI'da "Daily" referansı yok)
+- PR 6.5 — Landing 48h UI ✅ (#17)
+- PR 6.6 — Toplu docs sync ✅ (#104, kısmen — tarih bazlı entry'ler güncel)
+- Bonus PR — Cycle Ranking UI fix ✅ (#18, leaderboard formula/window/LMX+SOL)
 
-**Kalan oncelik:**
-1. Sprint 6 kalan PR'lar (6.2, 6.3, 6.6)
-2. **E2E test mimarisi (Sprint 5)** — Playwright + Supabase MCP closed-loop testler. 8 katmanlı plan + otonom self-healing akışı memory'de (`project_test_sprint_plan.md`). Ön koşul: kullanıcının staging Supabase project açması.
+**Açık aksiyonlar (kullanıcı):**
+1. **2026-05-03 00:00 UTC** — İlk gerçek 48h cycle reset doğrulaması: pg_cron tetikler, archive Cycle 1 rows'unu süpürür, `calculate-daily-rewards` Cycle 1 reward'ları hesaplar. Edge Function loglarında 200 dönmeli.
+2. `reconcile-payments` `dryRun: true` ilk test (PR #99 sonrası açık)
+3. `reconcile-payments` cron enable (Dashboard SQL)
+4. Google Search Console "Request Indexing" — lumexia.net (Madde 5)
+5. Landing PR #18 prod'da test (UI bug fix)
+
+**Açık tartışmalar (ileride):**
+- Ödeme süreci tercihi (manuel/hibrit/otomatik) — Sprint 7 plan açma ön koşulu
 
 **Sprint 4 (Kod Kalitesi) tamamlandı:**
 - 4.1 ESLint flat config genişletme + CI lint job (PR #96) ✅
