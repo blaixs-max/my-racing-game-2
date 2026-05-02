@@ -1,6 +1,44 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-02 (v22)
+> Son guncelleme: 2026-05-02 (v23)
+
+---
+
+## 2026-05-02: Sprint 5/7 status reset + Cycle Ranking UI fix (Landing PR #18)
+
+**Bağlam:** Sprint 6 PR 6.5 sonrası landing leaderboard UI'nın prod `calculate-daily-rewards` Edge Function ile uyumsuz olduğu fark edildi. Aynı oturumda Sprint 5 ve Sprint 7 statülerine de karar verildi.
+
+### Sprint 5 (E2E test mimarisi) — İPTAL (kullanıcı kararı 2026-05-02)
+
+E2E test sprint'i şu aşamada başlatılmayacak. `project_test_sprint_plan.md` memory'sinde detaylı plan referans olarak korunuyor; kullanıcı yeniden açmak istediğinde plan elimde.
+
+### Sprint 7 (transfer otomasyonu) — ASKIDA (kullanıcı kararı 2026-05-02)
+
+Reward distribution otomasyonu, treasury wallet, Vault private key, `distribute-rewards` Edge Function — hiçbiri başlatılmıyor. Memory: `project_payment_process_pending.md` (askıdaki iş kalemleri + mevcut durum kayıtlı). Açık aksiyon: kullanıcı "ödeme süreci"ni netleştirdiğinde Sprint 7 detaylı plan açılır.
+
+### PR 6.3 (export-reward-payload Edge Function) — İPTAL
+
+Gereksiz çıktı: `calculate-daily-rewards` zaten her cycle sonu `reward_pool_distribution` tablosuna per-wallet ödülü USD cinsinden yazıyor (idempotent DELETE/INSERT). Ekip ihtiyaç duyarsa Dashboard SQL ile çekebilir; ayrı Edge Function gerekmez.
+
+### Landing PR #18 — Cycle Ranking UI fix (squash merge `b0f03f7`)
+
+`leaderboard-section.tsx` prod Edge Function ile birebir hizalandı. 3 düzeltme:
+
+| Sorun | Eski | Yeni |
+|-------|------|------|
+| **Window** | `today T00:00 → T23:59` (24h) | 48h cycle window (anchor 2026-05-01, even-day offset) — Edge Function ile aynı |
+| **Bonus formula** | `gamesPlayed / 100` (1 game = +1%, hatalı) | `gamesPlayed >= 2 ? gamesPlayed : 0` (1 game = +0%, 2 = +2%, 3 = +3%) — Edge Function ile aynı |
+| **Reward kolonu** | "X.XXXX LMX" (sadece) | Ana satır "X.XX LMX" + alt satır "≈ Y.YYYY SOL" (canlı `/api/ticker` CoinGecko 5dk cache) |
+
+İlk fetch + realtime refetch path'i aynı düzeltildi. `+%` boost badge ve best_score line-through gösterimi `games_played >= 2` koşuluna gated. Desktop + mobile her ikisi.
+
+**Toplam:** +77 / -14 satır, tek dosya. Build ✓, admin override ile squash merge.
+
+**Risk:** ORTA-DÜŞÜK — UI-only client-side compute, DB / Edge Function / realtime subscription dokunulmadı.
+
+**Açık aksiyon (kullanıcı):** PR #18'i prod'da gerçek wallet'la test et — 1 oyunlu racer'da `+%` badge yok mu, 2 oyunluda `+2%` boost var mı, reward kolonunda "LMX / SOL" stack render düzgün mü.
+
+**v0.app uyarısı:** `components/leaderboard-section.tsx`'e v0.app prompt'unda dokunma — yoksa bu fix ezilir.
 
 ---
 
