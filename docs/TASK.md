@@ -1,6 +1,95 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-02 (v23)
+> Son guncelleme: 2026-05-03 (v24)
+
+---
+
+## 2026-05-03: Sprint 7-mini KAPALI — manual-payout pipeline operational (3 PR)
+
+**Bağlam:** 2026-05-02'de Sprint 7 (tam otomatik transfer) askıya alınmıştı. Aynı gün ödeme süreci tartışıldı; kullanıcı "kazananlar history tablosunda kayıt edilsin + manuel copy/paste ile transfer edilsin" yaklaşımını seçti. Mevcut `reward_pool_distribution` tablosu zaten cycle bazlı per-wallet ödülü tutuyordu (Sprint 1.7b sonrası USD cinsinden); eksik olan tek şey **paid_at/paid_tx_hash idempotency tracking** + **multi-currency (SOL+TOKABU) eşdeğer kayıt**. Sprint 7 bu kapsamda **mini** olarak yeniden çerçevelendi.
+
+### PR #106 (squash merge `6a6ab97`) — Schema migration
+
+**Migration:** `supabase/migrations/20260503100000_reward_payment_tracking.sql`
+
+`reward_pool_distribution` tablosuna 7 yeni kolon:
+
+| Kolon | Filled by |
+|-------|-----------|
+| `reward_amount_sol` | Edge Function (cycle-end converted) |
+| `reward_amount_tokabu` | Edge Function (cycle-end converted) |
+| `sol_price_usd` | Edge Function (audit snapshot) |
+| `tokabu_price_usd` | Edge Function (audit snapshot) |
+| `paid_at` | **Ops team manual SQL** |
+| `paid_tx_hash` | **Ops team manual SQL** |
+| `paid_in_token` | **Ops team manual SQL** ('SOL' / 'TOKABU' CHECK) |
+
+Ek olarak:
+- Partial index `idx_reward_unpaid (reward_date, wallet_id) WHERE paid_at IS NULL` → "this cycle's unpaid winners" sorgusu hızlanır
+- `DELETE FROM reward_pool_distribution WHERE reward_date < '2026-05-01'` → 4 eski BNB-dönemi test satırı temizlendi (kullanıcı onayı 2026-05-03)
+- COMMENT ON TABLE/COLUMN — yeni semantik
+
+**Risk:** DÜŞÜK (additive + bounded delete). CI auto-apply via `deploy-migrations.yml`.
+
+### PR #107 (squash merge `0fcd08a`) — Edge Function multi-currency + price fallback
+
+**`supabase/functions/calculate-daily-rewards/index.ts`** yeniden yazıldı (+235/-35 net). Yeni özellikler:
+
+**Price discovery (3-tier SOL, 2-tier+DB TOKABU):**
+
+| Asset | Tier 1 | Tier 2 | Tier 3 | NULL fallback |
+|-------|--------|--------|--------|---------------|
+| **SOL/USD** | DexScreener (highest-liquidity pair) | Jupiter v6 | CoinGecko `/simple/price` | NULL |
+| **TOKABU/USD** | DexScreener | Jupiter v6 | **transactions table per-wallet** (kullanıcı önerisi) | NULL |
+
+**TOKABU DB fallback:** Her top-100 wallet için `transactions` tablosunda en son başarılı tx → `amount/token_amount` implicit fiyat. Wallet'ın kendi geçmişi yoksa global son tx fallback. Hâlâ yoksa NULL (USD reward yine de yazılır, ekip manuel UPDATE).
+
+**Defensive design:**
+- Per-source 8s `AbortController` timeout
+- Liquidity-weighted DexScreener pair selection (manipülasyon koruması)
+- `transactions.user_id` FK'sini `users.wallet_address`'e batch JOIN ile çözer
+- Herhangi bir source fail → o currency NULL, USD canonical her zaman yazılır
+
+**INSERT şekli:** Mevcut USD + 4 yeni currency/price kolonu (NULL toleranslı).
+
+**Response observability:** 200 body'de `prices: { sol_usd, tokabu_usd_api, tokabu_used_db_fallback, tokabu_db_fallback_hits, tokabu_db_global_fallback }` — cron run health monitoring için.
+
+**Risk:** ORTA (yeni external dependency CoinGecko + DB fallback path). 2026-05-05 00:00 UTC ilk gerçek çalışma.
+
+### PR #108 (squash merge `2f1100a`) — Manual payout runbook
+
+**Yeni dosya:** `docs/RUNBOOKS/manual-payout.md` (382 satır, 10 bölüm + troubleshooting):
+
+1. Prerequisites + cycle schedule reference
+2. Edge Function ran verification (logs + recovery `curl`)
+3. Pull unpaid winners (SQL + CSV export)
+4. Choose payout token (TOKABU vs SOL trade-offs)
+5. Transfer rewards (Phantom batch UI + Node.js CLI script template `@solana/web3.js` + `@solana/spl-token`)
+6. Mark winners as paid (single-row + batch CTE templates)
+7. Verify nothing left behind
+8. Audit log (Solscan link generator)
+9. Troubleshooting (wrong amount, UPDATE didn't match, fallback price spread, re-run wiping paid_at)
+10. Schema reference
+
+**Risk:** SIFIR — markdown only.
+
+### Sprint 7-mini durumu — KAPALI
+
+| PR | Commit | İçerik |
+|----|--------|--------|
+| #106 | `6a6ab97` | Schema migration |
+| #107 | `0fcd08a` | Edge Function 3-tier fallback + multi-currency INSERT |
+| #108 | `2f1100a` | Manual payout runbook |
+
+**Sonuç:** Cycle reward payout pipeline operasyonel. Her cycle sonu (2026-05-05 başlayarak):
+1. `calculate-daily-rewards` USD + SOL + TOKABU yazıyor
+2. Ops team `docs/RUNBOOKS/manual-payout.md`'ı takip ediyor
+3. Solscan TX hash + paid_in_token + paid_at audit izi tutuluyor
+
+**Sprint 7 (tam otomatik transfer) hâlâ ASKIDA** — treasury Vault, distribute-rewards Edge Function, retry queue, monitoring webhook. Memory: `project_payment_process_pending.md`.
+
+**Açık aksiyon (kullanıcı):**
+- 2026-05-05 00:00 UTC — Cycle 2 sonu ilk gerçek multi-currency Edge Function çalışmasını doğrula (Dashboard logs + SQL)
 
 ---
 
