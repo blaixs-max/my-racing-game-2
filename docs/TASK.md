@@ -1,6 +1,38 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-03 (v24)
+> Son guncelleme: 2026-05-08 (v25)
+
+---
+
+## 2026-05-08: Faz-1 React Re-Render Performans Optimizasyonu
+
+**Bağlam:** Frontend render pipeline'ında 4 noktada anti-pattern tespit edildi. `Game()` ve `PlayerCar()` Zustand'a destructure ile subscribe oluyordu — `enemies`/`coins`/`particles` gibi her frame değişen field'lar component'i 60Hz re-render ettiriyordu. `playerPos` her frame `setState([...])` ile yeni array oluşturuyordu. `updateGame` içindeki `laneOccupancy` her frame yeni obje + 3 array allocate ediyordu (saniyede 240 GC adayı).
+
+**Değişiklikler (2 dosya, +57/-21 satır):**
+
+| Component/Yer | Önce | Sonra |
+|---|---|---|
+| `Game()` | Tüm store'a destructure subscribe | 16 alan için ayrı selector |
+| `PlayerCar()` destructure | 12 alanlı destructure | JSX/useMemo'da kullanılan 8 alana selector |
+| `PlayerCar()` useFrame | `enemies/coins/targetX/gameOver` subscribed | `useGameStore.getState()` her frame |
+| `PlayerCar()` playerPos | `useState([])` + `setPlayerPos([...])` her frame | `useState(() => [])` + index mutate |
+| `store.js` `laneOccupancy` | Her frame yeni `{}` + 3 `[]` | Module-level `_laneOccupancyCache` + `length = 0` reset |
+
+**Oyun mantığı, skor formülü, anti-cheat kuralları, çarpışma threshold'ları, kredi/wallet akışı tek satır bile değişmedi** — sadece React subscription ve allocation pattern'i.
+
+**Doğrulama:**
+- `npm run lint` ✓ temiz
+- `npm test` ✓ 20/20 (2 dosya: jupiterPrice, solanaWallet)
+- `npm run build` ✓ 30.89s, three-vendor 1144KB unchanged
+
+**Beklenen kazanç:**
+- HUD child'ları (Speedometer, score, nitro bar, Distance, NearMiss, Level) artık sadece kendi alanları değişince render olur (öncesi 60Hz)
+- `enemies`/`coins` array referans değişimi PlayerCar'ı tetiklemez
+- `playerPos` mutate pattern: NitroBoostParticles aynı referansı görür, prop reconciliation yok
+- `laneOccupancy` GC pressure sıfırlandı (saniyede 240 obje → 0)
+- Mobilde mikro-jank ve nitro takılması düşmesi bekleniyor; level 3-5'te belirgin
+
+**Risk:** DÜŞÜK. Sayısal mantık dokunulmadı; render davranışı saf optimizasyon. Görsel davranış bire bir aynı.
 
 ---
 

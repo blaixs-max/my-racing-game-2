@@ -101,6 +101,13 @@ class AudioSystem {
 
 export const audioSystem = new AudioSystem();
 
+// PERF: Lane occupancy cache - module-level, tek allocation.
+// updateGame her frame yeni `{ '-1': [], '0': [], '1': [] }` olusturuyordu;
+// bu da 60Hz × 4 obje (1 obj + 3 array) = saniyede 240 GC adayi yaratiyordu.
+// Simdi bu nesneler bir kez olusturulur, her frame `length = 0` ile temizlenir.
+// Tek-thread JS + useFrame senkron cagrisi sayesinde race condition yok.
+const _laneOccupancyCache = { '-1': [], '0': [], '1': [] };
+
 // ==================== OYUN VERİ MERKEZİ ====================
 export const useGameStore = create((set, get) => ({
   gameState: 'loading', // 'loading' | 'launcher' | 'countdown' | 'playing' | 'gameover'
@@ -456,8 +463,11 @@ export const useGameStore = create((set, get) => ({
       }
     }
 
-    // Pre-compute lane occupancy for quick lookups (grid-based spatial partitioning)
-    const laneOccupancy = { '-1': [], '0': [], '1': [] };
+    // PERF: Module-level cache'i sifirla ve doldur (yeni allocation yok).
+    const laneOccupancy = _laneOccupancyCache;
+    laneOccupancy['-1'].length = 0;
+    laneOccupancy['0'].length = 0;
+    laneOccupancy['1'].length = 0;
     for (let i = 0; i < validEnemies.length; i++) {
       const e = validEnemies[i];
       const laneName = String(e.lane);

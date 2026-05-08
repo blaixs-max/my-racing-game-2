@@ -586,11 +586,29 @@ function TreeModel({ scale = 1, rotation = [0, 0, 0] }) {
 
 
 function PlayerCar() {
-  const { targetX, enemies, coins, setGameOver, gameOver, triggerNearMiss, collectCoin, speed, selectedCar, gameState, updateEnemyPassed, isNitroActive } = useGameStore();
+  // PERF: JSX/useMemo/useEffect'te kullanilanlar selector ile subscribe edilir.
+  // Sadece useFrame icinde okunanlar (targetX, enemies, coins, gameOver)
+  // useGameStore.getState() ile fetch edilir; subscribe yok. useFrame zaten
+  // 60Hz cagriliyor, en guncel referansi alir. Ana kazanc: enemies/coins her
+  // frame yeni array referansi oldugundan subscribe etmek render firtinasi
+  // yaratiyordu.
+  const selectedCar = useGameStore(s => s.selectedCar);
+  const isNitroActive = useGameStore(s => s.isNitroActive);
+  const speed = useGameStore(s => s.speed);
+  const gameState = useGameStore(s => s.gameState);
+  // Action'lar (stable referans, render tetiklemez):
+  const setGameOver = useGameStore(s => s.setGameOver);
+  const triggerNearMiss = useGameStore(s => s.triggerNearMiss);
+  const collectCoin = useGameStore(s => s.collectCoin);
+  const updateEnemyPassed = useGameStore(s => s.updateEnemyPassed);
   const group = useRef();
 
-  // Track player position for particles
-  const [playerPos, setPlayerPos] = useState([0, 0.1, -2]);
+  // PERF: useState ile bir kez olusturulan mutable array (setState kullanmiyoruz).
+  // Her render'da ayni referans donar; useFrame icerigini her frame mutate eder.
+  // NitroBoostParticles'a hep ayni array referansi gider, React re-render etmez.
+  // Boylece PlayerCar 60Hz re-render firtinasindan kurtulur (nitro aktifken bu
+  // zincir NitroBoostParticles ile birlesince hissedilir takilma yaratiyordu).
+  const [playerPos] = useState(() => [0, 0.1, -2]);
 
   const [leftTarget] = useState(() => {
     const obj = new THREE.Object3D();
@@ -611,17 +629,25 @@ function PlayerCar() {
   }, [gameState]);
 
   useFrame((state, delta) => {
-    if (gameOver || !group.current) return;
+    // PERF: subscribe etmiyoruz - en guncel referansi her frame oku.
+    const storeState = useGameStore.getState();
+    if (storeState.gameOver || !group.current) return;
 
     // FIX 6: Delta spike koruması
     const clampedDelta = Math.min(delta, 0.1);
 
     const currentX = group.current.position.x;
     const lerpSpeed = 5;
-    group.current.position.x = THREE.MathUtils.lerp(currentX, targetX, clampedDelta * lerpSpeed);
+    group.current.position.x = THREE.MathUtils.lerp(currentX, storeState.targetX, clampedDelta * lerpSpeed);
 
-    // Update player position for particles
-    setPlayerPos([group.current.position.x, group.current.position.y, group.current.position.z]);
+    // PERF: array icerigini mutate et, setState yok. Ayni referans NitroBoostParticles'a gider.
+    // ESLint react-hooks/immutability bunu yasaklar, ama R3F'de kasitli mutate
+    // pattern'i (referans sabit, icerik degisiyor) yaygin ve burada gerekli.
+    /* eslint-disable react-hooks/immutability */
+    playerPos[0] = group.current.position.x;
+    playerPos[1] = group.current.position.y;
+    playerPos[2] = group.current.position.z;
+    /* eslint-enable react-hooks/immutability */
 
     const moveDiff = (group.current.position.x - currentX) / clampedDelta;
     group.current.rotation.z = -moveDiff * 0.002;
@@ -634,7 +660,7 @@ function PlayerCar() {
 
     // FIX 1: Near miss kontrolü ve enemy passed güncellemesi
     // SAFETY: Filter valid enemies before collision check
-    const validEnemies = enemies.filter(enemy =>
+    const validEnemies = storeState.enemies.filter(enemy =>
       enemy &&
       typeof enemy === 'object' &&
       typeof enemy.x !== 'undefined' &&
@@ -679,7 +705,7 @@ function PlayerCar() {
     }
 
     // SAFETY: Filter valid coins before collection check
-    const validCoins = coins.filter(coin =>
+    const validCoins = storeState.coins.filter(coin =>
       coin &&
       typeof coin === 'object' &&
       typeof coin.x !== 'undefined' &&
@@ -1698,12 +1724,27 @@ const GameContent = () => {
 
 // ==================== ANA UYGULAMA ====================
 function Game() {
-  const {
-    speed, score, message, gameOver, gameState, countdown,
-    steer, cleanupTimer,
-    totalDistance, nearMissCount, nitro, maxNitro, isNitroActive,
-    activateNitro, deactivateNitro, currentLevel
-  } = useGameStore();
+  // PERF: Tum store'a destructure subscribe etmek yerine her field icin ayri
+  // selector. Game sadece kendi okudugu field degisince yeniden render olur
+  // (eskiden enemies/coins/particles gibi her frame degisen alanlar da Game'i
+  // 60Hz tetikliyordu).
+  const speed = useGameStore(s => s.speed);
+  const score = useGameStore(s => s.score);
+  const message = useGameStore(s => s.message);
+  const gameOver = useGameStore(s => s.gameOver);
+  const gameState = useGameStore(s => s.gameState);
+  const countdown = useGameStore(s => s.countdown);
+  const totalDistance = useGameStore(s => s.totalDistance);
+  const nearMissCount = useGameStore(s => s.nearMissCount);
+  const nitro = useGameStore(s => s.nitro);
+  const maxNitro = useGameStore(s => s.maxNitro);
+  const isNitroActive = useGameStore(s => s.isNitroActive);
+  const currentLevel = useGameStore(s => s.currentLevel);
+  // Action'lar Zustand'da stable referans - subscribe etmek render tetiklemez.
+  const steer = useGameStore(s => s.steer);
+  const cleanupTimer = useGameStore(s => s.cleanupTimer);
+  const activateNitro = useGameStore(s => s.activateNitro);
+  const deactivateNitro = useGameStore(s => s.deactivateNitro);
 
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
 
