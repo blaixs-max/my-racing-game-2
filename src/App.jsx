@@ -290,7 +290,10 @@ ParticleSystem.displayName = 'ParticleSystem';
 
 // ==================== MOBİL KONTROLLER ====================
 const MobileControls = memo(({ isLandscape = false }) => {
-  const { steer, activateNitro, deactivateNitro } = useGameStore();
+  // PERF: Selector ile her action'a ayri subscribe (action'lar stable referans).
+  const steer = useGameStore(s => s.steer);
+  const activateNitro = useGameStore(s => s.activateNitro);
+  const deactivateNitro = useGameStore(s => s.deactivateNitro);
   const intervalRef = useRef(null);
 
   useEffect(() => {
@@ -1100,7 +1103,8 @@ const Building = memo(({ width, height, side, type }) => {
 Building.displayName = 'Building';
 
 const SideObjects = memo(({ side }) => {
-  const { speed } = useGameStore();
+  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
+  const speed = useGameStore(s => s.speed);
   const [objects] = useState(() => new Array(30).fill(0).map((_, i) => { // Increased from 20 to 30 objects
     const rand = Math.random();
     let type = 'empty', height = 0, width = 0;
@@ -1265,7 +1269,8 @@ Barrier.displayName = 'Barrier';
 
 // ==================== STREET LIGHTS (OPTIMIZED) ====================
 const StreetLights = memo(() => {
-  const { speed } = useGameStore();
+  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
+  const speed = useGameStore(s => s.speed);
   const lightsRef = useRef();
 
   // OPTIMIZED: Reduced from 22 to 14 lights (every 150m instead of 100m)
@@ -1378,7 +1383,9 @@ StreetLights.displayName = 'StreetLights';
 
 // ==================== YOL VE ZEMİN (OPTIMIZED) ====================
 function RoadEnvironment() {
-  const { updateGame, speed } = useGameStore();
+  // PERF: Selector ile her field'a ayri subscribe. updateGame action stable.
+  const updateGame = useGameStore(s => s.updateGame);
+  const speed = useGameStore(s => s.speed);
   const leftStripesRef = useRef();
   const rightStripesRef = useRef();
 
@@ -1478,7 +1485,9 @@ function RoadEnvironment() {
 
 // ==================== KAMERA SHAKE ====================
 const CameraShake = memo(() => {
-  const { cameraShake, gameState } = useGameStore();
+  // PERF: Selector ile her field'a ayri subscribe.
+  const cameraShake = useGameStore(s => s.cameraShake);
+  const gameState = useGameStore(s => s.gameState);
   const { camera } = useThree();
 
   const originalPosition = useRef({
@@ -1554,7 +1563,8 @@ SkyEnvironment.displayName = 'SkyEnvironment';
 
 // ==================== SPEED LINES EFFECT ====================
 const SpeedLines = memo(() => {
-  const { speed } = useGameStore();
+  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
+  const speed = useGameStore(s => s.speed);
   const linesRef = useRef();
 
   // Create 50 lines (only once on mount)
@@ -1606,7 +1616,8 @@ SpeedLines.displayName = 'SpeedLines';
 
 // ==================== SPEED BLUR OVERLAY ====================
 const SpeedBlurOverlay = memo(() => {
-  const { speed } = useGameStore();
+  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
+  const speed = useGameStore(s => s.speed);
 
   if (speed < 160) return null;
 

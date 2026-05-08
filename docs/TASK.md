@@ -1,6 +1,34 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-08 (v25)
+> Son guncelleme: 2026-05-08 (v26)
+
+---
+
+## 2026-05-08: Faz-2 Selector Pattern Uzantısı (7 Component)
+
+**Bağlam:** Faz-1'de `Game()` ve `PlayerCar()` selectorless `useGameStore()` çağrılarından selector pattern'a alındı. Aynı anti-pattern dosyada 7 component daha kullanıyordu — destructure görünüşlü ama Zustand'da tüm store'a subscribe oluyor, her frame değişen alanlar (score/enemies/coins/particles/message/nitro/cameraShake) yüzünden gereksiz re-render alıyorlardı.
+
+**Değişiklikler (`src/App.jsx`, +18/-7 satır):**
+
+| Component | Eski | Yeni |
+|---|---|---|
+| `MobileControls` | `{ steer, activateNitro, deactivateNitro }` destructure | 3 ayrı action selector |
+| `SideObjects` | `{ speed }` destructure | `s => s.speed` selector |
+| `StreetLights` | `{ speed }` destructure | `s => s.speed` selector |
+| `RoadEnvironment` | `{ updateGame, speed }` destructure | 2 ayrı selector |
+| `CameraShake` | `{ cameraShake, gameState }` destructure | 2 ayrı selector |
+| `SpeedLines` | `{ speed }` destructure | `s => s.speed` selector |
+| `SpeedBlurOverlay` | `{ speed }` destructure | `s => s.speed` selector |
+
+**Doğrulama:**
+- `grep "useGameStore()" src/App.jsx` → boş (selectorless çağrı kalmadı)
+- `npm run lint` ✓ temiz
+- `npm test` ✓ 20/20
+- `npm run build` ✓ 43.92s
+
+**Beklenen kazanç:** Faz-1'in yangın söndürmesinin üstüne küçük noise temizliği. RoadEnvironment + StreetLights + SideObjects yalnızca `speed` değişince render olur (öncesinde 60Hz). MobileControls action subscription'larında render tetiklenmez (action'lar stable). Mobilde mikro-jank ve transition akıcılığı bir kademe daha düzelir.
+
+**Risk:** DÜŞÜK. Render hattı, oyun mantığı tek satır değişmedi.
 
 ---
 
