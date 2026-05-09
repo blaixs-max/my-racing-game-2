@@ -1,6 +1,77 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-09 (v28)
+> Son guncelleme: 2026-05-09 (v29)
+
+---
+
+## 2026-05-09: Sprint 8 KAPALI — token re-launch (4U24 → ELaSG, LMX) + landing senkron + Phase 1b ops
+
+**Bağlam:** Sprint 8 token launch aynı gün **iki kez** uygulandı. İlk launch (PR #112, mint `4U24...pump`) kısa süre prod'da kaldı; aynı gün re-launch ile mint `ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump`'a geçildi. Aynı zamanda landing repo Sprint 6/Sprint 8 boyunca güncellenmediği fark edildi (TOKABU mint + 2026-05-01 cycle anchor takılı kalmıştı) — bu PR'larla landing tam senkronize edildi.
+
+### Racing PR #113 — re-launch mint cutover (`94cadf8`)
+
+`4U24...pump` → `ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump`. PR #112'nin aynı dosya seti, sadece yeni mint string'i:
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `src/solana.config.js` | `TOKEN_CONFIG.mint` → ELaSG |
+| `supabase/functions/verify-payment/index.ts` | `PAYMENT_TOKEN_MINT` fallback → ELaSG |
+| `supabase/functions/reconcile-payments/index.ts` | aynı pattern |
+| `supabase/functions/calculate-daily-rewards/index.ts` | `TOKABU_MINT` const fallback → ELaSG |
+
+**Toplam:** +4/-4 satır (4 dosya). `name=Lumexia`, `symbol=LMX`, `decimals=6`, receiver `T6Ekv...mGg`, cycle anchor `2026-05-09` — hepsi değişmedi.
+
+### Landing PR #20 — full cutover (`6f5f043`)
+
+Landing repo Sprint 1 boyunca TOKABU'da kalmıştı; PR #112'de de güncellenmemişti. Tek PR'da:
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `lib/token-config.ts` | `TOKEN_CONFIG`: TOKABU → LMX (mint ELaSG, explorerUrl + pumpFunUrl yeni mint) |
+| `lib/timer-context.tsx` | `CYCLE_ANCHOR_DATE`: 2026-05-01 → 2026-05-09 |
+| `lib/pool-context.tsx` | `CYCLE_ANCHOR_DATE`: 2026-05-01 → 2026-05-09 |
+| `components/leaderboard-section.tsx` | anchor 2026-05-09; hardcoded `$TOKABU` → `${TOKEN_CONFIG.symbol}`; TOKEN_CONFIG import |
+
+**Toplam:** +20/-13 satır (4 dosya). Landing build ✓.
+
+### Phase 1b ops (kullanıcı, Dashboard SQL)
+
+```sql
+UPDATE reward_pool_distribution
+SET paid_at = NOW(),
+    paid_in_token = 'CANCELLED',
+    paid_tx_hash = 'RELAUNCH_WIPE_2026_05_09'
+WHERE paid_at IS NULL;
+
+DELETE FROM daily_leaderboard;
+DELETE FROM daily_leaderboard_history;
+```
+
+**Sonuç:** Eski TOKABU/4U24 dönemi cycle leaderboard'ları temizlendi; yeni LMX/ELaSG dönemi 2026-05-09 anchor'la temiz başladı.
+
+### Supabase Secrets (kullanıcı, Dashboard)
+
+- `PAYMENT_TOKEN_MINT` = `ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump` ✓
+- `TOKEN_SYMBOL` = `LMX` (PR #112'den beri zaten doğru) ✓
+- `PAYMENT_RECEIVER_ADDRESS` = `T6Ekv...mGg` (değişmedi) ✓
+- `TOKEN_DECIMALS` = 6 default
+
+### Risk + Doğrulama
+
+**Risk:** ORTA-DÜŞÜK — küçük kapsam değişiklikler (4+4 dosya, +24/-17 satır toplam), DB ops idempotent (cycle reset clean slate).
+
+**Açık aksiyon (kullanıcı):**
+- Smoke test: yeni LMX (ELaSG mint) ile $1 satın alma → credit eklenmeli, transactions tablosunda yeni satır
+- DexScreener'da pool indekslenmesi (Edge Function fiyat fetch'in çalışması için)
+- SEO/Search Console refresh — `lumexia.net` yeni LMX bilgisini Google'a tazeletmek
+
+### v0.app uyarısı (memory `feedback_v0_sync_risk.md`)
+
+Landing'de PR #20'nin dokunduğu 4 dosyaya v0.app prompt'unda dokunma:
+- `lib/token-config.ts`
+- `lib/timer-context.tsx`
+- `lib/pool-context.tsx`
+- `components/leaderboard-section.tsx`
 
 ---
 

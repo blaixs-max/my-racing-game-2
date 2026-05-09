@@ -1,10 +1,10 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-05-09 (v13)
+> Son guncelleme: 2026-05-09 (v14)
 
 ## Mevcut Durum Ozeti
 
-Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 + Sprint 6 + Sprint 7-mini tamamlandi. **Cycle reward payout pipeline operasyonel:** her cycle sonu Edge Function USD + SOL + TOKABU yazar, ekip manuel runbook ile ödeme yapar ve `paid_at` ile işaretler. Render hattı Faz-1/Faz-2 ile selector pattern'a alındı; yan çevre CC0 asset pack'lerle gerçek 3D'ye geçti.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. **LMX token** (mint `ELaSG...pump`, Sprint 8 sonrası 2026-05-09) ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 + Sprint 6 + Sprint 7-mini + **Sprint 8 (token launch)** tamamlandi. Cycle reward payout pipeline operasyonel; cycle anchor 2026-05-09. Render hattı Faz-1/Faz-2 ile selector pattern'a alındı; yan çevre CC0 asset pack'lerle gerçek 3D'ye geçti.
 
 **Aktif sprint durumu (2026-05-09):**
 
@@ -16,10 +16,10 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 | 6 (48h cycle + UI) | ✅ KAPALI | Tüm PR'lar prod'da |
 | 7-mini (manual payout) | ✅ KAPALI | 3 PR (#106, #107, #108) prod'da; pipeline operasyonel |
 | 7 (tam otomatik transfer) | ⏸️ ASKIDA | Treasury Vault + distribute-rewards + retry queue + monitoring (memory: `project_payment_process_pending.md`) |
-| **Faz-1/Faz-2 render perf** | **✅ KAPALI** | **`d6cd4f6` + `bcfd091` — Game/PlayerCar selector pattern + module-level laneOccupancy cache + 7 ek component selector** |
-| **UI cleanup** | **✅ KAPALI** | **PR #110 — launcher dead bottom-nav bar kaldırıldı** |
-| **Asset env (CC0)** | **✅ KAPALI** | **`2d48460` + `2d8e584` — KayKit + Quaternius asset packs (~28 MB) + SideObjects asset-based zone-render rewrite** |
-| **8 (Token launch)** | **🔵 AÇIK** | **Yeni token mint hazır → `solana.config.js` + Supabase Secrets + landing config + (opsiyonel) DB cleanup. Plan aşağıda.** |
+| Faz-1/Faz-2 render perf | ✅ KAPALI | `d6cd4f6` + `bcfd091` — selector pattern + module-level laneOccupancy cache |
+| UI cleanup | ✅ KAPALI | PR #110 — launcher dead bottom-nav bar |
+| Asset env (CC0) | ✅ KAPALI | `2d48460` + `2d8e584` — KayKit + Quaternius asset packs |
+| **8 (Token launch)** | **✅ KAPALI** | **PR #112 (4U24...pump) → re-launch PR #113 (ELaSG...pump aktif) + Landing PR #20 senkron + Phase 1b ops; aktif token: LMX mint `ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump`, anchor 2026-05-09.** |
 
 **Son merge edilen PR'lar / commit'ler (kronolojik):**
 - Racing PR #99/#100/#101: Payment self-healing — 2026-05-01
@@ -37,6 +37,10 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - **Racing PR #110 (`9242b99`): launcher dead bottom-nav bar removal — 2026-05-08**
 - **Racing `2d48460`: CC0 asset packs (KayKit + Quaternius, ~28 MB) — 2026-05-09**
 - **Racing `2d8e584`: SideObjects asset-based zone-render rewrite (urban/rural/forest, 41 distinct asset, AssetModel clone) — 2026-05-09**
+- **Racing PR #111 (`9a5b284`): docs sync (TASK + PLAN + PROJECT_DOCS for 2026-05-08/09 + open Sprint 8) — 2026-05-09**
+- **Racing PR #112 (`cb8c56c`): Sprint 8 ilk launch — TOKABU → LMX (mint `4U24...pump`), cycle anchor 2026-05-01 → 2026-05-09 (migration `20260509200000_cycle_reset_token_launch.sql`) — 2026-05-09**
+- **Racing PR #113 (`94cadf8`): Sprint 8 re-launch — mint `4U24...pump` → `ELaSG...pump` (LMX), 4 dosya +4/-4 satır — 2026-05-09**
+- **Landing PR #20 (`6f5f043`): Sprint 8 landing senkron — TOKEN_CONFIG (TOKABU → LMX, mint ELaSG) + 3 cycle anchor (2026-05-01 → 2026-05-09) + leaderboard hardcoded "$TOKABU" → `${TOKEN_CONFIG.symbol}` — 2026-05-09**
 
 **Tamamlanmis altyapi:**
 - Branch protection her iki repo'da aktif (main'e direkt push yasak, force push yasak, 1 review zorunlu, CI status check)
@@ -74,14 +78,15 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - ✅ #108 (`2f1100a`) — `docs/RUNBOOKS/manual-payout.md` (382 satır, 10 bölüm + troubleshooting)
 
 **Açık aksiyonlar (kullanıcı):**
-1. **Sprint 8 (Token Launch) — AÇIK, aşağıda detay plan.** Yeni token mint hazır olduğunda kullanıcıdan parametreler alınacak ve PR açılacak.
-2. `reconcile-payments` `dryRun: true` ilk test (PR #99 sonrası açık)
-3. `reconcile-payments` cron enable (Dashboard SQL)
-4. Google Search Console "Request Indexing" — lumexia.net
-5. Cycle manual payout dry-run — `docs/RUNBOOKS/manual-payout.md` adım adım uygula, ekibe rehber test edilsin
+1. **Smoke test:** yeni LMX (mint ELaSG...pump) ile $1 satın alma → credit eklenmeli, transactions tablosunda yeni satır
+2. **DexScreener pool indekslenmesi** — Edge Function fiyat fetch'in çalışması için (multi-currency reward yazımı)
+3. **SEO/Search Console refresh** — `lumexia.net` yeni LMX bilgisini Google'a tazeletmek (URL Inspection + Sitemap submit)
+4. `reconcile-payments` `dryRun: true` ilk test (PR #99 sonrası açık)
+5. `reconcile-payments` cron enable (Dashboard SQL)
+6. Cycle manual payout dry-run — `docs/RUNBOOKS/manual-payout.md` adım adım uygula
 
 **Açık tartışmalar (ileride):**
-- Ödeme süreci tercihi (manuel/hibrit/otomatik) — Sprint 7 plan açma ön koşulu
+- Ödeme süreci tercihi (manuel/hibrit/otomatik) — Sprint 7 tam otomatik transfer plan açma ön koşulu
 
 ---
 
