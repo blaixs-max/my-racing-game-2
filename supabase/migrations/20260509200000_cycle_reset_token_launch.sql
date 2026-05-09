@@ -140,20 +140,23 @@ END;
 $function$;
 
 -- ---------------------------------------------------------------------------
--- Expand paid_in_token CHECK to allow 'CANCELLED'
+-- Expand paid_in_token CHECK to allow 'LMX' and 'CANCELLED'
 -- ---------------------------------------------------------------------------
--- Pre-launch wipe (Phase 1b Option B in token-launch.md) marks unpaid
--- reward rows with paid_in_token = 'CANCELLED' to preserve audit trail
--- while signalling these rewards will not be paid (clean slate).
+-- LMX: new token symbol post-launch. Manual cycle payouts in the new token
+--      will write paid_in_token = 'LMX'. TOKABU stays in the allowed set
+--      for backward compatibility with pre-launch payment audit data.
+-- CANCELLED: pre-launch wipe marker (Phase 1b Option B in token-launch.md).
+--            Marks unpaid reward rows that will not be paid (clean slate),
+--            preserves audit trail.
 
 ALTER TABLE public.reward_pool_distribution
   DROP CONSTRAINT IF EXISTS reward_pool_distribution_paid_in_token_check;
 
 ALTER TABLE public.reward_pool_distribution
   ADD CONSTRAINT reward_pool_distribution_paid_in_token_check
-  CHECK (paid_in_token IN ('SOL', 'TOKABU', 'CANCELLED') OR paid_in_token IS NULL);
+  CHECK (paid_in_token IN ('SOL', 'TOKABU', 'LMX', 'CANCELLED') OR paid_in_token IS NULL);
 
 COMMENT ON COLUMN public.reward_pool_distribution.paid_in_token IS
-  'Which asset was actually transferred to the wallet: SOL, TOKABU, or CANCELLED (pre-launch wipe). NULL until ops team confirms the transfer.';
+  'Which asset was actually transferred to the wallet: SOL, LMX (new token), TOKABU (pre-launch legacy), or CANCELLED (pre-launch wipe). NULL until ops team confirms the transfer.';
 
 COMMIT;

@@ -36,9 +36,9 @@ export const DEFAULT_RPC_ENDPOINT = RPC_ENDPOINTS[0];
 
 // Payment token - yeni token'a gecerken sadece buradaki degerleri guncelle.
 export const TOKEN_CONFIG = {
-  mint: 'H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump',
-  name: 'Tokabu',
-  symbol: 'TOKABU',
+  mint: '4U24MWsTjDh4ADPqZinFcwmmsDdHizzwnM7Ae8RXpump',
+  name: 'Lumexia',
+  symbol: 'LMX',
   decimals: 6,
   logoUrl: ''
 };

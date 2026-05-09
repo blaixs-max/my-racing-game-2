@@ -107,7 +107,7 @@ describe('TOKEN_CONFIG sanity', () => {
   it('mint is a valid Solana address', () => {
     expect(() => new PublicKey(TOKEN_CONFIG.mint)).not.toThrow();
   });
-  it('decimals is 6 (TOKABU)', () => {
+  it('decimals is 6 (LMX)', () => {
     expect(TOKEN_CONFIG.decimals).toBe(6);
   });
   it('symbol is set', () => {

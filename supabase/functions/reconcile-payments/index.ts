@@ -41,8 +41,8 @@ const SOLANA_MAINNET_RPCS = [
 
 const PAYMENT_TOKEN_MINT =
   Deno.env.get('PAYMENT_TOKEN_MINT') ??
-  'H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump';
-const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'TOKABU';
+  '4U24MWsTjDh4ADPqZinFcwmmsDdHizzwnM7Ae8RXpump';
+const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'LMX';
 const PAYMENT_RECEIVER =
   Deno.env.get('PAYMENT_RECEIVER_ADDRESS') ??
   Deno.env.get('PAYMENT_RECEIVER') ??

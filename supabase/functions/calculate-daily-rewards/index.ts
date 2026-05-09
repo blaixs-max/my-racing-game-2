@@ -35,9 +35,11 @@ const CYCLE_ANCHOR_DATE = '2026-05-09'
 const MS_PER_DAY = 86_400_000
 
 // Token + SOL identifiers for price API calls. PAYMENT_TOKEN_MINT mirrors
-// the verify-payment / reconcile-payments env contract.
+// the verify-payment / reconcile-payments env contract. Const name kept
+// as TOKABU_MINT for diff readability against Sprint 7-mini PR; cosmetic
+// rename to LMX_MINT planned in Sprint 8 Phase 6 cleanup.
 const TOKABU_MINT = Deno.env.get('PAYMENT_TOKEN_MINT')
-  ?? 'H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump'
+  ?? '4U24MWsTjDh4ADPqZinFcwmmsDdHizzwnM7Ae8RXpump'
 const SOL_MINT = 'So11111111111111111111111111111111111111112'
 const COINGECKO_SOL_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'
