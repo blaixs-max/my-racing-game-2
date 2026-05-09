@@ -1,8 +1,14 @@
-# Lumexia Racing Game - Proje Dokumantasyonu (v7 - 2026-05-01)
+# Lumexia Racing Game - Proje Dokumantasyonu (v8 - 2026-05-09)
 
 ## Genel Bakis
 
 Lumexia Racing Game, Solana blockchain uzerinde TOKABU token ile calisan, 3D tarayici tabanli bir araba yarisi oyunudur. Oyuncular kripto cuzdan baglayarak kredi satin alir, trafik arasinda slalom yaparak puan toplar ve liderlik tablosunda yarisirler.
+
+> **2026-05-09 itibariyle güncellemeler:**
+> - Render hattı Faz-1/Faz-2 ile selector pattern'a alındı (Game/PlayerCar + 7 ek component); `playerPos` mutate-in-place; module-level `_laneOccupancyCache` `updateGame` allocation'ını sıfırladı.
+> - Yan çevre asset-based: 3 CC0 pack (KayKit City Builder Bits + Quaternius Nature Pack + Quaternius Farm Buildings, ~28 MB) + zone-based render (urban/rural/forest, 41 distinct asset, `AssetModel` clone pattern).
+> - Launcher'dan dekoratif bottom-nav bar kaldırıldı.
+> - Sprint 8 (yeni token launch) açık; plan `docs/PLAN.md`'de.
 
 **Canli URL:** Netlify uzerinden deploy ediliyor (game.lumexia.net)
 **Landing site:** lumexia.net (ayrı repo: v0-lumexia-landing-page-V0). İki repo'nun Supabase noktasında nasıl buluştuğu için bkz. `docs/INTEGRATION.md`.
@@ -87,12 +93,24 @@ my-racing-game-2/
 │       ├── sport_car.glb           # Oyuncu araci (F1, scale: 0.16)
 │       ├── ferrari.glb             # Dusman: sport araba (scale: 1.21)
 │       ├── truck.glb               # Dusman: kamyon (scale: 1.678)
-│       ├── suv.glb                 # (preload edilmis ama kullanilmiyor - suv tipi Car 2 kullaniyor)
-│       ├── Car1/scene.gltf         # (preload edilmis ama kullanilmiyor - sedan Car 3 kullaniyor)
+│       ├── suv.glb                 # (preload edilmis ama kullanilmiyor)
+│       ├── Car1/scene.gltf         # (preload edilmis ama kullanilmiyor)
 │       ├── Car 2/scene.gltf        # Dusman: SUV (scale: 1.53)
 │       ├── Car 3/scene.gltf        # Dusman: sedan (scale: 1.35)
-│       ├── coin.glb                # (kullanilmiyor - SpinningCoin procedurel cylinder + coin_logo.png)
-│       └── tree.glb                # Cevre agaci (scale: 2.5)
+│       ├── coin.glb                # (kullanilmiyor)
+│       ├── tree.glb                # Eski cevre agaci (kullanilmiyor; SideObjects artik Quaternius Trees pack)
+│       ├── Kaykit-city/KayKit_City_Builder_Bits_1.0_FREE/Assets/gltf/  # CC0 KayKit
+│       │   ├── building_A..H.gltf  # 8 sehir binasi
+│       │   ├── watertower.gltf     # Su kulesi
+│       │   ├── streetlight, dumpster, firehydrant, bench, trash_A/B, box_A/B, bush.gltf  # City props
+│       │   └── (traffic_light, road_*, car_*: dosyada var, kullanilmiyor)
+│       ├── Nature-pack/            # CC0 Quaternius Stylized Nature
+│       │   ├── Pine_Trees, Birch_Trees, Maple_Trees, Trees, Palm_Trees, Dead_Trees.glb
+│       │   └── Bushes, Flower_Bushes, Flowers, Grass, Rocks.glb
+│       └── Farm-buildings/         # CC0 Quaternius Farm Buildings
+│           ├── Barn, Big_Barn, Small_Barn, Open_Barn.glb
+│           ├── Silo, Silo_House, ChickenCoop, Tower_Windmill.glb
+│           └── Fence.glb (+ varyant)
 ├── supabase/
 │   ├── functions/
 │   │   ├── verify-payment/index.ts # Odeme dogrulama Edge Function (TypeScript/Deno)
@@ -286,8 +304,9 @@ sport:  65-75 km/h * carpan
 | `PlayerCar` | 590-775 | Oyuncu araci: hareket, carpisma, near miss, coin toplama, far isiklari |
 | `SingleCoin` | 778-816 | Altin coin: MeshPhysicalMaterial, metalik, parlak |
 | `Traffic` | 822-906 | Trafik sistemi: dusman render, serit degisimi tilt |
-| `Building` | 930-1074 | Bina bileseni: 6 tip (apartment, villa, modern, shop, townhouse, small) |
-| `SideObjects` | 1078-1211 | Yol kenari objeler: binalar + agaclar (30 adet, sonsuz dongu) |
+| `Building` | (eski) | 6-tipli prosedürel bina (apartment/villa/modern/shop/townhouse/small) — **dead code, tree-shake'le drop** |
+| `AssetModel` | yeni | `useGLTF(path)` + `scene.clone()` — aynı asset'i birden fazla pozisyonda reuse eder |
+| `SideObjects` | yeni | Yol kenari asset render — zone bazli (urban/rural/forest), 30 instance/side, 4-6 ardisik aynı zone'da, sonra geçiş. URBAN_BUILDINGS (KayKit 9), RURAL_BUILDINGS (Farm 8), TREE_ASSETS (Quaternius 6), SMALL_NATURE (5), CITY_PROPS (KayKit 9), FARM_PROPS (2). 41 distinct asset preloaded. Per-instance scale jitter 0.85-1.15 + Y rotasyon. |
 | `Barrier` | 1214-1240 | Yol bariyeri: 40 direk + uzun ray |
 | `StreetLights` | 1243-1353 | Sokak lambalari: 14 adet (7 cift), hareket eden, point light |
 | `RoadEnvironment` | 1356-1453 | Yol: GPU instanced serit cizgileri (60), zemin, bariyer, lambalar |
@@ -761,12 +780,18 @@ Near Miss:
 8. **Spatial Partitioning:** Serit bazli dusman gruplama (laneOccupancy) O(1) lookup
 9. **Object Pool:** Dusman ve coin objeleri yeniden kullanim (for loop, spread yok)
 10. **Single Pass Update:** Coin/dusman guncelleme tek dongu (filter/map zinciri yok)
+18. **Module-level laneOccupancy cache (Faz-1):** `_laneOccupancyCache` `updateGame` her frame `{}+3*[]` allocation'ı yerine `length=0` reset. 60 FPS × 4 obje = saniyede 240 GC adayı sıfırlandı.
+
+### React Render
+19. **Selector pattern (Faz-1/Faz-2):** `Game()`, `PlayerCar()`, `MobileControls`, `SideObjects`, `StreetLights`, `RoadEnvironment`, `CameraShake`, `SpeedLines`, `SpeedBlurOverlay` — selectorless `useGameStore()` destructure yerine her field için ayrı `useGameStore(s => s.X)`. Component yalnız okuduğu field değişince render olur.
+20. **`useGameStore.getState()` in useFrame:** PlayerCar'ın `useFrame` callback'i high-churn alanları (enemies/coins/targetX/gameOver) subscribe etmez, her frame state'ten okur — `enemies/coins` array referans değişimi PlayerCar'ı tetiklemez.
+21. **Mutate-in-place playerPos:** `useState(() => [0, 0.1, -2])` + index mutate (`playerPos[0] = ...`). NitroBoostParticles'a aynı array referansı gider, prop reconciliation yok.
 
 ### Memory
-11. **Shared Materials:** Bina materyalleri global havuzda (new yok)
+11. **Shared Materials:** Eski Building materyalleri global havuzda (new yok) — şu an dead code
 12. **Cached THREE objeler:** tempMatrix, tempColor, tempScale tekrar kullanilir
 13. **Material Dispose:** useEffect cleanup'ta dispose() cagilir
-14. **Preload:** 3D modeller `useGLTF.preload()` ile onceden yuklenir
+14. **Preload:** 3D modeller `useGLTF.preload()` ile onceden yuklenir; environment asset'lerinin tamamı (41 adet) preload listesinde
 
 ### Build
 15. **Code Splitting:** 4 vendor chunk (three, solana, supabase, react)

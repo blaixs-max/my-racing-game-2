@@ -1,10 +1,48 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-08 (v27)
+> Son guncelleme: 2026-05-09 (v28)
 
 ---
 
-## 2026-05-08: Launcher dekoratif bottom-nav bar kaldırıldı
+## 2026-05-09: Asset-based side environment + CC0 asset packs
+
+**Bağlam:** Yan çevre (binalar, ağaçlar, props) önceden box + cone + paylaşımlı materyallerle prosedürel olarak çiziliyordu. Görsel kalite düşüktü, çeşitlilik az. Bu iki commit gerçek 3D asset'lere geçişi tamamladı.
+
+### Commit `2d48460` — CC0 asset packs (~28 MB)
+
+**Eklenen klasörler (`public/models/` altında):**
+
+| Klasör | İçerik | Lisans |
+|--------|--------|--------|
+| `Kaykit-city/KayKit_City_Builder_Bits_1.0_FREE/Assets/gltf/` | 8 şehir binası (A-H) + watertower + city props (streetlight, dumpster, firehydrant, bench, trash, boxes, bush) + traffic lights, road tiles, sample cars (kullanılmıyor) | CC0 — KayKit |
+| `Nature-pack/` | 6 ağaç tipi (Pine, Birch, Maple, Trees, Palm, Dead) + Bushes, Flower_Bushes, Flowers, Grass, Rocks | CC0 — Quaternius |
+| `Farm-buildings/` | 4 barn varyantı (Barn, Big_Barn, Small_Barn, Open_Barn) + Silo + Silo_House + ChickenCoop + Tower_Windmill + 2 fence | CC0 — Quaternius |
+
+`.gitattributes` LFS değil — dosyalar standart blob, klonlamada toplam ~28 MB ek yük.
+
+### Commit `2d8e584` — SideObjects asset-based rewrite
+
+**`src/App.jsx` SideObjects component'i (+219/-96 satır):**
+
+- **Zone sistemi:** 3 bölge (urban, rural, forest), 4-6 ardışık item aynı zone'da, sonra geçiş — komşuluk hissi
+- **Kategori dağılımı (zone'a göre):**
+  - urban → building (KayKit) + extras (city props)
+  - rural → building (Farm) + extras (Farm fences) + ağaçlar
+  - forest → tree + small nature (bushes/flowers/grass/rocks)
+- **41 distinct asset** preloaded via `useGLTF.preload` (Suspense gap önleme)
+- **`AssetModel` component:** `useGLTF` ile yüklenen scene'i `clone()` eder — aynı asset birden fazla pozisyonda reuse
+- **Per-instance jitter:** `scale * (0.85-1.15)` ve random Y rotasyon — dağılım çeşitliliği, model proporsiyonu bozulmaz
+- **Building auto-rotate:** binalar `side` parametresine göre yola döner
+
+**Eski `Building` component'i (apartment/villa/modern_house/shop/townhouse/small)** hala App.jsx'te tanımlı ama artık çağrılmıyor → tree-shake ile prod build'inde drop edilir.
+
+**Risk:** DÜŞÜK — sadece görsel/asset değişikliği. Oyun mantığı, çarpışma kuralları, skor, anti-cheat, wallet/credit akışı dokunulmadı.
+
+**Doğrulama (üretici tarafından):** `npm run lint` ✓ + `npm run build` ✓ + manuel oyun testi geçti.
+
+---
+
+## 2026-05-08: Launcher dekoratif bottom-nav bar kaldırıldı (PR #110)
 
 **Bağlam:** `RealLauncherUI.jsx` içinde launcher ekranının altında 5 ikonlu (◂ ✏ ☜ ⊕ ⊞) sabit bir "Bottom Navigation Bar" render ediliyordu. Hiçbir butonun `onClick`'i yoktu, hiçbir state'i değiştirmiyor, navigasyon yapmıyordu — saf dekorasyon. Kullanıcı raporladı (UI'da görünüp işlevsiz kafa karıştırıyor).
 
