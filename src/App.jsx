@@ -1102,119 +1102,236 @@ const Building = memo(({ width, height, side, type }) => {
 
 Building.displayName = 'Building';
 
-const SideObjects = memo(({ side }) => {
-  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
-  const speed = useGameStore(s => s.speed);
-  const [objects] = useState(() => new Array(30).fill(0).map((_, i) => { // Increased from 20 to 30 objects
-    const rand = Math.random();
-    let type = 'empty', height = 0, width = 0;
+// ==================== ASSET-BASED ENVIRONMENT (CC0 packs) ====================
+// KayKit City Builder Bits + Quaternius Nature Pack + Quaternius Farm Buildings.
+// Eski box+cone Building/extras component'leri yukarida tanimli ama artik
+// kullanilmiyor (dead code, build'de tree-shake olur).
 
-    // Increased building density: ~65% buildings, ~25% trees, ~10% empty
-    if (rand > 0.75) {
-      type = 'tree';
-      width = 2 + rand * 2;
-      height = 5 + rand * 5;
-    } else if (rand > 0.1) {
-      // Assign varied building types
-      const buildingRand = Math.random();
-      if (buildingRand > 0.85) {
-        type = 'apartment';
-        width = 12;
-        height = 30 + Math.random() * 40;
-      } else if (buildingRand > 0.7) {
-        type = 'villa';
-        width = 10 + Math.random() * 3;
-        height = 8 + Math.random() * 4;
-      } else if (buildingRand > 0.5) {
-        type = 'modern_house';
-        width = 8 + Math.random() * 2;
-        height = 10 + Math.random() * 5;
-      } else if (buildingRand > 0.3) {
-        type = 'shop';
-        width = 7 + Math.random() * 3;
-        height = 5 + Math.random() * 3;
-      } else if (buildingRand > 0.15) {
-        type = 'townhouse';
-        width = 6 + Math.random() * 2;
-        height = 12 + Math.random() * 6;
-      } else {
-        type = 'small_house';
-        width = 8;
-        height = 6;
-      }
+const KK = '/models/Kaykit-city/KayKit_City_Builder_Bits_1.0_FREE/Assets/gltf';
+
+// Asset listeleri. scale degerleri bina/agac boyutlarini yola uydurur.
+// KayKit ve Quaternius modelleri 1 unit ≈ 1 metre standardinda; scale 2-3 ile
+// gercek boyut hissini verir.
+const URBAN_BUILDINGS = [
+  { path: `${KK}/building_A.gltf`, scale: 3.5 },
+  { path: `${KK}/building_B.gltf`, scale: 3.5 },
+  { path: `${KK}/building_C.gltf`, scale: 3.5 },
+  { path: `${KK}/building_D.gltf`, scale: 3.5 },
+  { path: `${KK}/building_E.gltf`, scale: 3.5 },
+  { path: `${KK}/building_F.gltf`, scale: 3.5 },
+  { path: `${KK}/building_G.gltf`, scale: 3.5 },
+  { path: `${KK}/building_H.gltf`, scale: 3.5 },
+  { path: `${KK}/watertower.gltf`, scale: 3.0 }
+];
+
+const RURAL_BUILDINGS = [
+  { path: '/models/Farm-buildings/Barn.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/Big_Barn.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/Small_Barn.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/Open_Barn.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/Silo_House.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/Silo.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/ChickenCoop.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/Tower_Windmill.glb', scale: 2.5 }
+];
+
+const TREE_ASSETS = [
+  { path: '/models/Nature-pack/Pine_Trees.glb', scale: 2.5 },
+  { path: '/models/Nature-pack/Birch_Trees.glb', scale: 2.5 },
+  { path: '/models/Nature-pack/Maple_Trees.glb', scale: 2.5 },
+  { path: '/models/Nature-pack/Trees.glb', scale: 2.5 },
+  { path: '/models/Nature-pack/Palm_Trees.glb', scale: 2.5 },
+  { path: '/models/Nature-pack/Dead_Trees.glb', scale: 2.5 }
+];
+
+const SMALL_NATURE = [
+  { path: '/models/Nature-pack/Bushes.glb', scale: 1.8 },
+  { path: '/models/Nature-pack/Flower_Bushes.glb', scale: 1.8 },
+  { path: '/models/Nature-pack/Flowers.glb', scale: 1.8 },
+  { path: '/models/Nature-pack/Grass.glb', scale: 1.8 },
+  { path: '/models/Nature-pack/Rocks.glb', scale: 2.0 }
+];
+
+const CITY_PROPS = [
+  { path: `${KK}/streetlight.gltf`, scale: 2.5 },
+  { path: `${KK}/dumpster.gltf`, scale: 2.5 },
+  { path: `${KK}/firehydrant.gltf`, scale: 2.5 },
+  { path: `${KK}/bench.gltf`, scale: 2.5 },
+  { path: `${KK}/trash_A.gltf`, scale: 2.5 },
+  { path: `${KK}/trash_B.gltf`, scale: 2.5 },
+  { path: `${KK}/box_A.gltf`, scale: 2.5 },
+  { path: `${KK}/box_B.gltf`, scale: 2.5 },
+  { path: `${KK}/bush.gltf`, scale: 2.5 }
+];
+
+const FARM_PROPS = [
+  { path: '/models/Farm-buildings/Fence.glb', scale: 2.5 },
+  { path: '/models/Farm-buildings/Fence-e02PFKKhbr.glb', scale: 2.5 }
+];
+
+// Tum asset'leri preload et (ilk render'da Suspense bekleme suresini azaltir)
+[...URBAN_BUILDINGS, ...RURAL_BUILDINGS, ...TREE_ASSETS, ...SMALL_NATURE, ...CITY_PROPS, ...FARM_PROPS]
+  .forEach(a => useGLTF.preload(a.path));
+
+// Generic asset render component. Scene'i clone'lar (her instance bagimsiz).
+function AssetModel({ path, scale = 1, rotY = 0 }) {
+  const { scene } = useGLTF(path);
+  const cloned = useMemo(() => scene.clone(true), [scene]);
+  return <primitive object={cloned} scale={scale} rotation={[0, rotY, 0]} />;
+}
+
+// ==================== ZONE / SPAWN LOGIC ====================
+// Bolgeler: urban (KayKit binalar), rural (Farm), forest (sadece dogal yesil)
+const ZONE_KEYS = ['urban', 'rural', 'forest'];
+
+function pickZone(prev) {
+  let z = ZONE_KEYS[Math.floor(Math.random() * ZONE_KEYS.length)];
+  if (z === prev) z = ZONE_KEYS[Math.floor(Math.random() * ZONE_KEYS.length)];
+  return z;
+}
+
+// Bolgeye gore item kategori dagilimi: 'building' | 'tree' | 'small' | 'empty'
+function pickCategoryForZone(zone) {
+  const r = Math.random();
+  if (zone === 'urban') {
+    if (r < 0.65) return 'building';
+    if (r < 0.78) return 'tree';
+    if (r < 0.92) return 'small';
+    return 'empty';
+  }
+  if (zone === 'rural') {
+    if (r < 0.45) return 'building';
+    if (r < 0.78) return 'tree';
+    if (r < 0.95) return 'small';
+    return 'empty';
+  }
+  // forest
+  if (r < 0.85) return 'tree';
+  if (r < 0.97) return 'small';
+  return 'empty';
+}
+
+function pickAssetByCategory(zone, category, lastPath) {
+  let pool;
+  if (category === 'building') pool = zone === 'urban' ? URBAN_BUILDINGS : RURAL_BUILDINGS;
+  else if (category === 'tree') pool = TREE_ASSETS;
+  else if (category === 'small') pool = SMALL_NATURE;
+  else return null;
+  // Ardisik ayni asset engeli (bina + small icin; agac tekrar ormanlik)
+  let pick = pool[Math.floor(Math.random() * pool.length)];
+  if (category !== 'tree') {
+    let attempts = 0;
+    while (pick.path === lastPath && attempts < 3) {
+      pick = pool[Math.floor(Math.random() * pool.length)];
+      attempts++;
     }
+  }
+  return pick;
+}
 
-    return { z: -i * 40, type, height, width, offset: (Math.random() - 0.5) * 20 }; // Reduced spacing from 50 to 40
-  }));
+// Yan ekstra prop (yola yakin) - bolgeye gore turler
+function pickExtraAsset(zone) {
+  const r = Math.random();
+  if (zone === 'urban') {
+    if (r < 0.35) return CITY_PROPS[Math.floor(Math.random() * CITY_PROPS.length)];
+    return null;
+  }
+  if (zone === 'rural') {
+    if (r < 0.20) return FARM_PROPS[Math.floor(Math.random() * FARM_PROPS.length)];
+    if (r < 0.30) return SMALL_NATURE[Math.floor(Math.random() * SMALL_NATURE.length)];
+    return null;
+  }
+  // forest
+  if (r < 0.25) return SMALL_NATURE[Math.floor(Math.random() * SMALL_NATURE.length)];
+  return null;
+}
+
+const SideObjects = memo(({ side }) => {
+  // PERF 4A: Selector ile tek field'a subscribe.
+  const speed = useGameStore(s => s.speed);
+
+  // ASSET MODE: Her item bir asset path tutar. Bolge gruplandirmasi korunuyor.
+  const [objects] = useState(() => {
+    const arr = [];
+    let zone = pickZone(null);
+    let zoneCounter = 0;
+    let zoneSize = 4 + Math.floor(Math.random() * 3);
+    let lastBuildingPath = null;
+
+    for (let i = 0; i < 30; i++) {
+      if (zoneCounter >= zoneSize) {
+        zone = pickZone(zone);
+        zoneCounter = 0;
+        zoneSize = 4 + Math.floor(Math.random() * 3);
+      }
+      const category = pickCategoryForZone(zone);
+      const asset = pickAssetByCategory(zone, category, lastBuildingPath);
+      if (category === 'building' && asset) lastBuildingPath = asset.path;
+      const extra = asset ? pickExtraAsset(zone) : null;
+
+      arr.push({
+        z: -i * 40,
+        category,
+        zone,
+        path: asset ? asset.path : null,
+        baseScale: asset ? asset.scale : 1,
+        scaleJitter: 0.85 + Math.random() * 0.3,    // 0.85-1.15 (asset'i bozma)
+        rotY: Math.random() * Math.PI * 2,
+        offset: (Math.random() - 0.5) * 20,
+        extraPath: extra ? extra.path : null,
+        extraScale: extra ? extra.scale : 1,
+        extraOffsetX: (Math.random() - 0.5) * 8,
+        extraOffsetZ: (Math.random() - 0.5) * 6,
+        extraRotY: Math.random() * Math.PI * 2
+      });
+      zoneCounter++;
+    }
+    return arr;
+  });
 
   const groupRef = useRef();
   const itemsRef = useRef(objects);
-
-  const treeMaterials = useMemo(() => ({
-    leaves: new THREE.MeshStandardMaterial({ color: '#224422', roughness: 1 }),
-    trunk: new THREE.MeshStandardMaterial({ color: '#443322', roughness: 1 })
-  }), []);
-
-  useEffect(() => {
-    return () => {
-      Object.values(treeMaterials).forEach(mat => mat.dispose());
-    };
-  }, [treeMaterials]);
+  const zoneStateRef = useRef({ zone: 'urban', counter: 0, size: 5, lastBuildingPath: null });
 
   useFrame((state, delta) => {
-    // FIX 6: Delta clamp
     const clampedDelta = Math.min(delta, 0.1);
 
     if (groupRef.current) {
       groupRef.current.children.forEach((mesh, i) => {
         const item = itemsRef.current[i];
-        // SAFETY: Check if item exists before accessing properties
         if (!item || typeof item.z === 'undefined') return;
 
         item.z += speed * clampedDelta * 0.5;
         if (item.z > 20) {
           item.z = -1500;
-          const rand = Math.random();
-          // Respawn with increased building variety and density
-          if (rand > 0.92) {
-            item.type = 'apartment';
-            item.height = 30 + Math.random() * 40;
-            item.width = 12;
+          const zState = zoneStateRef.current;
+          if (zState.counter >= zState.size) {
+            zState.zone = pickZone(zState.zone);
+            zState.counter = 0;
+            zState.size = 4 + Math.floor(Math.random() * 3);
           }
-          else if (rand > 0.82) {
-            item.type = 'villa';
-            item.height = 8 + Math.random() * 4;
-            item.width = 10 + Math.random() * 3;
-          }
-          else if (rand > 0.68) {
-            item.type = 'modern_house';
-            item.height = 10 + Math.random() * 5;
-            item.width = 8 + Math.random() * 2;
-          }
-          else if (rand > 0.52) {
-            item.type = 'shop';
-            item.height = 5 + Math.random() * 3;
-            item.width = 7 + Math.random() * 3;
-          }
-          else if (rand > 0.38) {
-            item.type = 'townhouse';
-            item.height = 12 + Math.random() * 6;
-            item.width = 6 + Math.random() * 2;
-          }
-          else if (rand > 0.25) {
-            item.type = 'small_house';
-            item.height = 6;
-            item.width = 8;
-          }
-          else if (rand > 0.15) {
-            item.type = 'tree';
-          }
-          else {
-            item.type = 'empty';
-          }
+          const category = pickCategoryForZone(zState.zone);
+          const asset = pickAssetByCategory(zState.zone, category, zState.lastBuildingPath);
+          if (category === 'building' && asset) zState.lastBuildingPath = asset.path;
+          const extra = asset ? pickExtraAsset(zState.zone) : null;
+
+          item.category = category;
+          item.zone = zState.zone;
+          item.path = asset ? asset.path : null;
+          item.baseScale = asset ? asset.scale : 1;
+          item.scaleJitter = 0.85 + Math.random() * 0.3;
+          item.rotY = Math.random() * Math.PI * 2;
+          item.offset = (Math.random() - 0.5) * 20;
+          item.extraPath = extra ? extra.path : null;
+          item.extraScale = extra ? extra.scale : 1;
+          item.extraOffsetX = (Math.random() - 0.5) * 8;
+          item.extraOffsetZ = (Math.random() - 0.5) * 6;
+          item.extraRotY = Math.random() * Math.PI * 2;
+
+          zState.counter++;
         }
         mesh.position.z = item.z;
-        mesh.visible = item.type !== 'empty';
+        mesh.visible = item.path !== null;
       });
     }
   });
@@ -1222,12 +1339,18 @@ const SideObjects = memo(({ side }) => {
   return (
     <group ref={groupRef}>
       {objects.map((obj, i) => {
-        const isBuildingType = ['apartment', 'small_house', 'villa', 'modern_house', 'shop', 'townhouse'].includes(obj.type);
+        // KayKit binalarinin yola bakan cephesi gorunsun: side > 0 ise PI rotasyon.
+        const facingRotY = side > 0 ? Math.PI : 0;
         return (
-          <group key={i} position={[side * (45 + obj.offset), 0, obj.z]}>
-            {isBuildingType && <Building width={obj.width} height={obj.height} side={side} type={obj.type} />}
-            {obj.type === 'tree' && (
-              <TreeModel scale={2.5} />
+          <group key={i} position={[side * (45 + obj.offset), 0, obj.z]} rotation={[0, facingRotY + obj.rotY * 0.1, 0]}>
+            {obj.path && (
+              <AssetModel path={obj.path} scale={obj.baseScale * obj.scaleJitter} rotY={0} />
+            )}
+            {/* Yan ekstra prop - bina onunde, rastgele yer */}
+            {obj.extraPath && (
+              <group position={[obj.extraOffsetX, 0, obj.extraOffsetZ - 6]}>
+                <AssetModel path={obj.extraPath} scale={obj.extraScale} rotY={obj.extraRotY} />
+              </group>
             )}
           </group>
         );
