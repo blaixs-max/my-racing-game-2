@@ -45,10 +45,10 @@ const SOLANA_MAINNET_RPCS = [
 ];
 
 // Payment Token Configuration (env vars, fallback degerleri frontend ile senkron)
-// Fallback degerleri TOKABU. OILTOWN artik gecerli degil — secret bozulursa
+// Fallback degerleri LMX (Sprint 8 token launch, 2026-05-09). Secret bozulursa
 // dahi Edge Function dogru token icin dogrulama yapar.
-const PAYMENT_TOKEN_MINT = Deno.env.get('PAYMENT_TOKEN_MINT') ?? 'H8xQ6poBjB9DTPMDTKWzWPrnxu4bDEhybxiouF8Ppump';
-const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'TOKABU';
+const PAYMENT_TOKEN_MINT = Deno.env.get('PAYMENT_TOKEN_MINT') ?? '4U24MWsTjDh4ADPqZinFcwmmsDdHizzwnM7Ae8RXpump';
+const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'LMX';
 const TOKEN_DECIMALS = Number(Deno.env.get('TOKEN_DECIMALS') ?? '6');
 
 // Payment Receiver Wallet Address (Solana)
