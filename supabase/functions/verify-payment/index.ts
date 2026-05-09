@@ -47,7 +47,7 @@ const SOLANA_MAINNET_RPCS = [
 // Payment Token Configuration (env vars, fallback degerleri frontend ile senkron)
 // Fallback degerleri LMX (Sprint 8 token launch, 2026-05-09). Secret bozulursa
 // dahi Edge Function dogru token icin dogrulama yapar.
-const PAYMENT_TOKEN_MINT = Deno.env.get('PAYMENT_TOKEN_MINT') ?? '4U24MWsTjDh4ADPqZinFcwmmsDdHizzwnM7Ae8RXpump';
+const PAYMENT_TOKEN_MINT = Deno.env.get('PAYMENT_TOKEN_MINT') ?? 'ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump';
 const TOKEN_SYMBOL = Deno.env.get('TOKEN_SYMBOL') ?? 'LMX';
 const TOKEN_DECIMALS = Number(Deno.env.get('TOKEN_DECIMALS') ?? '6');
 
