@@ -1441,49 +1441,6 @@ const RealLauncherUI = ({ onStartGame }) => {
         </div> {/* end card wrapper */}
       </div>
 
-      {/* Bottom Navigation Bar */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '64px',
-        background: 'rgba(6,4,16,0.97)',
-        borderTop: '1px solid rgba(100,60,200,0.15)',
-        backdropFilter: 'blur(20px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-        zIndex: 100,
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      }}>
-        {[
-          { symbol: '◂', active: false },
-          { symbol: '✏', active: false },
-          { symbol: '☜', active: false },
-          { symbol: '⊕', active: true },
-          { symbol: '⊞', active: false },
-        ].map((item, i) => (
-          <button
-            key={i}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: item.active ? '#9945FF' : '#3A3A5A',
-              fontSize: '22px',
-              cursor: 'pointer',
-              padding: '10px 16px',
-              transition: 'color 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {item.symbol}
-          </button>
-        ))}
-      </div>
-
       {/* Wallet Selection Modal */}
       {walletModalOpen && (
         <div

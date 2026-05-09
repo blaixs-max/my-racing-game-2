@@ -1,6 +1,21 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-08 (v26)
+> Son guncelleme: 2026-05-08 (v27)
+
+---
+
+## 2026-05-08: Launcher dekoratif bottom-nav bar kaldırıldı
+
+**Bağlam:** `RealLauncherUI.jsx` içinde launcher ekranının altında 5 ikonlu (◂ ✏ ☜ ⊕ ⊞) sabit bir "Bottom Navigation Bar" render ediliyordu. Hiçbir butonun `onClick`'i yoktu, hiçbir state'i değiştirmiyor, navigasyon yapmıyordu — saf dekorasyon. Kullanıcı raporladı (UI'da görünüp işlevsiz kafa karıştırıyor).
+
+**Değişiklik:** `src/components/RealLauncherUI.jsx`'ten "Bottom Navigation Bar" bloğu (43 satır) tamamen silindi. Başka hiçbir yere dokunulmadı.
+
+**Doğrulama:**
+- `npm run lint` ✓ temiz
+- `npm run build` ✓ 36.72s
+- Wallet/agreement/purchase akışı, leaderboard, agreement modal, walletModal — hiçbiri etkilenmedi
+
+**Risk:** SIFIR — ölü kod silindi, sadece görsel temizlik.
 
 ---
 
