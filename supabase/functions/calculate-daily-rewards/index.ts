@@ -39,7 +39,7 @@ const MS_PER_DAY = 86_400_000
 // as TOKABU_MINT for diff readability against Sprint 7-mini PR; cosmetic
 // rename to LMX_MINT planned in Sprint 8 Phase 6 cleanup.
 const TOKABU_MINT = Deno.env.get('PAYMENT_TOKEN_MINT')
-  ?? '4U24MWsTjDh4ADPqZinFcwmmsDdHizzwnM7Ae8RXpump'
+  ?? 'ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump'
 const SOL_MINT = 'So11111111111111111111111111111111111111112'
 const COINGECKO_SOL_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'
