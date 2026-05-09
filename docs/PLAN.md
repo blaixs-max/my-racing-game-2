@@ -89,65 +89,42 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 
 **Hedef:** TOKABU'dan kendi çıkardığımız yeni token'a tek atomic geçiş. Geçiş sırasında pipeline (verify-payment / use-credit / submit-score / reconcile-payments / calculate-daily-rewards) hiç düşmemeli. Tek "kesim noktası" yeni mint adresinin yayınlandığı an — ondan önce her şey hazır olmalı.
 
-### Gereken parametreler (kullanıcıdan alınacak)
+**Kilitlenmiş kararlar (2026-05-09 kullanıcı kararı):**
+
+- **Platform:** pump.fun (TOKABU ile aynı yol; decimals=6 sabit, otomatik bonding-curve LP, anlık DexScreener listing)
+- **Eski TOKABU treasury:** sıfırlanacak (yakılacak veya operasyon multisig'ine taşınacak)
+- **Ödenmemiş cycle ödülleri:** `reward_pool_distribution.paid_at IS NULL` satırlar **silinecek/iptal edilecek**, oyunculara carry-over yok — temiz başlangıç
+
+**Açık parametreler (token üretilince netleşecek):**
 
 | Parametre | Açıklama | Notlar |
 |-----------|----------|--------|
-| Yeni mint adresi | Solana SPL token mint pubkey | Token oluşturulduktan sonra net |
-| Sembol | UI'da gösterilecek (örn. `LUMEX`, `LMXV2`) | Agreement metni + balance UI |
-| İsim | Tam isim (`Lumexia`, vs.) | Logo ile birlikte |
-| Decimals | 6 (tipik pump.fun) veya 9 (klasik SPL) | `solana.config.js` ve Supabase Secret `TOKEN_DECIMALS` |
-| Logo URL | Opsiyonel, public CDN | `TOKEN_CONFIG.logoUrl` |
-| Receiver wallet | Aynı `T6Ekv...mmGg` mı? Yeni mi? | Eğer değişiyorsa **kritik:** treasury balance taşıma planı |
-| DexScreener / Jupiter listing | İndekslenmiş mi? | Fiyat fallback'leri için kritik |
-| Launch zamanı | UTC timestamp | Cron schedule ve "kesim anı" planı |
+| Yeni mint adresi | pump.fun launch sonrası belli olur | Tüm config + secret değişikliklerinin tek odağı |
+| Sembol | UI/agreement metni (örn. `LUMEX`) | `TOKEN_CONFIG.symbol` |
+| İsim | Tam isim (`Lumexia Token`, vs.) | `TOKEN_CONFIG.name` |
+| Logo URL | pump.fun upload sonrası IPFS/Arweave | `TOKEN_CONFIG.logoUrl` |
+| Receiver wallet | Aynı `T6Ekv...` mı, yeni mi? | Yeni ise treasury hiç eski + yeni token aynı anda tutmamış olur (audit temiz) |
+| Launch UTC zaman | Cycle-end günü tercih edilir | Anchor 2026-05-01, even-day offset; eski cycle boş kapanır |
 
-### Hedef değişiklikler (PR scope)
+**Faz adımları:** detaylı runbook → `docs/RUNBOOKS/token-launch.md` (Sprint 8 PR 1 ile eklendi).
 
-**Racing repo (bu repo):**
+- **Faz 0:** Açık parametreler doldurulacak (BLOKER — token üretilmeden ilerlenemez)
+- **Faz 1 (T-7d → T-1d):** TOKABU treasury wipe (Solscan + transfer/burn) + `reward_pool_distribution` unpaid satır cleanup (Option B önerilen — `paid_in_token = 'CANCELLED'` ile audit izi)
+- **Faz 2 (T-0):** pump.fun launch + DexScreener listing doğrulama (curl ile fiyat çek)
+- **Faz 3 (T+5m):** Racing repo PR merge (`solana.config.js` + Edge Function fallback'leri + docs) + Supabase Secrets güncelleme
+- **Faz 4 (T+15m → T+1h):** 5-adım smoke test (Phantom connect, $1 satın alma, oyun, DB check, reconcile dry run)
+- **Faz 5 (T+24h → T+48h):** İlk cycle-end Edge Function çalışmasını multi-currency log + DB check ile doğrula
+- **Faz 6 (T+1 week):** Cosmetic refactor (internal `TOKABU_MINT` → `NEW_SYMBOL_MINT`), opsiyonel `reward_amount_tokabu` rename migration, community duyuru
 
-1. `src/solana.config.js` → `TOKEN_CONFIG` block'u tek noktada güncelle
-2. `src/components/RealLauncherUI.jsx` → `buildAgreementText()` zaten `TOKEN_CONFIG.symbol`'u parametrize alıyor, otomatik düzelir
-3. `supabase/functions/verify-payment/index.ts` → `PAYMENT_TOKEN_MINT` ve `TOKEN_SYMBOL` env'den okuyor, fallback hardcoded değer'i de güncelle (env bozulursa diye)
-4. `supabase/functions/reconcile-payments/index.ts` → aynı pattern
-5. `supabase/functions/calculate-daily-rewards/index.ts` → `TOKABU_MINT` const'ı env'den okuyor, fallback'i güncelle
-6. `docs/PROJECT_DOCS.md` + `README.md` + `docs/INTEGRATION.md` → mint/sembol referansları
-7. `.env.example` → değişen env adlarını yansıt (varsa)
+**Risk noktaları (runbook'tan özet):**
 
-**Landing repo (`v0-lumexia-landing-page-V0`, ayrı PR):**
+- pump.fun bonding curve dolmadan Jupiter routing aktif olmayabilir → DexScreener primary fallback olarak yeterli
+- Phase 1 wipe **geri alınamaz** — Phase 2 tarihi netleşmeden Phase 1 başlatılmamalı
+- Eski TOKABU `transactions` satırları korunur (tarihsel/audit), wipe sadece treasury balance + unpaid rewards üzerinde
+- Hardcoded mint string'leri Edge Function fallback'lerde — env bozulursa eski TOKABU için doğrulamaya devam etmesin diye **kritik** güncellenecek
+- Symbol referansı eski cycle ödüllerinde: yeni satırlar yeni sembol; eski satırlar `TOKABU` olarak kalır
 
-1. `lib/token-config.ts` (varsa) — single source of truth
-2. SEO meta + structured-data + UI metinleri (TOKABU referanslı yerler)
-3. `/api/ticker` route — yeni mint için DexScreener/Jupiter sorgu
-
-**Supabase tarafı (Dashboard'dan, PR değil):**
-
-1. Edge Function Secrets: `PAYMENT_TOKEN_MINT`, `TOKEN_SYMBOL`, `TOKEN_DECIMALS` güncelle
-2. Receiver wallet değişiyorsa `PAYMENT_RECEIVER_ADDRESS` da güncelle
-3. `transactions` tablosu eski `token_symbol = 'TOKABU'` satırlarına dokunulmaz; yeni satırlar yeni sembolle yazılır (tarihsel sürekliliğe ihtiyaç var: tx history, cycle ödülleri eski TOKABU değerlerine atıf yapabilir)
-
-### Kesim sırası (zero-downtime cutover)
-
-1. **T-24h:** kullanıcı yeni mint'in DexScreener/Jupiter indekslemesini doğrular (fiyat APIs döndürüyor mu?)
-2. **T-1h:** PR açılır (kod değişiklikleri), CI yeşil, **merge edilmez** — sadece beklemede
-3. **T-15m:** Supabase Secrets güncellenir (Dashboard) — Edge Function'lar sıcak, env değişikliği yeni invocation'da etkili
-4. **T-0:** PR merge → Netlify auto-deploy → frontend yeni token'a geçer
-5. **T+15m:** Smoke test:
-   - Cüzdana yeni token gönder → `verify-payment` doğrular → kredi eklenir
-   - `reconcile-payments` `dryRun: true` çalıştır → yeni TX'leri görüyor
-   - Bir oyun oyna → skor kaydedilir → leaderboard güncelleniyor
-6. **T+24h:** İlk cycle-end Edge Function çalışmasında `prices.tokabu_usd_api` (artık yeni token sembolü) non-NULL gelmeli
-
-### Risk noktaları
-
-- **Geçici fiyat boşluğu:** Yeni token DexScreener'da indekslenene kadar `verify-payment` ve `calculate-daily-rewards` fiyat fail eder. Mitigasyon: launch öncesi DexScreener listing zorunlu.
-- **Receiver wallet değişimi:** Eski TOKABU bakiyeleri eski cüzdanda kalır; treasury manuel taşıma. Receiver değişmezse sıfır risk.
-- **Hardcoded mint string'ler:** Edge Function fallback değerleri eski TOKABU mint'i taşıyor. Bunları yeni mint ile değiştirmek **kritik** — env bozulursa fallback eski token için doğrulamaya devam eder.
-- **Symbol referansı eski cycle ödüllerinde:** `transactions.token_symbol` eski satırlar `TOKABU` kalır; yeni satırlar yeni sembol. UI'da gösterilirken karışıklık olmaması için landing tarafında "all-time stats" yerine "since launch" filtresi düşünülebilir.
-
-### Öncelikli çıktı
-
-PR açılmadan önce kullanıcıdan **8 parametrelik form** alınacak (yukarıdaki tabloda). Sonra tek atomic PR + Supabase Secrets adımı + cutover smoke test ile sprint kapanır.
+**Sprint 8 PR #1 (bu PR — docs):** Sprint 8 plan + runbook taslağı eklendi. Kod değişikliği yok, mint hazırlandığında PR #2 olarak teknik atomic PR açılacak.
 
 **Sprint 4 (Kod Kalitesi) tamamlandı:**
 - 4.1 ESLint flat config genişletme + CI lint job (PR #96) ✅
