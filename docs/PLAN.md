@@ -1,12 +1,12 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-05-03 (v12)
+> Son guncelleme: 2026-05-09 (v13)
 
 ## Mevcut Durum Ozeti
 
-Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 + Sprint 6 + Sprint 7-mini tamamlandi. **Cycle reward payout pipeline operasyonel:** her cycle sonu Edge Function USD + SOL + TOKABU yazar, ekip manuel runbook ile ödeme yapar ve `paid_at` ile işaretler.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 + Sprint 6 + Sprint 7-mini tamamlandi. **Cycle reward payout pipeline operasyonel:** her cycle sonu Edge Function USD + SOL + TOKABU yazar, ekip manuel runbook ile ödeme yapar ve `paid_at` ile işaretler. Render hattı Faz-1/Faz-2 ile selector pattern'a alındı; yan çevre CC0 asset pack'lerle gerçek 3D'ye geçti.
 
-**Aktif sprint durumu (2026-05-03):**
+**Aktif sprint durumu (2026-05-09):**
 
 | Sprint | Durum | Not |
 |--------|-------|-----|
@@ -14,10 +14,14 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 | 4.5 | ✅ Tamam | Payment self-healing |
 | 5 (E2E test) | ❌ İPTAL | Kullanıcı kararı 2026-05-02 |
 | 6 (48h cycle + UI) | ✅ KAPALI | Tüm PR'lar prod'da |
-| **7-mini (manual payout)** | **✅ KAPALI** | **3 PR (#106, #107, #108) prod'da; pipeline operasyonel** |
+| 7-mini (manual payout) | ✅ KAPALI | 3 PR (#106, #107, #108) prod'da; pipeline operasyonel |
 | 7 (tam otomatik transfer) | ⏸️ ASKIDA | Treasury Vault + distribute-rewards + retry queue + monitoring (memory: `project_payment_process_pending.md`) |
+| **Faz-1/Faz-2 render perf** | **✅ KAPALI** | **`d6cd4f6` + `bcfd091` — Game/PlayerCar selector pattern + module-level laneOccupancy cache + 7 ek component selector** |
+| **UI cleanup** | **✅ KAPALI** | **PR #110 — launcher dead bottom-nav bar kaldırıldı** |
+| **Asset env (CC0)** | **✅ KAPALI** | **`2d48460` + `2d8e584` — KayKit + Quaternius asset packs (~28 MB) + SideObjects asset-based zone-render rewrite** |
+| **8 (Token launch)** | **🔵 AÇIK** | **Yeni token mint hazır → `solana.config.js` + Supabase Secrets + landing config + (opsiyonel) DB cleanup. Plan aşağıda.** |
 
-**Son merge edilen PR'lar (kronolojik):**
+**Son merge edilen PR'lar / commit'ler (kronolojik):**
 - Racing PR #99/#100/#101: Payment self-healing — 2026-05-01
 - Racing PR #102: Sprint 6 PR 6.1 — 48h cycle reset (backend + UI legal) — 2026-05-01
 - Racing PR #103: Anti-cheat coin density 1/50m → 1/10m relax — 2026-05-01
@@ -25,9 +29,14 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - Racing PR #104: docs sync — 2026-05-02 (squash `a249a06`)
 - Landing PR #18: Cycle Ranking UI fix (48h window + bonus formula + LMX/SOL) — 2026-05-02 (squash `b0f03f7`)
 - Racing PR #105: docs sync (Sprint 5/7 status reset) — 2026-05-02 (squash `87b4134`)
-- **Racing PR #106: Sprint 7-mini PR 1 — payment tracking schema (7 yeni kolon + index + cleanup) — 2026-05-03 (squash `6a6ab97`)**
-- **Racing PR #107: Sprint 7-mini PR 2 — Edge Function 3-tier price fallback + multi-currency INSERT — 2026-05-03 (squash `0fcd08a`)**
-- **Racing PR #108: Sprint 7-mini PR 3 — manual-payout runbook — 2026-05-03 (squash `2f1100a`)**
+- Racing PR #106: Sprint 7-mini PR 1 — payment tracking schema (7 yeni kolon + index + cleanup) — 2026-05-03 (squash `6a6ab97`)
+- Racing PR #107: Sprint 7-mini PR 2 — Edge Function 3-tier price fallback + multi-currency INSERT — 2026-05-03 (squash `0fcd08a`)
+- Racing PR #108: Sprint 7-mini PR 3 — manual-payout runbook — 2026-05-03 (squash `2f1100a`)
+- **Racing `d6cd4f6`: Faz-1 perf — Game/PlayerCar selector pattern + getState in useFrame + module-level laneOccupancy cache — 2026-05-08**
+- **Racing `bcfd091`: Faz-2 perf — selector pattern for 7 sibling components — 2026-05-08**
+- **Racing PR #110 (`9242b99`): launcher dead bottom-nav bar removal — 2026-05-08**
+- **Racing `2d48460`: CC0 asset packs (KayKit + Quaternius, ~28 MB) — 2026-05-09**
+- **Racing `2d8e584`: SideObjects asset-based zone-render rewrite (urban/rural/forest, 41 distinct asset, AssetModel clone) — 2026-05-09**
 
 **Tamamlanmis altyapi:**
 - Branch protection her iki repo'da aktif (main'e direkt push yasak, force push yasak, 1 review zorunlu, CI status check)
@@ -38,9 +47,12 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - `unverified_payments` tablosu (forensic admin log, service-role only)
 - Rate limiting (use-credit 30/dk, verify-payment 10/dk) — uretimde calisiyor
 - Bug #4 coins_collected — submit_score imzasi guncel, GameOverUI gonderiyor
-- Buffer polyfill, Vitest setup (19 test), price tolerance %7 hizalanmis, 11 ESLint hatasi temizlenmis
+- Buffer polyfill, Vitest setup (20 test), price tolerance %7 hizalanmis, 11 ESLint hatasi temizlenmis
 - 48h cycle: trigger fonksiyon `cycle_start = CURRENT_DATE - ((CURRENT_DATE - DATE '2026-05-01')::int % 2)` hesabi yapar; archive cron prev-cycle rows'unu temizler; calculate-daily-rewards cycle-end day kontrolü ile self-skip eder
-- **Sprint 7-mini payout pipeline:** `reward_pool_distribution` 7 yeni kolon (reward_amount_sol/tokabu, sol/tokabu_price_usd audit snapshots, paid_at/paid_tx_hash/paid_in_token); calculate-daily-rewards 3-tier fiyat fallback (DexScreener → Jupiter → CoinGecko/transactions DB per-wallet); `docs/RUNBOOKS/manual-payout.md` ekip için step-by-step kılavuz
+- Sprint 7-mini payout pipeline: `reward_pool_distribution` 7 yeni kolon (reward_amount_sol/tokabu, sol/tokabu_price_usd audit snapshots, paid_at/paid_tx_hash/paid_in_token); calculate-daily-rewards 3-tier fiyat fallback (DexScreener → Jupiter → CoinGecko/transactions DB per-wallet); `docs/RUNBOOKS/manual-payout.md` ekip için step-by-step kılavuz
+- **Render pipeline (Faz-1/Faz-2):** `Game()`, `PlayerCar()`, ve 7 sibling component (`MobileControls`, `SideObjects`, `StreetLights`, `RoadEnvironment`, `CameraShake`, `SpeedLines`, `SpeedBlurOverlay`) selectorless `useGameStore()` destructure'lerinden Zustand selector pattern'a alındı. PlayerCar `useFrame` içinde high-churn alanları (`enemies`, `coins`, `targetX`, `gameOver`) `useGameStore.getState()` ile çekiyor. `playerPos` mutate-in-place. Module-level `_laneOccupancyCache` `updateGame` her frame `{}+3*[]` allocation'ını sıfırladı.
+- **Asset-based side environment:** `public/models/` altında 3 CC0 pack (~28 MB) — KayKit City Builder Bits, Quaternius Nature Pack, Quaternius Farm Buildings. `SideObjects` zone-based render (urban/rural/forest), `AssetModel` `useGLTF` + `clone()` pattern, 41 distinct asset preloaded.
+- **UI cleanup:** Launcher'da işlevsiz dekoratif bottom-nav bar (`◂ ✏ ☜ ⊕ ⊞`) kaldırıldı (PR #110).
 
 **Landing page (lumexia.net):**
 - Tamamen Solana/TOKABU dünyasında (SEO meta + structured-data + UI metinleri + API routes)
@@ -62,17 +74,80 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. TOKABU token ile od
 - ✅ #108 (`2f1100a`) — `docs/RUNBOOKS/manual-payout.md` (382 satır, 10 bölüm + troubleshooting)
 
 **Açık aksiyonlar (kullanıcı):**
-1. **2026-05-05 00:00 UTC** — Cycle 2 sonu **ilk gerçek multi-currency** Edge Function çalışmasını doğrula:
-   - Edge Function loglarında `prices` block (sol_usd, tokabu_usd_api, tokabu_used_db_fallback)
-   - Dashboard SQL: `SELECT wallet_id, reward_amount, reward_amount_sol, reward_amount_tokabu, sol_price_usd, tokabu_price_usd FROM reward_pool_distribution WHERE reward_date = '2026-05-03';` → 5 currency kolonu non-NULL
+1. **Sprint 8 (Token Launch) — AÇIK, aşağıda detay plan.** Yeni token mint hazır olduğunda kullanıcıdan parametreler alınacak ve PR açılacak.
 2. `reconcile-payments` `dryRun: true` ilk test (PR #99 sonrası açık)
 3. `reconcile-payments` cron enable (Dashboard SQL)
-4. Google Search Console "Request Indexing" — lumexia.net (Madde 5)
-5. Token launch hazırlığı — yeni mint, Supabase Secrets güncelleme, config dosyaları PR'ı (single source of truth: `solana.config.js` + `lib/token-config.ts`)
-6. Cycle 2 sonu manual payout dry-run — `docs/RUNBOOKS/manual-payout.md` adım adım uygula, ekibe rehber test edilsin
+4. Google Search Console "Request Indexing" — lumexia.net
+5. Cycle manual payout dry-run — `docs/RUNBOOKS/manual-payout.md` adım adım uygula, ekibe rehber test edilsin
 
 **Açık tartışmalar (ileride):**
 - Ödeme süreci tercihi (manuel/hibrit/otomatik) — Sprint 7 plan açma ön koşulu
+
+---
+
+## Sprint 8: Yeni Token Launch (AÇIK — 2026-05-09)
+
+**Hedef:** TOKABU'dan kendi çıkardığımız yeni token'a tek atomic geçiş. Geçiş sırasında pipeline (verify-payment / use-credit / submit-score / reconcile-payments / calculate-daily-rewards) hiç düşmemeli. Tek "kesim noktası" yeni mint adresinin yayınlandığı an — ondan önce her şey hazır olmalı.
+
+### Gereken parametreler (kullanıcıdan alınacak)
+
+| Parametre | Açıklama | Notlar |
+|-----------|----------|--------|
+| Yeni mint adresi | Solana SPL token mint pubkey | Token oluşturulduktan sonra net |
+| Sembol | UI'da gösterilecek (örn. `LUMEX`, `LMXV2`) | Agreement metni + balance UI |
+| İsim | Tam isim (`Lumexia`, vs.) | Logo ile birlikte |
+| Decimals | 6 (tipik pump.fun) veya 9 (klasik SPL) | `solana.config.js` ve Supabase Secret `TOKEN_DECIMALS` |
+| Logo URL | Opsiyonel, public CDN | `TOKEN_CONFIG.logoUrl` |
+| Receiver wallet | Aynı `T6Ekv...mmGg` mı? Yeni mi? | Eğer değişiyorsa **kritik:** treasury balance taşıma planı |
+| DexScreener / Jupiter listing | İndekslenmiş mi? | Fiyat fallback'leri için kritik |
+| Launch zamanı | UTC timestamp | Cron schedule ve "kesim anı" planı |
+
+### Hedef değişiklikler (PR scope)
+
+**Racing repo (bu repo):**
+
+1. `src/solana.config.js` → `TOKEN_CONFIG` block'u tek noktada güncelle
+2. `src/components/RealLauncherUI.jsx` → `buildAgreementText()` zaten `TOKEN_CONFIG.symbol`'u parametrize alıyor, otomatik düzelir
+3. `supabase/functions/verify-payment/index.ts` → `PAYMENT_TOKEN_MINT` ve `TOKEN_SYMBOL` env'den okuyor, fallback hardcoded değer'i de güncelle (env bozulursa diye)
+4. `supabase/functions/reconcile-payments/index.ts` → aynı pattern
+5. `supabase/functions/calculate-daily-rewards/index.ts` → `TOKABU_MINT` const'ı env'den okuyor, fallback'i güncelle
+6. `docs/PROJECT_DOCS.md` + `README.md` + `docs/INTEGRATION.md` → mint/sembol referansları
+7. `.env.example` → değişen env adlarını yansıt (varsa)
+
+**Landing repo (`v0-lumexia-landing-page-V0`, ayrı PR):**
+
+1. `lib/token-config.ts` (varsa) — single source of truth
+2. SEO meta + structured-data + UI metinleri (TOKABU referanslı yerler)
+3. `/api/ticker` route — yeni mint için DexScreener/Jupiter sorgu
+
+**Supabase tarafı (Dashboard'dan, PR değil):**
+
+1. Edge Function Secrets: `PAYMENT_TOKEN_MINT`, `TOKEN_SYMBOL`, `TOKEN_DECIMALS` güncelle
+2. Receiver wallet değişiyorsa `PAYMENT_RECEIVER_ADDRESS` da güncelle
+3. `transactions` tablosu eski `token_symbol = 'TOKABU'` satırlarına dokunulmaz; yeni satırlar yeni sembolle yazılır (tarihsel sürekliliğe ihtiyaç var: tx history, cycle ödülleri eski TOKABU değerlerine atıf yapabilir)
+
+### Kesim sırası (zero-downtime cutover)
+
+1. **T-24h:** kullanıcı yeni mint'in DexScreener/Jupiter indekslemesini doğrular (fiyat APIs döndürüyor mu?)
+2. **T-1h:** PR açılır (kod değişiklikleri), CI yeşil, **merge edilmez** — sadece beklemede
+3. **T-15m:** Supabase Secrets güncellenir (Dashboard) — Edge Function'lar sıcak, env değişikliği yeni invocation'da etkili
+4. **T-0:** PR merge → Netlify auto-deploy → frontend yeni token'a geçer
+5. **T+15m:** Smoke test:
+   - Cüzdana yeni token gönder → `verify-payment` doğrular → kredi eklenir
+   - `reconcile-payments` `dryRun: true` çalıştır → yeni TX'leri görüyor
+   - Bir oyun oyna → skor kaydedilir → leaderboard güncelleniyor
+6. **T+24h:** İlk cycle-end Edge Function çalışmasında `prices.tokabu_usd_api` (artık yeni token sembolü) non-NULL gelmeli
+
+### Risk noktaları
+
+- **Geçici fiyat boşluğu:** Yeni token DexScreener'da indekslenene kadar `verify-payment` ve `calculate-daily-rewards` fiyat fail eder. Mitigasyon: launch öncesi DexScreener listing zorunlu.
+- **Receiver wallet değişimi:** Eski TOKABU bakiyeleri eski cüzdanda kalır; treasury manuel taşıma. Receiver değişmezse sıfır risk.
+- **Hardcoded mint string'ler:** Edge Function fallback değerleri eski TOKABU mint'i taşıyor. Bunları yeni mint ile değiştirmek **kritik** — env bozulursa fallback eski token için doğrulamaya devam eder.
+- **Symbol referansı eski cycle ödüllerinde:** `transactions.token_symbol` eski satırlar `TOKABU` kalır; yeni satırlar yeni sembol. UI'da gösterilirken karışıklık olmaması için landing tarafında "all-time stats" yerine "since launch" filtresi düşünülebilir.
+
+### Öncelikli çıktı
+
+PR açılmadan önce kullanıcıdan **8 parametrelik form** alınacak (yukarıdaki tabloda). Sonra tek atomic PR + Supabase Secrets adımı + cutover smoke test ile sprint kapanır.
 
 **Sprint 4 (Kod Kalitesi) tamamlandı:**
 - 4.1 ESLint flat config genişletme + CI lint job (PR #96) ✅
