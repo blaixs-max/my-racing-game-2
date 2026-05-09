@@ -29,8 +29,9 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
 const GAME_TO_USD = 1.0
 
 // Cycle anchor: must match update_daily_leaderboard() and
-// archive_daily_leaderboard() in 20260501160000_cycle_48h.sql.
-const CYCLE_ANCHOR_DATE = '2026-05-01'
+// archive_daily_leaderboard() in 20260509200000_cycle_reset_token_launch.sql.
+// Sprint 8 token launch reset moved the anchor from 2026-05-01 to 2026-05-09.
+const CYCLE_ANCHOR_DATE = '2026-05-09'
 const MS_PER_DAY = 86_400_000
 
 // Token + SOL identifiers for price API calls. PAYMENT_TOKEN_MINT mirrors
