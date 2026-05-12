@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import coinLogo from './assets/coin_logo.png';
 import RealLauncherUI from './components/RealLauncherUI';
 import GameOverUI from './components/GameOverUI';
-import { NitroBoostParticles } from './components/AdvancedParticles';
+import { NitroBoostParticles, RocketTrailParticles } from './components/AdvancedParticles';
 import { useGameStore } from './store'; // Imported from store
 
 // --- OYUN AYARLARI (SUPABASE & WALLET) ---
@@ -18,6 +18,7 @@ useGLTF.preload('/models/Car 2/scene.gltf');
 useGLTF.preload('/models/Car 3/scene.gltf');
 useGLTF.preload('/models/ferrari.glb');
 useGLTF.preload('/models/magnet.glb');  // PAKET-MAGNET: Poly by Google (CC-BY)
+useGLTF.preload('/models/rocket.glb');  // PAKET-ROCKET: "Rocketship" by Poly by Google (CC-BY)
 
 // ==================== RESPONSIVE HELPER (Debounce Eklendi) ====================
 const useResponsive = () => {
@@ -252,7 +253,11 @@ const Coins = memo(() => {
     <group>
       {validCoins.map(c => (
         <group key={c.id} position={[c.x, 1, c.z]}>
-          {c.kind === 'magnet' ? <SpinningMagnet /> : <SpinningCoin />}
+          {c.kind === 'rocket'
+            ? <SpinningRocket />
+            : c.kind === 'magnet'
+              ? <SpinningMagnet />
+              : <SpinningCoin />}
         </group>
       ))}
     </group>
@@ -292,19 +297,44 @@ Coins.displayName = 'Coins';
 const SpinningMagnet = () => {
   const ref = useRef();
   const { scene } = useGLTF('/models/magnet.glb');
+  // Her instance icin scene'i clone et (multi-instance icin)
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
   useFrame((state, delta) => {
     if (ref.current) {
+      // Coin'den biraz daha yavas don (daha agir his)
       ref.current.rotation.y += delta * 2.2;
     }
   });
 
   // Magnet asset'inin kendi unit boyutu cok buyukmus.
-  // scale 0.007 -> minik. Pivot ortada oldugu icin Y offset ile yola yerlesir.
+  // scale 0.007 -> minik. Model pivot'u ortada oldugu icin Y offset ile
+  // yolun altina gomulmesini engelliyoruz (yukari kaldir).
   return (
     <group ref={ref}>
       <primitive object={cloned} scale={0.007} position={[0, 0.4, 0]} />
+    </group>
+  );
+};
+
+// PAKET-ROCKET: Roket pickup - magnet ile ayni pattern.
+// Lisans: "Rocketship" by Poly by Google (CC-BY). README'de credits eklenmeli.
+const SpinningRocket = () => {
+  const ref = useRef();
+  const { scene } = useGLTF('/models/rocket.glb');
+  const cloned = useMemo(() => scene.clone(true), [scene]);
+
+  useFrame((state, delta) => {
+    if (ref.current) {
+      // Magnet'ten biraz daha hizli don
+      ref.current.rotation.y += delta * 2.5;
+    }
+  });
+
+  // Scale magnet ile baslangic noktasi (sonra ayarlanir).
+  return (
+    <group ref={ref}>
+      <primitive object={cloned} scale={0.5} position={[0, 0.4, 0]} />
     </group>
   );
 };
@@ -313,7 +343,7 @@ ParticleSystem.displayName = 'ParticleSystem';
 
 // ==================== MOBİL KONTROLLER ====================
 const MobileControls = memo(({ isLandscape = false }) => {
-  // PERF: Selector ile her action'a ayri subscribe (action'lar stable referans).
+  // PERF 4A: Selector ile her action'a ayri subscribe (action'lar stable referans).
   const steer = useGameStore(s => s.steer);
   const activateNitro = useGameStore(s => s.activateNitro);
   const deactivateNitro = useGameStore(s => s.deactivateNitro);
@@ -612,26 +642,28 @@ function TreeModel({ scale = 1, rotation = [0, 0, 0] }) {
 
 
 function PlayerCar() {
-  // PERF: JSX/useMemo/useEffect'te kullanilanlar selector ile subscribe edilir.
-  // Sadece useFrame icinde okunanlar (targetX, enemies, coins, gameOver)
-  // useGameStore.getState() ile fetch edilir; subscribe yok. useFrame zaten
-  // 60Hz cagriliyor, en guncel referansi alir. Ana kazanc: enemies/coins her
-  // frame yeni array referansi oldugundan subscribe etmek render firtinasi
-  // yaratiyordu.
+  // PERF 1B: Tum store'a destructure subscribe etmek yerine alanlari ayir.
+  // - JSX/useMemo/useEffect'te kullanilanlar: selector ile subscribe.
+  // - Sadece useFrame icinde okunanlar: getState() ile fetch (subscribe yok).
+  //   useFrame zaten 60Hz cagriliyor, en guncel referansi alir; React'i
+  //   yeniden render ettirmeye gerek yok. Ana kazanc: enemies/coins her
+  //   frame yeni array oldugu icin subscribe etmek render firtinasi yapardi.
   const selectedCar = useGameStore(s => s.selectedCar);
   const isNitroActive = useGameStore(s => s.isNitroActive);
   const speed = useGameStore(s => s.speed);
   const gameState = useGameStore(s => s.gameState);
+  const rocketActive = useGameStore(s => s.rocketActive);
   // Action'lar (stable referans, render tetiklemez):
   const setGameOver = useGameStore(s => s.setGameOver);
   const triggerNearMiss = useGameStore(s => s.triggerNearMiss);
   const collectCoin = useGameStore(s => s.collectCoin);
   const collectMagnet = useGameStore(s => s.collectMagnet);
+  const collectRocket = useGameStore(s => s.collectRocket);
   const updateEnemyPassed = useGameStore(s => s.updateEnemyPassed);
   const group = useRef();
 
   // PERF: useState ile bir kez olusturulan mutable array (setState kullanmiyoruz).
-  // Her render'da ayni referans donar; useFrame icerigini her frame mutate eder.
+  // Her render'da ayni referans donar; useFrame icerigi her frame mutate eder.
   // NitroBoostParticles'a hep ayni array referansi gider, React re-render etmez.
   // Boylece PlayerCar 60Hz re-render firtinasindan kurtulur (nitro aktifken bu
   // zincir NitroBoostParticles ile birlesince hissedilir takilma yaratiyordu).
@@ -656,7 +688,7 @@ function PlayerCar() {
   }, [gameState]);
 
   useFrame((state, delta) => {
-    // PERF: subscribe etmiyoruz - en guncel referansi her frame oku.
+    // PERF 1B: subscribe etmiyoruz - en guncel referansi her frame oku.
     const storeState = useGameStore.getState();
     if (storeState.gameOver || !group.current) return;
 
@@ -743,8 +775,10 @@ function PlayerCar() {
       const dx = Math.abs(group.current.position.x - coin.x);
       const dz = Math.abs(coin.z - (-2));
       if (dz < 2.5 && dx < 2.0) {
-        // PAKET-MAGNET: magnet ise 10s power-up tetikle, coin ise normal topla.
-        if (coin.kind === 'magnet') {
+        // PAKET-MAGNET/ROCKET: kind'a gore ilgili power-up tetikle, default coin.
+        if (coin.kind === 'rocket') {
+          collectRocket(coin.id);
+        } else if (coin.kind === 'magnet') {
           collectMagnet(coin.id);
         } else {
           collectCoin(coin.id);
@@ -827,6 +861,11 @@ function PlayerCar() {
         isActive={isNitroActive}
         position={playerPos}
         speed={speed}
+      />
+      {/* PAKET-ROCKET: Trail efekti - kirmizi alev kuyruğu */}
+      <RocketTrailParticles
+        isActive={rocketActive}
+        position={playerPos}
       />
     </>
   );
@@ -964,36 +1003,126 @@ const Traffic = memo(() => {
 Traffic.displayName = 'Traffic';
 
 // ==================== SHARED BUILDING MATERIALS (OPTIMIZED) ====================
-// Global material pool - shared across all buildings to reduce memory and GPU overhead
+// Global material pool - shared across all buildings to reduce memory and GPU overhead.
+// PAKET 2: Her tip icin renk varyantlari (3'er) + 4 yeni bina tipi (barn/church/gas_station/garage)
+// + cevre objeleri (fence/mailbox/sign).
 const sharedBuildingMaterials = {
-  // Building body materials by type
-  apartment: new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.9 }),
-  villa: new THREE.MeshStandardMaterial({ color: '#8B7355', roughness: 0.9 }),
-  modern_house: new THREE.MeshStandardMaterial({ color: '#778899', roughness: 0.9 }),
-  shop: new THREE.MeshStandardMaterial({ color: '#A0522D', roughness: 0.9 }),
-  townhouse: new THREE.MeshStandardMaterial({ color: '#6B6B6B', roughness: 0.9 }),
-  small_house: new THREE.MeshStandardMaterial({ color: '#666', roughness: 0.9 }),
+  // Body color variants per type. Spawn aninda materialIdx ile rastgele seciliyor.
+  bodyVariants: {
+    apartment: [
+      new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#7a7a7a', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#444a55', roughness: 0.9 })
+    ],
+    villa: [
+      new THREE.MeshStandardMaterial({ color: '#8B7355', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#a89070', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#6b5e45', roughness: 0.9 })
+    ],
+    modern_house: [
+      new THREE.MeshStandardMaterial({ color: '#778899', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#9aa5b0', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#5a6b7a', roughness: 0.9 })
+    ],
+    shop: [
+      new THREE.MeshStandardMaterial({ color: '#A0522D', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#c47550', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#864221', roughness: 0.9 })
+    ],
+    townhouse: [
+      new THREE.MeshStandardMaterial({ color: '#6B6B6B', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#8a8a8a', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#5a5a5a', roughness: 0.9 })
+    ],
+    small_house: [
+      new THREE.MeshStandardMaterial({ color: '#666', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#8a7866', roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: '#4f5a55', roughness: 0.9 })
+    ],
+    // YENI TIPLER
+    barn: [
+      new THREE.MeshStandardMaterial({ color: '#8B2500', roughness: 0.95 }),  // klasik kirmizi ahir
+      new THREE.MeshStandardMaterial({ color: '#5a3520', roughness: 0.95 })   // koyu kahve
+    ],
+    church: [
+      new THREE.MeshStandardMaterial({ color: '#d4c8b8', roughness: 0.85 }),  // bej tas
+      new THREE.MeshStandardMaterial({ color: '#9a9080', roughness: 0.85 })   // gri tas
+    ],
+    gas_station: [
+      new THREE.MeshStandardMaterial({ color: '#e8e8e8', roughness: 0.6, metalness: 0.2 })
+    ],
+    garage: [
+      new THREE.MeshStandardMaterial({ color: '#888', roughness: 0.8 }),
+      new THREE.MeshStandardMaterial({ color: '#a89070', roughness: 0.8 }),
+      new THREE.MeshStandardMaterial({ color: '#6a6a6a', roughness: 0.8 })
+    ]
+  },
   // Shared materials
   window: new THREE.MeshStandardMaterial({ color: '#88ccff', emissive: '#4488ff', emissiveIntensity: 2 }),
   windowFrame: new THREE.MeshStandardMaterial({ color: '#ddd', roughness: 0.6 }),
+  stainedGlass: new THREE.MeshStandardMaterial({ color: '#5a8fc4', emissive: '#3a5fa4', emissiveIntensity: 1.8 }),
+  // Roof variants
   roof: new THREE.MeshStandardMaterial({ color: '#3a3a3a', roughness: 0.7 }),
   modernRoof: new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.4, metalness: 0.3 }),
   villaRoof: new THREE.MeshStandardMaterial({ color: '#8B4513', roughness: 0.8 }),
+  barnRoof: new THREE.MeshStandardMaterial({ color: '#3a1a0a', roughness: 0.85 }),
+  churchRoof: new THREE.MeshStandardMaterial({ color: '#2a3540', roughness: 0.7, metalness: 0.4 }),
+  garageRoof: new THREE.MeshStandardMaterial({ color: '#3a3a3a', roughness: 0.85 }),
+  canopyRoof: new THREE.MeshStandardMaterial({ color: '#c40000', roughness: 0.7 }),
+  // Detail materials
   balcony: new THREE.MeshStandardMaterial({ color: '#555', roughness: 0.5, metalness: 0.2 }),
   door: new THREE.MeshStandardMaterial({ color: '#4a3520', roughness: 0.8 }),
-  awning: new THREE.MeshStandardMaterial({ color: '#CC5500', roughness: 0.8 })
+  garageDoor: new THREE.MeshStandardMaterial({ color: '#444', roughness: 0.5, metalness: 0.4 }),
+  awning: new THREE.MeshStandardMaterial({ color: '#CC5500', roughness: 0.8 }),
+  fuelPump: new THREE.MeshStandardMaterial({ color: '#c40000', roughness: 0.6, metalness: 0.3 }),
+  fuelPumpDark: new THREE.MeshStandardMaterial({ color: '#222', roughness: 0.7 }),
+  // Environment objects
+  fence: new THREE.MeshStandardMaterial({ color: '#6a5a45', roughness: 0.9 }),
+  mailbox: new THREE.MeshStandardMaterial({ color: '#1a4a8a', roughness: 0.6, metalness: 0.4 }),
+  mailboxFlag: new THREE.MeshStandardMaterial({ color: '#c40000', roughness: 0.5 }),
+  signPost: new THREE.MeshStandardMaterial({ color: '#444', roughness: 0.6, metalness: 0.5 }),
+  signPlate: new THREE.MeshStandardMaterial({ color: '#f0f0f0', roughness: 0.5 }),
+  // PAKET 3: ek material'ler
+  windowDim: new THREE.MeshStandardMaterial({ color: '#334455', roughness: 0.7 }),  // sönük pencere
+  windowBright: new THREE.MeshStandardMaterial({ color: '#ffe066', emissive: '#ffaa44', emissiveIntensity: 2.5 }), // sıcak yanık
+  pineNeedles: [
+    new THREE.MeshStandardMaterial({ color: '#1f3a1f', roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: '#2a4a2a', roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: '#1a2e1a', roughness: 1 })
+  ],
+  pineTrunk: new THREE.MeshStandardMaterial({ color: '#3a2a1a', roughness: 1 }),
+  bench: new THREE.MeshStandardMaterial({ color: '#5a3520', roughness: 0.85 }),
+  benchMetal: new THREE.MeshStandardMaterial({ color: '#222', roughness: 0.5, metalness: 0.6 }),
+  pole: new THREE.MeshStandardMaterial({ color: '#5a4030', roughness: 0.95 }),    // telefon direği ahşap
+  wire: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.9 }),
+  busStopRoof: new THREE.MeshStandardMaterial({ color: '#c40000', roughness: 0.6 }),
+  busStopGlass: new THREE.MeshStandardMaterial({ color: '#88ccff', transparent: true, opacity: 0.35, roughness: 0.2 }),
+  acUnit: new THREE.MeshStandardMaterial({ color: '#cccccc', roughness: 0.6, metalness: 0.3 }),
+  antenna: new THREE.MeshStandardMaterial({ color: '#888', roughness: 0.5, metalness: 0.4 }),
+  potPlant: new THREE.MeshStandardMaterial({ color: '#3a5a2a', roughness: 0.95 }),
+  potBase: new THREE.MeshStandardMaterial({ color: '#8a4a30', roughness: 0.9 })
 };
 
+// Helper: tip + index'ten body material'i sec. Gecersiz tip olursa small_house default.
+function pickBodyMaterial(type, idx) {
+  const variants = sharedBuildingMaterials.bodyVariants[type] || sharedBuildingMaterials.bodyVariants.small_house;
+  return variants[(idx | 0) % variants.length];
+}
+
 // ==================== ÇEVRE ====================
-const Building = memo(({ width, height, side, type }) => {
+const Building = memo(({ width, height, side, type, materialIdx = 0 }) => {
   const isApartment = type === 'apartment';
   const isVilla = type === 'villa';
   const isModernHouse = type === 'modern_house';
   const isShop = type === 'shop';
   const isTownhouse = type === 'townhouse';
+  const isBarn = type === 'barn';
+  const isChurch = type === 'church';
+  const isGasStation = type === 'gas_station';
+  const isGarage = type === 'garage';
 
-  // Use shared materials from global pool (no per-component allocation)
-  const buildingMaterial = sharedBuildingMaterials[type] || sharedBuildingMaterials.small_house;
+  // Use shared materials from global pool. PAKET 2: pickBodyMaterial ile renk varyanti.
+  const buildingMaterial = pickBodyMaterial(type, materialIdx);
 
   // Windows for apartments and townhouses - More consistent
   const wins = useMemo(() => {
@@ -1033,38 +1162,59 @@ const Building = memo(({ width, height, side, type }) => {
       </mesh>
 
       {/* Apartment/Townhouse windows with frames */}
-      {wins.map((pos, i) => (
-        <group key={i}>
-          {/* Window glass */}
-          <mesh position={pos} material={sharedBuildingMaterials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-            <planeGeometry args={[1.8, 1.5]} />
-          </mesh>
-          {/* Window frame */}
-          <mesh position={[pos[0], pos[1], pos[2]]} material={sharedBuildingMaterials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-            <planeGeometry args={[2.0, 1.7]} />
-          </mesh>
-          {/* Balcony for apartments */}
-          {isApartment && i % 3 === 0 && (
-            <mesh position={[pos[0], pos[1] - 1, pos[2] + (side > 0 ? -0.3 : 0.3)]} material={sharedBuildingMaterials.balcony}>
-              <boxGeometry args={[2.2, 0.1, 0.6]} />
+      {wins.map((pos, i) => {
+        // PAKET 3: Pencere isigi varyasyonu - %35 yanik, %25 sönük, %40 normal
+        const windowState = (i + materialIdx * 7) % 20; // deterministik ama varyasyonlu
+        const winMat = windowState < 7 ? sharedBuildingMaterials.windowBright
+                     : windowState < 12 ? sharedBuildingMaterials.windowDim
+                     : sharedBuildingMaterials.window;
+        return (
+          <group key={i}>
+            <mesh position={pos} material={winMat} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+              <planeGeometry args={[1.8, 1.5]} />
             </mesh>
-          )}
-        </group>
-      ))}
+            <mesh position={[pos[0], pos[1], pos[2]]} material={sharedBuildingMaterials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+              <planeGeometry args={[2.0, 1.7]} />
+            </mesh>
+            {isApartment && i % 3 === 0 && (
+              <mesh position={[pos[0], pos[1] - 1, pos[2] + (side > 0 ? -0.3 : 0.3)]} material={sharedBuildingMaterials.balcony}>
+                <boxGeometry args={[2.2, 0.1, 0.6]} />
+              </mesh>
+            )}
+            {/* PAKET 3: Bazi balkonlarda saksili bitki */}
+            {isApartment && i % 5 === 0 && (
+              <group position={[pos[0], pos[1] - 0.7, pos[2] + (side > 0 ? -0.5 : 0.5)]}>
+                <PotPlant />
+              </group>
+            )}
+          </group>
+        );
+      })}
 
       {/* Villa/Modern House/Shop windows with frames */}
-      {smallWins.map((pos, i) => (
-        <group key={`sw-${i}`}>
-          {/* Window glass */}
-          <mesh position={pos} material={sharedBuildingMaterials.window} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-            <planeGeometry args={[1.2, 1.0]} />
-          </mesh>
-          {/* Window frame */}
-          <mesh position={[pos[0], pos[1], pos[2]]} material={sharedBuildingMaterials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-            <planeGeometry args={[1.4, 1.2]} />
-          </mesh>
+      {smallWins.map((pos, i) => {
+        const wState = (i + materialIdx * 5) % 20;
+        const wMat = wState < 7 ? sharedBuildingMaterials.windowBright
+                   : wState < 12 ? sharedBuildingMaterials.windowDim
+                   : sharedBuildingMaterials.window;
+        return (
+          <group key={`sw-${i}`}>
+            <mesh position={pos} material={wMat} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+              <planeGeometry args={[1.2, 1.0]} />
+            </mesh>
+            <mesh position={[pos[0], pos[1], pos[2]]} material={sharedBuildingMaterials.windowFrame} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+              <planeGeometry args={[1.4, 1.2]} />
+            </mesh>
+          </group>
+        );
+      })}
+
+      {/* PAKET 3: Apartman çatı detayları (anten + klima) */}
+      {isApartment && (
+        <group position={[0, height + 0.05, 0]}>
+          <RoofDetails width={width} />
         </group>
-      ))}
+      )}
 
       {/* Small House - Pyramid roof and door */}
       {type === 'small_house' && (
@@ -1127,11 +1277,334 @@ const Building = memo(({ width, height, side, type }) => {
           <primitive object={sharedBuildingMaterials.roof} attach="material" />
         </mesh>
       )}
+
+      {/* PAKET 2: BARN - Buyuk koni catili kirmizi ahir */}
+      {isBarn && (
+        <>
+          {/* Buyuk ucgen catı - prizmaya benzer */}
+          <mesh position={[0, height + 2, 0]} rotation={[0, Math.PI / 4, 0]}>
+            <coneGeometry args={[width * 0.95, 4.5, 4]} />
+            <primitive object={sharedBuildingMaterials.barnRoof} attach="material" />
+          </mesh>
+          {/* Cift kanatli buyuk kapı */}
+          <mesh position={[-width * 0.18, 2, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.door}>
+            <planeGeometry args={[width * 0.32, 4]} />
+          </mesh>
+          <mesh position={[width * 0.18, 2, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.door}>
+            <planeGeometry args={[width * 0.32, 4]} />
+          </mesh>
+          {/* Cati ust ucundaki samanlik penceresi */}
+          <mesh position={[0, height + 0.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.window}>
+            <planeGeometry args={[1.2, 1.2]} />
+          </mesh>
+        </>
+      )}
+
+      {/* PAKET 2: CHURCH - Kule + capraz cati + vitray */}
+      {isChurch && (
+        <>
+          {/* Yan kule (saat kulesi gibi) */}
+          <mesh position={[width * 0.35, height * 0.7, 0]}>
+            <boxGeometry args={[width * 0.35, height * 1.4, width * 0.35]} />
+            <primitive object={buildingMaterial} attach="material" />
+          </mesh>
+          {/* Kule sivri tepe */}
+          <mesh position={[width * 0.35, height * 1.4 + 1.5, 0]}>
+            <coneGeometry args={[width * 0.25, 3, 8]} />
+            <primitive object={sharedBuildingMaterials.churchRoof} attach="material" />
+          </mesh>
+          {/* Ana cati - duz ust */}
+          <mesh position={[-width * 0.1, height + 0.3, 0]}>
+            <boxGeometry args={[width * 0.85, 0.6, width]} />
+            <primitive object={sharedBuildingMaterials.churchRoof} attach="material" />
+          </mesh>
+          {/* Vitray pencereler (3 tane, dikey) */}
+          {[0, 1, 2].map(idx => (
+            <mesh key={`vitray-${idx}`} position={[(idx - 1) * 1.8 - width * 0.1, height * 0.55, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.stainedGlass}>
+              <planeGeometry args={[1.0, 2.5]} />
+            </mesh>
+          ))}
+          {/* Buyuk kapı */}
+          <mesh position={[-width * 0.1, 1.5, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.door}>
+            <planeGeometry args={[1.5, 3]} />
+          </mesh>
+        </>
+      )}
+
+      {/* PAKET 2: GAS_STATION - Alcak yapi + buyuk kanopi + 2 pompa */}
+      {isGasStation && (
+        <>
+          {/* Buyuk kirmizi kanopi (yan tarafa overhang) */}
+          <mesh position={[0, height + 1.5, 0]}>
+            <boxGeometry args={[width * 1.6, 0.5, width * 1.4]} />
+            <primitive object={sharedBuildingMaterials.canopyRoof} attach="material" />
+          </mesh>
+          {/* Kanopi destek direkleri (4 kose) */}
+          {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], idx) => (
+            <mesh key={`pole-${idx}`} position={[sx * width * 0.7, height * 0.5, sz * width * 0.5]} material={sharedBuildingMaterials.signPost}>
+              <cylinderGeometry args={[0.15, 0.15, height + 1.5, 8]} />
+            </mesh>
+          ))}
+          {/* 2 yakit pompasi (yola dogru) */}
+          {[-1, 1].map(p => (
+            <group key={`pump-${p}`} position={[p * width * 0.3, 0, (side > 0 ? -1 : 1) * (width / 2 + 1)]}>
+              <mesh position={[0, 0.6, 0]} material={sharedBuildingMaterials.fuelPump}>
+                <boxGeometry args={[0.6, 1.2, 0.4]} />
+              </mesh>
+              <mesh position={[0, 1.4, 0]} material={sharedBuildingMaterials.fuelPumpDark}>
+                <boxGeometry args={[0.5, 0.4, 0.35]} />
+              </mesh>
+            </group>
+          ))}
+          {/* Kucuk magaza penceresi */}
+          <mesh position={[0, 2, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.window}>
+            <planeGeometry args={[width * 0.6, 1.2]} />
+          </mesh>
+        </>
+      )}
+
+      {/* PAKET 2: GARAGE - Kucuk dikdortgen + buyuk garaj kapisi */}
+      {isGarage && (
+        <>
+          {/* Duz cati */}
+          <mesh position={[0, height + 0.15, 0]}>
+            <boxGeometry args={[width * 1.05, 0.3, width * 1.05]} />
+            <primitive object={sharedBuildingMaterials.garageRoof} attach="material" />
+          </mesh>
+          {/* Buyuk garaj kapisi (yola bakan tarafta, neredeyse tum genisligi kaplar) */}
+          <mesh position={[0, height * 0.55, (side > 0 ? -1 : 1) * (width / 2 + 0.05)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.garageDoor}>
+            <planeGeometry args={[width * 0.85, height * 0.85]} />
+          </mesh>
+          {/* Kapi cizgileri (paneller) */}
+          {[0.2, 0.4, 0.6, 0.8].map(yRatio => (
+            <mesh key={`panel-${yRatio}`} position={[0, height * yRatio * 0.95 + 0.1, (side > 0 ? -1 : 1) * (width / 2 + 0.06)]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} material={sharedBuildingMaterials.signPost}>
+              <planeGeometry args={[width * 0.85, 0.05]} />
+            </mesh>
+          ))}
+        </>
+      )}
     </group>
   );
 });
 
 Building.displayName = 'Building';
+
+// PAKET 2: Cevre detay component'leri (cit, posta kutusu, levha)
+// Hepsi shared material kullaniyor - allocation maliyeti dusuk.
+const GardenFence = memo(({ length = 6, side = 1 }) => {
+  // 'side' burada bina yonelimi degil, citin yon ofseti.
+  const posts = useMemo(() => {
+    const arr = [];
+    const count = Math.max(2, Math.floor(length / 0.6));
+    for (let i = 0; i < count; i++) {
+      arr.push((i / (count - 1) - 0.5) * length);
+    }
+    return arr;
+  }, [length]);
+  return (
+    <group>
+      {posts.map((x, i) => (
+        <mesh key={i} position={[x, 0.4, side * 0.05]} material={sharedBuildingMaterials.fence}>
+          <boxGeometry args={[0.08, 0.8, 0.08]} />
+        </mesh>
+      ))}
+      {/* Yatay tirabzan */}
+      <mesh position={[0, 0.65, side * 0.05]} material={sharedBuildingMaterials.fence}>
+        <boxGeometry args={[length, 0.06, 0.06]} />
+      </mesh>
+      <mesh position={[0, 0.25, side * 0.05]} material={sharedBuildingMaterials.fence}>
+        <boxGeometry args={[length, 0.06, 0.06]} />
+      </mesh>
+    </group>
+  );
+});
+GardenFence.displayName = 'GardenFence';
+
+const MailBox = memo(() => {
+  return (
+    <group>
+      {/* Direk */}
+      <mesh position={[0, 0.5, 0]} material={sharedBuildingMaterials.signPost}>
+        <cylinderGeometry args={[0.04, 0.04, 1.0, 6]} />
+      </mesh>
+      {/* Kutu (silindirik posta kutusu) */}
+      <mesh position={[0, 1.05, 0]} rotation={[Math.PI / 2, 0, 0]} material={sharedBuildingMaterials.mailbox}>
+        <cylinderGeometry args={[0.18, 0.18, 0.5, 8, 1, false, 0, Math.PI]} />
+      </mesh>
+      <mesh position={[0, 1.05, 0]} material={sharedBuildingMaterials.mailbox}>
+        <boxGeometry args={[0.5, 0.36, 0.36]} />
+      </mesh>
+      {/* Kirmizi bayrak */}
+      <mesh position={[0.27, 1.18, 0]} material={sharedBuildingMaterials.mailboxFlag}>
+        <boxGeometry args={[0.04, 0.18, 0.12]} />
+      </mesh>
+    </group>
+  );
+});
+MailBox.displayName = 'MailBox';
+
+const RoadSign = memo(({ variant = 0 }) => {
+  // 3 varyant: kare, daire, ucgen
+  return (
+    <group>
+      {/* Direk */}
+      <mesh position={[0, 1.2, 0]} material={sharedBuildingMaterials.signPost}>
+        <cylinderGeometry args={[0.06, 0.06, 2.4, 6]} />
+      </mesh>
+      {/* Plaka */}
+      {variant === 0 && (
+        <mesh position={[0, 2.3, 0]} material={sharedBuildingMaterials.signPlate}>
+          <boxGeometry args={[0.7, 0.7, 0.05]} />
+        </mesh>
+      )}
+      {variant === 1 && (
+        <mesh position={[0, 2.3, 0]} rotation={[0, 0, 0]} material={sharedBuildingMaterials.mailboxFlag}>
+          <cylinderGeometry args={[0.4, 0.4, 0.05, 16]} />
+        </mesh>
+      )}
+      {variant === 2 && (
+        <mesh position={[0, 2.3, 0]} rotation={[0, 0, Math.PI]} material={sharedBuildingMaterials.signPlate}>
+          <coneGeometry args={[0.5, 0.05, 3]} />
+        </mesh>
+      )}
+    </group>
+  );
+});
+RoadSign.displayName = 'RoadSign';
+
+// PAKET 3: Cam agaci - 3 ust uste konik (klasik cam silueti)
+const PineTree = memo(({ scale = 1, rotY = 0, colorIdx = 0 }) => {
+  const needleMat = sharedBuildingMaterials.pineNeedles[colorIdx % sharedBuildingMaterials.pineNeedles.length];
+  return (
+    <group rotation={[0, rotY, 0]} scale={scale}>
+      {/* Govde */}
+      <mesh position={[0, 1.2, 0]} material={sharedBuildingMaterials.pineTrunk}>
+        <cylinderGeometry args={[0.18, 0.25, 2.4, 6]} />
+      </mesh>
+      {/* 3 koni katmani */}
+      <mesh position={[0, 5.5, 0]} material={needleMat}>
+        <coneGeometry args={[0.9, 2.0, 8]} />
+      </mesh>
+      <mesh position={[0, 4.0, 0]} material={needleMat}>
+        <coneGeometry args={[1.4, 2.4, 8]} />
+      </mesh>
+      <mesh position={[0, 2.5, 0]} material={needleMat}>
+        <coneGeometry args={[1.9, 2.6, 8]} />
+      </mesh>
+    </group>
+  );
+});
+PineTree.displayName = 'PineTree';
+
+// PAKET 3: Park bench (oturma sırası)
+const Bench = memo(() => (
+  <group>
+    {/* Oturma yuzeyi */}
+    <mesh position={[0, 0.55, 0]} material={sharedBuildingMaterials.bench}>
+      <boxGeometry args={[1.8, 0.08, 0.5]} />
+    </mesh>
+    {/* Sirt */}
+    <mesh position={[0, 0.95, -0.2]} material={sharedBuildingMaterials.bench}>
+      <boxGeometry args={[1.8, 0.6, 0.08]} />
+    </mesh>
+    {/* Ayaklar */}
+    {[-0.8, 0.8].map((x, i) => (
+      <mesh key={i} position={[x, 0.25, 0]} material={sharedBuildingMaterials.benchMetal}>
+        <boxGeometry args={[0.06, 0.5, 0.5]} />
+      </mesh>
+    ))}
+  </group>
+));
+Bench.displayName = 'Bench';
+
+// PAKET 3: Telefon direği + üstten gerilen tel
+const TelephonePole = memo(() => (
+  <group>
+    {/* Direk */}
+    <mesh position={[0, 4, 0]} material={sharedBuildingMaterials.pole}>
+      <cylinderGeometry args={[0.15, 0.2, 8, 6]} />
+    </mesh>
+    {/* Yatay capraz tahta */}
+    <mesh position={[0, 7.2, 0]} rotation={[0, 0, Math.PI / 2]} material={sharedBuildingMaterials.pole}>
+      <cylinderGeometry args={[0.08, 0.08, 1.6, 6]} />
+    </mesh>
+    {/* Tel (3 ince çizgi yatay olarak) */}
+    {[-0.5, 0, 0.5].map((y, i) => (
+      <mesh key={i} position={[0, 7.2 + y * 0.4, 5]} material={sharedBuildingMaterials.wire}>
+        <boxGeometry args={[0.04, 0.04, 60]} />
+      </mesh>
+    ))}
+  </group>
+));
+TelephonePole.displayName = 'TelephonePole';
+
+// PAKET 3: Otobüs durağı (cam yan + kırmızı çatı + bench)
+const BusStop = memo(() => (
+  <group>
+    {/* Kirmizi cati */}
+    <mesh position={[0, 2.4, 0]} material={sharedBuildingMaterials.busStopRoof}>
+      <boxGeometry args={[3, 0.15, 1.5]} />
+    </mesh>
+    {/* Cam yan duvarlar */}
+    <mesh position={[-1.4, 1.2, 0]} material={sharedBuildingMaterials.busStopGlass}>
+      <boxGeometry args={[0.05, 2.4, 1.5]} />
+    </mesh>
+    <mesh position={[1.4, 1.2, 0]} material={sharedBuildingMaterials.busStopGlass}>
+      <boxGeometry args={[0.05, 2.4, 1.5]} />
+    </mesh>
+    {/* Arka cam */}
+    <mesh position={[0, 1.2, -0.7]} material={sharedBuildingMaterials.busStopGlass}>
+      <boxGeometry args={[3, 2.4, 0.05]} />
+    </mesh>
+    {/* Direk koseler */}
+    {[[-1.4, -0.7], [1.4, -0.7], [-1.4, 0.7], [1.4, 0.7]].map(([x, z], i) => (
+      <mesh key={i} position={[x, 1.2, z]} material={sharedBuildingMaterials.signPost}>
+        <cylinderGeometry args={[0.05, 0.05, 2.4, 6]} />
+      </mesh>
+    ))}
+    {/* Ic bench */}
+    <group position={[0, 0, -0.4]}>
+      <mesh position={[0, 0.45, 0]} material={sharedBuildingMaterials.bench}>
+        <boxGeometry args={[2.4, 0.06, 0.4]} />
+      </mesh>
+    </group>
+  </group>
+));
+BusStop.displayName = 'BusStop';
+
+// PAKET 3: Saksı + bitki (bina önü süs)
+const PotPlant = memo(() => (
+  <group>
+    <mesh position={[0, 0.2, 0]} material={sharedBuildingMaterials.potBase}>
+      <cylinderGeometry args={[0.3, 0.25, 0.4, 8]} />
+    </mesh>
+    <mesh position={[0, 0.7, 0]} material={sharedBuildingMaterials.potPlant}>
+      <sphereGeometry args={[0.35, 8, 8]} />
+    </mesh>
+  </group>
+));
+PotPlant.displayName = 'PotPlant';
+
+// PAKET 3: Apartman çatı detayları (anten + klima ünitesi)
+const RoofDetails = memo(({ width }) => (
+  <group>
+    {/* Klima ünitesi (gri kutular) */}
+    <mesh position={[width * 0.25, 0.3, 0]} material={sharedBuildingMaterials.acUnit}>
+      <boxGeometry args={[0.7, 0.5, 0.8]} />
+    </mesh>
+    <mesh position={[-width * 0.2, 0.3, width * 0.2]} material={sharedBuildingMaterials.acUnit}>
+      <boxGeometry args={[0.6, 0.45, 0.7]} />
+    </mesh>
+    {/* Anten */}
+    <mesh position={[0, 1.5, 0]} material={sharedBuildingMaterials.antenna}>
+      <cylinderGeometry args={[0.04, 0.04, 3, 6]} />
+    </mesh>
+    <mesh position={[0, 2.7, 0]} rotation={[0, 0, Math.PI / 2]} material={sharedBuildingMaterials.antenna}>
+      <cylinderGeometry args={[0.025, 0.025, 1.0, 6]} />
+    </mesh>
+  </group>
+));
+RoofDetails.displayName = 'RoofDetails';
 
 // ==================== ASSET-BASED ENVIRONMENT (CC0 packs) ====================
 // KayKit City Builder Bits + Quaternius Nature Pack + Quaternius Farm Buildings.
@@ -1370,7 +1843,9 @@ const SideObjects = memo(({ side }) => {
   return (
     <group ref={groupRef}>
       {objects.map((obj, i) => {
-        // KayKit binalarinin yola bakan cephesi gorunsun: side > 0 ise PI rotasyon.
+        // Yana doğru offset sabit; her item kendi grup içinde rotasyon ve scale jitter alır.
+        // KayKit binaları zaten yola dönmek için side'a gore Y rotasyonu alır
+        // (yola bakan cephe gorunsun): side > 0 ise PI, side < 0 ise 0.
         const facingRotY = side > 0 ? Math.PI : 0;
         return (
           <group key={i} position={[side * (45 + obj.offset), 0, obj.z]} rotation={[0, facingRotY + obj.rotY * 0.1, 0]}>
@@ -1423,7 +1898,7 @@ Barrier.displayName = 'Barrier';
 
 // ==================== STREET LIGHTS (OPTIMIZED) ====================
 const StreetLights = memo(() => {
-  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
+  // PERF 4A: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
   const speed = useGameStore(s => s.speed);
   const lightsRef = useRef();
 
@@ -1537,7 +2012,7 @@ StreetLights.displayName = 'StreetLights';
 
 // ==================== YOL VE ZEMİN (OPTIMIZED) ====================
 function RoadEnvironment() {
-  // PERF: Selector ile her field'a ayri subscribe. updateGame action stable.
+  // PERF 4A: Selector ile her field'a ayri subscribe. updateGame action stable.
   const updateGame = useGameStore(s => s.updateGame);
   const speed = useGameStore(s => s.speed);
   const leftStripesRef = useRef();
@@ -1639,7 +2114,7 @@ function RoadEnvironment() {
 
 // ==================== KAMERA SHAKE ====================
 const CameraShake = memo(() => {
-  // PERF: Selector ile her field'a ayri subscribe.
+  // PERF 4A: Selector ile her field'a ayri subscribe.
   const cameraShake = useGameStore(s => s.cameraShake);
   const gameState = useGameStore(s => s.gameState);
   const { camera } = useThree();
@@ -1655,6 +2130,13 @@ const CameraShake = memo(() => {
       camera.position.set(0, 4, 11); // Moved back from 8 to 11
       camera.rotation.set(0, 0, 0);
       originalPosition.current = { x: 0, y: 4, z: 11 };
+      // PAKET-ROCKET: Yeni oyunda FOV'u orijinal degerine (50, PerspectiveCamera prop'u) zorla
+      if (camera.fov !== undefined) {
+        /* eslint-disable react-hooks/immutability */
+        camera.fov = 50;
+        camera.updateProjectionMatrix();
+        /* eslint-enable react-hooks/immutability */
+      }
     }
   }, [gameState, camera]);
 
@@ -1663,11 +2145,26 @@ const CameraShake = memo(() => {
     const clampedDelta = Math.min(delta, 0.1);
 
     // Smooth Camera Follow
-    const { targetX } = useGameStore.getState(); // Access current targetX directly
+    const { targetX, rocketActive } = useGameStore.getState(); // Access current targetX directly
     const targetCameraX = targetX * 0.7; // Follow factor (0.7 means camera moves 70% as much as car)
 
     // Lerp current camera X towards target X
     originalPosition.current.x = THREE.MathUtils.lerp(originalPosition.current.x, targetCameraX, clampedDelta * 3);
+
+    // PAKET-ROCKET: FOV genisleme - rocket aktifken 75 -> 100 yumusakca acilir.
+    // Sadece PerspectiveCamera (fov property'si olan) ve sayisal degerlerle calis.
+    const currentFov = camera.fov;
+    if (Number.isFinite(currentFov)) {
+      // Normal FOV 50 (Canvas PerspectiveCamera prop). Rocket aktifken 75'e acilir.
+      const targetFov = rocketActive ? 75 : 50;
+      const newFov = THREE.MathUtils.lerp(currentFov, targetFov, Math.min(clampedDelta * 5, 0.25));
+      if (Number.isFinite(newFov) && Math.abs(newFov - currentFov) > 0.05) {
+        /* eslint-disable react-hooks/immutability */
+        camera.fov = newFov;
+        camera.updateProjectionMatrix();
+        /* eslint-enable react-hooks/immutability */
+      }
+    }
 
     if (cameraShake > 0 && gameState === 'gameover') {
       camera.position.set(
@@ -1717,7 +2214,7 @@ SkyEnvironment.displayName = 'SkyEnvironment';
 
 // ==================== SPEED LINES EFFECT ====================
 const SpeedLines = memo(() => {
-  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
+  // PERF 4A: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
   const speed = useGameStore(s => s.speed);
   const linesRef = useRef();
 
@@ -1770,7 +2267,7 @@ SpeedLines.displayName = 'SpeedLines';
 
 // ==================== SPEED BLUR OVERLAY ====================
 const SpeedBlurOverlay = memo(() => {
-  // PERF: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
+  // PERF 4A: Selector ile tek field'a subscribe (eskiden tum store'a abone idi).
   const speed = useGameStore(s => s.speed);
 
   if (speed < 160) return null;
@@ -1889,10 +2386,10 @@ const GameContent = () => {
 
 // ==================== ANA UYGULAMA ====================
 function Game() {
-  // PERF: Tum store'a destructure subscribe etmek yerine her field icin ayri
-  // selector. Game sadece kendi okudugu field degisince yeniden render olur
-  // (eskiden enemies/coins/particles gibi her frame degisen alanlar da Game'i
-  // 60Hz tetikliyordu).
+  // PERF 1A: Tum store'a destructure subscribe etmek yerine her field icin
+  // ayri selector. Boylece Game sadece kendi okudugu field degisince yeniden
+  // render olur (eskiden enemies/coins/particles gibi her frame degisen
+  // alanlar da Game'i 60Hz tetikliyordu).
   const speed = useGameStore(s => s.speed);
   const score = useGameStore(s => s.score);
   const message = useGameStore(s => s.message);
@@ -1905,6 +2402,8 @@ function Game() {
   const maxNitro = useGameStore(s => s.maxNitro);
   const isNitroActive = useGameStore(s => s.isNitroActive);
   const currentLevel = useGameStore(s => s.currentLevel);
+  // PAKET-ROCKET: vignette overlay icin
+  const rocketActive = useGameStore(s => s.rocketActive);
   // Action'lar Zustand'da stable referans - subscribe etmek render tetiklemez.
   const steer = useGameStore(s => s.steer);
   const cleanupTimer = useGameStore(s => s.cleanupTimer);
@@ -2330,6 +2829,20 @@ function Game() {
           </div>
         )
       }
+
+      {/* PAKET-ROCKET: Vignette overlay - rocket aktifken ekran kenarlarinda kirmizi parlama */}
+      {rocketActive && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            pointerEvents: 'none',
+            background: 'radial-gradient(ellipse at center, transparent 50%, rgba(255, 40, 0, 0.35) 100%)',
+            zIndex: 9999,
+            animation: 'rocketPulse 0.8s ease-in-out infinite alternate'
+          }}
+        />
+      )}
 
       {!gameOver && (
         <Canvas

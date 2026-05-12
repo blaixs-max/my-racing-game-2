@@ -153,6 +153,15 @@ export const useGameStore = create((set, get) => ({
   currentLevelMagnetsSpawned: 0,     // bu level'de kac magnet spawn oldu (max 2)
   magnetLevelTracker: 1,             // hangi level icin sayim yapildigi (level degisince sifirla)
 
+  // PAKET-ROCKET: Roket power-up state
+  // 12 saniye boyunca: araç 210 km/h sabit, NPC yok, coin/magnet toplama devam.
+  rocketActive: false,
+  rocketEndTime: 0,
+  rocketDuration: 12000,
+  rocketTargetSpeed: 210,            // sabit hız (anti-cheat sınırı 60 m/s = 216 km/h'in altında)
+  currentLevelRocketsSpawned: 0,     // level basina max 1
+  rocketLevelTracker: 1,
+
   updateCounter: 0,
   lastSpawnZ: -400,
 
@@ -237,7 +246,12 @@ export const useGameStore = create((set, get) => ({
       magnetActive: false,
       magnetEndTime: 0,
       currentLevelMagnetsSpawned: 0,
-      magnetLevelTracker: 1
+      magnetLevelTracker: 1,
+      // PAKET-ROCKET: oyun basinda sifirla
+      rocketActive: false,
+      rocketEndTime: 0,
+      currentLevelRocketsSpawned: 0,
+      rocketLevelTracker: 1
     });
 
     let count = 5;
@@ -356,6 +370,21 @@ export const useGameStore = create((set, get) => ({
     setTimeout(() => set((s) => s.message === "MAGNET 10s!" ? { message: "" } : {}), 1500);
   },
 
+  // PAKET-ROCKET: Roket alindi - 12 saniye boyunca aktif.
+  // Mevcut NPC'ler temizlenir, yeni spawn updateGame icinde durdurulur.
+  // Hiz sabit 210 km/h olur (updateGame icinde uygulanir).
+  collectRocket: (id) => {
+    audioSystem.playCoin(); // gecici ses
+    set((state) => ({
+      coins: state.coins.filter(c => c.id !== id),
+      rocketActive: true,
+      rocketEndTime: Date.now() + state.rocketDuration,
+      enemies: [],                // mevcut NPC'leri temizle
+      message: "ROCKET 12s!"
+    }));
+    setTimeout(() => set((s) => s.message === "ROCKET 12s!" ? { message: "" } : {}), 1500);
+  },
+
   triggerNearMiss: (position) => {
     const { combo, score, nearMissCount } = get();
     audioSystem.playNearMiss();
@@ -426,6 +455,16 @@ export const useGameStore = create((set, get) => ({
       newNitro = Math.min(state.maxNitro, state.nitro + clampedDelta * state.nitroRegenRate);
     }
 
+    // PAKET-ROCKET: Rocket aktif suresi kontrolu (validEnemies + targetSpeed icin gerekli)
+    let newRocketActive = state.rocketActive;
+    if (newRocketActive && Date.now() > state.rocketEndTime) {
+      newRocketActive = false;
+    }
+    // Rocket aktifse targetSpeed sabit 210 km/h
+    if (newRocketActive) {
+      newTargetSpeed = state.rocketTargetSpeed;
+    }
+
     const newSpeed = THREE.MathUtils.lerp(state.speed, newTargetSpeed, clampedDelta * 2);
     const newScore = state.score + (newSpeed * clampedDelta * 0.2);
     const newDistance = state.totalDistance + (newSpeed * clampedDelta * 0.1);
@@ -462,6 +501,14 @@ export const useGameStore = create((set, get) => ({
       newMagnetActive = false;
     }
 
+    // PAKET-ROCKET: Level degisiminde rocket sayacini sifirla
+    let newCurrentLevelRocketsSpawned = state.currentLevelRocketsSpawned;
+    let newRocketLevelTracker = state.rocketLevelTracker;
+    if (newLevel > state.rocketLevelTracker) {
+      newCurrentLevelRocketsSpawned = 0;
+      newRocketLevelTracker = newLevel;
+    }
+
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
 
     // ==================== OPTIMIZED PARTICLE UPDATE ====================
@@ -493,12 +540,15 @@ export const useGameStore = create((set, get) => ({
     const playerCurrentX = state.currentX;
     const playerLane = playerCurrentX < -2.25 ? -1 : (playerCurrentX > 2.25 ? 1 : 0);
 
-    // Filter valid enemies once
+    // PAKET-ROCKET: Rocket aktifken NPC'ler tamamen yok - validEnemies bos.
+    // Mevcut state.enemies de updateGame return'ünde [] olarak set edilir asagida.
     const validEnemies = [];
-    for (let i = 0; i < state.enemies.length; i++) {
-      const e = state.enemies[i];
-      if (e && typeof e.z !== 'undefined' && e.z < 50) {
-        validEnemies.push(e);
+    if (!newRocketActive) {
+      for (let i = 0; i < state.enemies.length; i++) {
+        const e = state.enemies[i];
+        if (e && typeof e.z !== 'undefined' && e.z < 50) {
+          validEnemies.push(e);
+        }
       }
     }
 
@@ -776,6 +826,10 @@ export const useGameStore = create((set, get) => ({
       if (!canSpawn) {
         finalAvailableLanes = [];
       }
+      // PAKET-ROCKET: Rocket aktifken hic NPC spawn olmasin
+      if (newRocketActive) {
+        finalAvailableLanes = [];
+      }
 
       if (finalAvailableLanes.length > 0) {
         const lane = finalAvailableLanes[Math.floor(Math.random() * finalAvailableLanes.length)];
@@ -821,18 +875,31 @@ export const useGameStore = create((set, get) => ({
       const isSafeCoin = !newCoins.some(c => c && typeof c.x !== 'undefined' && typeof c.z !== 'undefined' && Math.abs(c.x - coinX) < 2 && Math.abs(c.z - -400) < 40);
 
       if (isSafeCar && isSafeCoin) {
-        // PAKET-MAGNET: Her level'de tam 2 magnet hedefi. Dinamik olasilik:
-        // (kalan magnet) / (level'de kalan tahmini spawn slot sayisi).
+        // PAKET-ROCKET + MAGNET: Her level'de 1 rocket + 2 magnet hedefi.
+        // Dinamik olasilik: (kalan) / (kalan tahmini spawn slot sayisi).
         let kind = 'coin';
-        const remainingMagnets = 2 - newCurrentLevelMagnetsSpawned;
-        if (remainingMagnets > 0) {
-          const levelProgress = newDistance % 1000;
-          const levelRemaining = Math.max(60, 1000 - levelProgress);
-          const remainingSlots = Math.max(1, Math.floor(levelRemaining / 30));
-          const magnetProb = remainingMagnets / remainingSlots;
-          if (Math.random() < magnetProb) {
-            kind = 'magnet';
-            newCurrentLevelMagnetsSpawned++;
+        const levelProgress = newDistance % 1000;
+        const levelRemaining = Math.max(60, 1000 - levelProgress);
+        const remainingSlots = Math.max(1, Math.floor(levelRemaining / 30));
+
+        // Once rocket dene (en nadir, level basina 1)
+        const remainingRockets = 1 - newCurrentLevelRocketsSpawned;
+        if (remainingRockets > 0) {
+          const rocketProb = remainingRockets / remainingSlots;
+          if (Math.random() < rocketProb) {
+            kind = 'rocket';
+            newCurrentLevelRocketsSpawned++;
+          }
+        }
+        // Rocket atanmadiysa magnet dene
+        if (kind === 'coin') {
+          const remainingMagnets = 2 - newCurrentLevelMagnetsSpawned;
+          if (remainingMagnets > 0) {
+            const magnetProb = remainingMagnets / remainingSlots;
+            if (Math.random() < magnetProb) {
+              kind = 'magnet';
+              newCurrentLevelMagnetsSpawned++;
+            }
           }
         }
         newCoins.push({ id: Math.random(), x: coinX, z: -400 - Math.random() * 50, kind });
@@ -845,7 +912,8 @@ export const useGameStore = create((set, get) => ({
       totalDistance: newDistance,
       cameraShake: newShake,
       particles: newParticles,
-      enemies: newEnemies,
+      // PAKET-ROCKET: rocket aktifken enemies tamamen bos kalir
+      enemies: newRocketActive ? [] : newEnemies,
       coins: newCoins,
       nitro: newNitro,
       isNitroActive: newIsNitroActive,
@@ -859,6 +927,10 @@ export const useGameStore = create((set, get) => ({
       magnetActive: newMagnetActive,
       currentLevelMagnetsSpawned: newCurrentLevelMagnetsSpawned,
       magnetLevelTracker: newMagnetLevelTracker,
+      // PAKET-ROCKET:
+      rocketActive: newRocketActive,
+      currentLevelRocketsSpawned: newCurrentLevelRocketsSpawned,
+      rocketLevelTracker: newRocketLevelTracker,
       message: levelUpMessage || state.message
     };
   }),
