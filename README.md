@@ -69,6 +69,23 @@ Branch protection requires PR review + status checks before merge.
 
 ---
 
+## Credits
+
+Open-source 3D assets used in the game:
+
+### CC-BY (Attribution required)
+- **"Magnet"** by Poly by Google — [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)
+  ([source](https://poly.pizza/m/dD2RIIea6WR))
+- **"Rocketship"** by Poly by Google — [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)
+  ([source](https://poly.pizza/m/8iKIYCyvh2k))
+
+### CC0 (Public domain — no attribution required, listed for transparency)
+- [**KayKit City Builder Bits**](https://kaylousberg.itch.io/city-builder-bits) by Kay Lousberg
+- [**Quaternius Ultimate Stylized Nature**](https://quaternius.com/) by Quaternius
+- [**Quaternius Farm Buildings**](https://quaternius.com/) by Quaternius
+
+---
+
 ## License
 
 Private. Contact: [@lumexia_project on X](https://x.com/lumexia_project).
