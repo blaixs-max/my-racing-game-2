@@ -17,6 +17,7 @@ useGLTF.preload('/models/truck.glb');
 useGLTF.preload('/models/Car 2/scene.gltf');
 useGLTF.preload('/models/Car 3/scene.gltf');
 useGLTF.preload('/models/ferrari.glb');
+useGLTF.preload('/models/magnet.glb');  // PAKET-MAGNET: Poly by Google (CC-BY)
 
 // ==================== RESPONSIVE HELPER (Debounce Eklendi) ====================
 const useResponsive = () => {
@@ -251,7 +252,7 @@ const Coins = memo(() => {
     <group>
       {validCoins.map(c => (
         <group key={c.id} position={[c.x, 1, c.z]}>
-          <SpinningCoin />
+          {c.kind === 'magnet' ? <SpinningMagnet /> : <SpinningCoin />}
         </group>
       ))}
     </group>
@@ -285,6 +286,28 @@ const SpinningCoin = () => {
 };
 
 Coins.displayName = 'Coins';
+
+// PAKET-MAGNET: Mıknatıs pickup - coin'den biraz daha buyuk, donen GLB asset.
+// Lisans: "Magnet" by Poly by Google (CC-BY). README'de credits eklenmeli.
+const SpinningMagnet = () => {
+  const ref = useRef();
+  const { scene } = useGLTF('/models/magnet.glb');
+  const cloned = useMemo(() => scene.clone(true), [scene]);
+
+  useFrame((state, delta) => {
+    if (ref.current) {
+      ref.current.rotation.y += delta * 2.2;
+    }
+  });
+
+  // Magnet asset'inin kendi unit boyutu cok buyukmus.
+  // scale 0.007 -> minik. Pivot ortada oldugu icin Y offset ile yola yerlesir.
+  return (
+    <group ref={ref}>
+      <primitive object={cloned} scale={0.007} position={[0, 0.4, 0]} />
+    </group>
+  );
+};
 
 ParticleSystem.displayName = 'ParticleSystem';
 
@@ -603,6 +626,7 @@ function PlayerCar() {
   const setGameOver = useGameStore(s => s.setGameOver);
   const triggerNearMiss = useGameStore(s => s.triggerNearMiss);
   const collectCoin = useGameStore(s => s.collectCoin);
+  const collectMagnet = useGameStore(s => s.collectMagnet);
   const updateEnemyPassed = useGameStore(s => s.updateEnemyPassed);
   const group = useRef();
 
@@ -718,7 +742,14 @@ function PlayerCar() {
     validCoins.forEach(coin => {
       const dx = Math.abs(group.current.position.x - coin.x);
       const dz = Math.abs(coin.z - (-2));
-      if (dz < 2.5 && dx < 2.0) collectCoin(coin.id);
+      if (dz < 2.5 && dx < 2.0) {
+        // PAKET-MAGNET: magnet ise 10s power-up tetikle, coin ise normal topla.
+        if (coin.kind === 'magnet') {
+          collectMagnet(coin.id);
+        } else {
+          collectCoin(coin.id);
+        }
+      }
     });
   });
 

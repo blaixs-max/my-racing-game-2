@@ -146,6 +146,13 @@ export const useGameStore = create((set, get) => ({
   gameMode: 'classic', // 'classic' | 'doubleOrNothing'
   reachedLevel5: false, // Track if player reached level 5 (for Double or Nothing)
 
+  // PAKET-MAGNET: Mıknatıs power-up state
+  magnetActive: false,
+  magnetEndTime: 0,                  // Date.now() bazli, suresi dolunca deaktif olur
+  magnetDuration: 10000,             // 10 saniye
+  currentLevelMagnetsSpawned: 0,     // bu level'de kac magnet spawn oldu (max 2)
+  magnetLevelTracker: 1,             // hangi level icin sayim yapildigi (level degisince sifirla)
+
   updateCounter: 0,
   lastSpawnZ: -400,
 
@@ -225,7 +232,12 @@ export const useGameStore = create((set, get) => ({
       startTime: 0,
       reachedLevel5: false,
       cameraShake: 0,
-      lastSpawnZ: -400
+      lastSpawnZ: -400,
+      // PAKET-MAGNET: oyun basinda sifirla
+      magnetActive: false,
+      magnetEndTime: 0,
+      currentLevelMagnetsSpawned: 0,
+      magnetLevelTracker: 1
     });
 
     let count = 5;
@@ -331,6 +343,19 @@ export const useGameStore = create((set, get) => ({
     setTimeout(() => set({ message: "" }), 600);
   },
 
+  // PAKET-MAGNET: Magnet alindi - 10 saniye boyunca aktif. Bu sirede
+  // tum coin'ler oyuncuya dogru animasyonla cekilir (updateGame icinde).
+  collectMagnet: (id) => {
+    audioSystem.playCoin(); // ses (gecici - magnet sesi yok henuz)
+    set((state) => ({
+      coins: state.coins.filter(c => c.id !== id),
+      magnetActive: true,
+      magnetEndTime: Date.now() + state.magnetDuration,
+      message: "MAGNET 10s!"
+    }));
+    setTimeout(() => set((s) => s.message === "MAGNET 10s!" ? { message: "" } : {}), 1500);
+  },
+
   triggerNearMiss: (position) => {
     const { combo, score, nearMissCount } = get();
     audioSystem.playNearMiss();
@@ -421,6 +446,20 @@ export const useGameStore = create((set, get) => ({
           levelUpMessage = `LEVEL 5! 2X BONUS UNLOCKED!`;
         }
       }
+    }
+
+    // PAKET-MAGNET: Yeni level'e gectiysek magnet spawn sayacini sifirla
+    let newCurrentLevelMagnetsSpawned = state.currentLevelMagnetsSpawned;
+    let newMagnetLevelTracker = state.magnetLevelTracker;
+    if (newLevel > state.magnetLevelTracker) {
+      newCurrentLevelMagnetsSpawned = 0;
+      newMagnetLevelTracker = newLevel;
+    }
+
+    // PAKET-MAGNET: Magnet aktif suresi kontrolu
+    let newMagnetActive = state.magnetActive;
+    if (newMagnetActive && Date.now() > state.magnetEndTime) {
+      newMagnetActive = false;
     }
 
     const newShake = Math.max(0, state.cameraShake - clampedDelta * 5);
@@ -636,13 +675,28 @@ export const useGameStore = create((set, get) => ({
     }
 
     // PERFORMANCE FIX: Single pass coin update instead of filter/map/filter chain
+    // PAKET-MAGNET: Magnet aktifken coin'ler oyuncuya cekilir (animasyon).
+    // state.currentX store'da guncellenmiyor (hep 0); state.targetX surucunun
+    // hedef seridini (-4.5 / 0 / +4.5) tutar, dogru kaynak budur.
+    const playerTargetX = state.targetX;
+    const playerTargetZ = -2;
+    const pullSpeed = 12;
     const newCoins = [];
     for (let i = 0; i < state.coins.length; i++) {
       const c = state.coins[i];
       if (!c || typeof c !== 'object' || typeof c.z === 'undefined') continue;
-      const newZ = c.z + newSpeed * clampedDelta * 0.5;
-      if (newZ < 50) {
-        newCoins.push({ id: c.id, x: c.x, z: newZ });
+      let nextX = c.x;
+      let nextZ = c.z + newSpeed * clampedDelta * 0.5;
+      // Magnet aktif + bu obje COIN (magnet kendi kendini cekmesin)
+      if (newMagnetActive && c.kind !== 'magnet') {
+        if (c.z < playerTargetZ) {
+          nextX = THREE.MathUtils.lerp(c.x, playerTargetX, clampedDelta * pullSpeed);
+          nextZ = THREE.MathUtils.lerp(nextZ, playerTargetZ, clampedDelta * pullSpeed);
+        }
+      }
+      if (nextZ < 50) {
+        // PAKET-MAGNET: kind alanini koru (coin | magnet)
+        newCoins.push({ id: c.id, x: nextX, z: nextZ, kind: c.kind || 'coin' });
       }
     }
 
@@ -767,7 +821,21 @@ export const useGameStore = create((set, get) => ({
       const isSafeCoin = !newCoins.some(c => c && typeof c.x !== 'undefined' && typeof c.z !== 'undefined' && Math.abs(c.x - coinX) < 2 && Math.abs(c.z - -400) < 40);
 
       if (isSafeCar && isSafeCoin) {
-        newCoins.push({ id: Math.random(), x: coinX, z: -400 - Math.random() * 50 });
+        // PAKET-MAGNET: Her level'de tam 2 magnet hedefi. Dinamik olasilik:
+        // (kalan magnet) / (level'de kalan tahmini spawn slot sayisi).
+        let kind = 'coin';
+        const remainingMagnets = 2 - newCurrentLevelMagnetsSpawned;
+        if (remainingMagnets > 0) {
+          const levelProgress = newDistance % 1000;
+          const levelRemaining = Math.max(60, 1000 - levelProgress);
+          const remainingSlots = Math.max(1, Math.floor(levelRemaining / 30));
+          const magnetProb = remainingMagnets / remainingSlots;
+          if (Math.random() < magnetProb) {
+            kind = 'magnet';
+            newCurrentLevelMagnetsSpawned++;
+          }
+        }
+        newCoins.push({ id: Math.random(), x: coinX, z: -400 - Math.random() * 50, kind });
       }
     }
 
@@ -787,6 +855,10 @@ export const useGameStore = create((set, get) => ({
       currentLevel: newLevel,
       lastLevelUpDistance: newLastLevelUpDistance,
       reachedLevel5: newReachedLevel5,
+      // PAKET-MAGNET:
+      magnetActive: newMagnetActive,
+      currentLevelMagnetsSpawned: newCurrentLevelMagnetsSpawned,
+      magnetLevelTracker: newMagnetLevelTracker,
       message: levelUpMessage || state.message
     };
   }),
