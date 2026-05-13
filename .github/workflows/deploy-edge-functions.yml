@@ -58,3 +58,16 @@ jobs:
         run: supabase functions deploy reconcile-payments --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy get-token-price
+        # Server-side price proxy. The frontend's client-side chain
+        # (DexScreener + Jupiter) fails when (a) the token is still on
+        # the pump.fun bonding curve and no aggregator has indexed it,
+        # or (b) a mobile carrier / corporate proxy DNS-blocks the
+        # crypto-data domains. *.supabase.co stays reachable, so the
+        # frontend falls back here. JWT verification stays on (default)
+        # — the function is anon-key gated to keep it from being a
+        # free public price oracle.
+        run: supabase functions deploy get-token-price --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

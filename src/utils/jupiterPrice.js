@@ -5,19 +5,21 @@
  * Source chain (first non-null wins):
  *   1. DexScreener — works once the token graduates to Raydium/Meteora.
  *   2. Jupiter Price API v2 — works once Jupiter has the token routed.
- *   3. pump.fun bonding-curve API — works during the pre-graduation phase
- *      when neither aggregator has indexed the mint yet (e.g. fresh launches).
+ *   3. Supabase Edge Function `get-token-price` proxy — server-side
+ *      DexScreener + Jupiter + pump.fun chain. Used when the browser
+ *      can't reach the public APIs directly, most commonly because:
+ *        a) pump.fun's frontend-api has no CORS for public origins
+ *           (so its bonding-curve price for pre-graduation mints is
+ *           only reachable server-side), or
+ *        b) the user's mobile carrier / corporate proxy DNS-blocks
+ *           crypto-data domains (pump.fun, dexscreener.com, jup.ag).
+ *           *.supabase.co stays reachable on those networks.
  *
  * Jupiter v6 was retired in late 2024; the v2 endpoint returns `usdPrice`
- * (not `price`) on the same `data[mint]` shape. pump.fun exposes
- * `usd_market_cap` per coin; price = usd_market_cap / 1e9 since every
- * pump.fun mint has a fixed 1B total supply.
+ * (not `price`) on the same `data[mint]` shape.
  */
 
-import { TOKEN_CONFIG, JUPITER_CONFIG, PUMPFUN_CONFIG } from '../solana.config.js';
-
-// pump.fun total supply is fixed at 1,000,000,000 (1B) for every coin.
-const PUMPFUN_TOTAL_SUPPLY = 1_000_000_000;
+import { TOKEN_CONFIG, JUPITER_CONFIG } from '../solana.config.js';
 
 // Price cache
 let priceCache = {
@@ -26,7 +28,7 @@ let priceCache = {
 };
 
 /**
- * Fetch token price - DexScreener → Jupiter v2 → pump.fun fallback.
+ * Fetch token price - DexScreener → Jupiter v2 → Edge Function proxy fallback.
  * @returns {Promise<number>} Price in USD
  */
 export async function getTokenPrice() {
@@ -48,7 +50,7 @@ export async function getTokenPrice() {
     console.warn('[DexScreener] Failed:', error.message);
   }
 
-  // Fallback to Jupiter v2
+  // Try Jupiter v2
   try {
     const price = await getJupiterPrice();
     if (price) {
@@ -59,15 +61,18 @@ export async function getTokenPrice() {
     console.warn('[Jupiter] Failed:', error.message);
   }
 
-  // Final fallback: pump.fun bonding curve (works for fresh, pre-graduation mints)
+  // Final fallback: Edge Function proxy. The proxy itself tries
+  // DexScreener + Jupiter + pump.fun server-side, so it covers both
+  // pre-graduation mints (CORS-blocked pump.fun) and clients on
+  // networks that DNS-filter crypto-data domains.
   try {
-    const price = await getPumpFunPrice();
+    const price = await getEdgeFunctionPrice();
     if (price) {
       priceCache = { price, timestamp: now };
       return price;
     }
   } catch (error) {
-    console.warn('[pump.fun] Failed:', error.message);
+    console.warn('[EdgeProxy] Failed:', error.message);
   }
 
   // Return cached price if all sources fail
@@ -146,32 +151,46 @@ async function getJupiterPrice() {
 }
 
 /**
- * Get price from pump.fun bonding-curve API.
+ * Get price from the Supabase Edge Function proxy.
  *
- * For pre-graduation mints (still on the pump.fun bonding curve), neither
- * DexScreener nor Jupiter exposes a price. pump.fun's coins endpoint
- * returns `usd_market_cap`, and every pump.fun mint has a fixed 1B total
- * supply, so price = usd_market_cap / 1e9.
+ * The proxy runs the full server-side chain (DexScreener → Jupiter →
+ * pump.fun) and returns `{ price, source, mint }`. We hit this when the
+ * browser-side chain can't reach a price source — either because the
+ * mint is pump.fun-only (CORS-blocked) or because the user is on a
+ * network that DNS-filters crypto-data domains. Mainstream cloud
+ * (`*.supabase.co`) stays reachable on those networks.
  */
-async function getPumpFunPrice() {
-  const url = `${PUMPFUN_CONFIG.coinApiUrl}/${TOKEN_CONFIG.mint}`;
-  console.log('[pump.fun] Fetching price from:', url);
+async function getEdgeFunctionPrice() {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // Build wasn't given Supabase env vars — skip silently so unit tests
+    // and offline builds don't blow up on a missing fallback.
+    return null;
+  }
+
+  const url = `${supabaseUrl}/functions/v1/get-token-price?mint=${TOKEN_CONFIG.mint}`;
+  console.log('[EdgeProxy] Fetching price from:', url);
 
   const response = await fetch(url, {
-    signal: AbortSignal.timeout(PUMPFUN_CONFIG.timeout),
-    headers: { 'Accept': 'application/json' }
+    signal: AbortSignal.timeout(JUPITER_CONFIG.timeout),
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'apikey': supabaseAnonKey,
+    }
   });
 
   if (!response.ok) {
-    throw new Error(`pump.fun API error: ${response.status}`);
+    throw new Error(`Edge proxy error: ${response.status}`);
   }
 
   const data = await response.json();
-  const marketCap = Number(data?.usd_market_cap);
+  const price = Number(data?.price);
 
-  if (Number.isFinite(marketCap) && marketCap > 0) {
-    const price = marketCap / PUMPFUN_TOTAL_SUPPLY;
-    console.log(`[pump.fun] Token Price: $${price} (mcap=$${marketCap})`);
+  if (Number.isFinite(price) && price > 0) {
+    console.log(`[EdgeProxy] Token Price: $${price} (source=${data.source})`);
     return price;
   }
 
