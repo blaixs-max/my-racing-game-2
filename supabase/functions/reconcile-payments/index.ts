@@ -53,8 +53,14 @@ const SCAN_WINDOW_DAYS = 30;
 const PRICE_TOLERANCE = 0.07;
 const PACKAGE_USD: ReadonlyArray<number> = [1, 5, 10];
 
-const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price';
+// Price API endpoints — kept in sync with verify-payment + src/utils/jupiterPrice.js.
+// Jupiter v6 retired late 2024; v2 returns `usdPrice` on `data[mint]`.
+// pump.fun covers fresh, pre-graduation mints (price = usd_market_cap / 1e9 since
+// every pump.fun mint has a fixed 1B total supply).
+const JUPITER_PRICE_API = 'https://lite-api.jup.ag/price/v2';
 const DEXSCREENER_API = 'https://api.dexscreener.com/latest/dex/tokens';
+const PUMPFUN_COIN_API = 'https://frontend-api.pump.fun/coins';
+const PUMPFUN_TOTAL_SUPPLY = 1_000_000_000;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -152,27 +158,50 @@ async function rpc(method: string, params: unknown[], maxRetries = 3): Promise<u
 }
 
 async function getTokenPrice(): Promise<number | null> {
+  // DexScreener first — most accurate once a token has on-chain liquidity.
+  try {
+    const res = await fetch(`${DEXSCREENER_API}/${PAYMENT_TOKEN_MINT}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.pairs) && data.pairs.length > 0) {
+        const best = data.pairs.reduce(
+          (a: { liquidity?: { usd?: number } }, b: { liquidity?: { usd?: number } }) =>
+            (b?.liquidity?.usd ?? 0) > (a?.liquidity?.usd ?? 0) ? b : a,
+        );
+        const price = parseFloat(best.priceUsd);
+        if (Number.isFinite(price) && price > 0) return price;
+      }
+    }
+  } catch (err) {
+    console.warn('[reconcile-payments] DexScreener price fetch failed:', err);
+  }
+  // Jupiter v2 — `usdPrice` (with legacy `price` accepted as fallback).
   try {
     const res = await fetch(`${JUPITER_PRICE_API}?ids=${PAYMENT_TOKEN_MINT}`);
-    const data = await res.json();
-    if (data?.data?.[PAYMENT_TOKEN_MINT]?.price) {
-      return Number(data.data[PAYMENT_TOKEN_MINT].price);
+    if (res.ok) {
+      const data = await res.json();
+      const tokenData = data?.data?.[PAYMENT_TOKEN_MINT];
+      const rawPrice = tokenData?.usdPrice ?? tokenData?.price;
+      if (rawPrice !== undefined && rawPrice !== null) {
+        const price = Number(rawPrice);
+        if (Number.isFinite(price) && price > 0) return price;
+      }
     }
   } catch (err) {
     console.warn('[reconcile-payments] Jupiter price fetch failed:', err);
   }
+  // pump.fun bonding-curve fallback for pre-graduation mints.
   try {
-    const res = await fetch(`${DEXSCREENER_API}/${PAYMENT_TOKEN_MINT}`);
-    const data = await res.json();
-    if (Array.isArray(data?.pairs) && data.pairs.length > 0) {
-      const best = data.pairs.reduce(
-        (a: { liquidity?: { usd?: number } }, b: { liquidity?: { usd?: number } }) =>
-          (b?.liquidity?.usd ?? 0) > (a?.liquidity?.usd ?? 0) ? b : a,
-      );
-      return parseFloat(best.priceUsd);
+    const res = await fetch(`${PUMPFUN_COIN_API}/${PAYMENT_TOKEN_MINT}`);
+    if (res.ok) {
+      const data = await res.json();
+      const marketCap = Number(data?.usd_market_cap);
+      if (Number.isFinite(marketCap) && marketCap > 0) {
+        return marketCap / PUMPFUN_TOTAL_SUPPLY;
+      }
     }
   } catch (err) {
-    console.warn('[reconcile-payments] DexScreener price fetch failed:', err);
+    console.warn('[reconcile-payments] pump.fun price fetch failed:', err);
   }
   return null;
 }

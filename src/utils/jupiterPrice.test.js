@@ -72,7 +72,7 @@ describe('getTokenPrice', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to Jupiter when DexScreener returns no pairs', async () => {
+  it('falls back to Jupiter v2 (usdPrice key) when DexScreener returns no pairs', async () => {
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
@@ -81,7 +81,7 @@ describe('getTokenPrice', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          data: { [TOKEN_CONFIG.mint]: { price: 0.002 } },
+          data: { [TOKEN_CONFIG.mint]: { usdPrice: 0.002, blockId: 1, decimals: 6 } },
         }),
       });
 
@@ -90,13 +90,30 @@ describe('getTokenPrice', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it('accepts the legacy Jupiter `price` key for backward compatibility', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ pairs: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          data: { [TOKEN_CONFIG.mint]: { price: 0.004 } },
+        }),
+      });
+
+    const price = await getTokenPrice();
+    expect(price).toBe(0.004);
+  });
+
   it('falls back to Jupiter when DexScreener throws', async () => {
     globalThis.fetch = vi.fn()
       .mockRejectedValueOnce(new Error('DexScreener down'))
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          data: { [TOKEN_CONFIG.mint]: { price: 0.003 } },
+          data: { [TOKEN_CONFIG.mint]: { usdPrice: 0.003 } },
         }),
       });
 
@@ -104,10 +121,33 @@ describe('getTokenPrice', () => {
     expect(price).toBe(0.003);
   });
 
-  it('throws when both DexScreener and Jupiter fail and cache is empty', async () => {
+  it('falls back to pump.fun bonding curve when DexScreener + Jupiter both miss', async () => {
+    // pump.fun price = usd_market_cap / 1e9 (fixed 1B supply per mint).
+    // mcap=50,000 → 0.00005 USD per token.
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ pairs: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: {} }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ usd_market_cap: 50_000 }),
+      });
+
+    const price = await getTokenPrice();
+    expect(price).toBeCloseTo(0.00005, 10);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('throws when DexScreener, Jupiter, and pump.fun all fail and cache is empty', async () => {
     globalThis.fetch = vi.fn()
       .mockRejectedValueOnce(new Error('DexScreener network'))
-      .mockRejectedValueOnce(new Error('Jupiter network'));
+      .mockRejectedValueOnce(new Error('Jupiter network'))
+      .mockRejectedValueOnce(new Error('pump.fun network'));
 
     await expect(getTokenPrice()).rejects.toThrow(/Unable to fetch token price/);
   });
@@ -158,10 +198,11 @@ describe('calculateTokenAmount', () => {
     // When DexScreener returns priceUsd: '0', getDexScreenerPrice returns 0,
     // which getTokenPrice's `if (price)` filters out as falsy. The function
     // then falls through to Jupiter; if that also fails (here: rejected),
-    // the cache is empty so getTokenPrice throws "Unable to fetch token
-    // price". calculateTokenAmount surfaces that error verbatim — its
-    // own `Invalid <symbol> price` guard is defensive and not reachable
-    // from this path.
+    // it tries pump.fun; if that also fails (here: rejected), the cache is
+    // empty so getTokenPrice throws "Unable to fetch token price".
+    // calculateTokenAmount surfaces that error verbatim — its own
+    // `Invalid <symbol> price` guard is defensive and not reachable from
+    // this path.
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
@@ -169,7 +210,8 @@ describe('calculateTokenAmount', () => {
           pairs: [{ liquidity: { usd: 100 }, priceUsd: '0' }],
         }),
       })
-      .mockRejectedValueOnce(new Error('Jupiter network'));
+      .mockRejectedValueOnce(new Error('Jupiter network'))
+      .mockRejectedValueOnce(new Error('pump.fun network'));
 
     await expect(calculateTokenAmount(1)).rejects.toThrow(/Unable to fetch token price/);
   });

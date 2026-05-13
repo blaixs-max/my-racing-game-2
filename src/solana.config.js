@@ -73,7 +73,9 @@ export const PAYMENT_CONFIG = {
 // =============================================================================
 
 export const JUPITER_CONFIG = {
-  priceApiUrl: 'https://price.jup.ag/v6/price',
+  // Jupiter Price API v2 — v6 was retired late 2024.
+  // Response shape: `{ data: { [mint]: { usdPrice, blockId, decimals, ... } } }`.
+  priceApiUrl: 'https://lite-api.jup.ag/price/v2',
 
   // USDC mint for price reference
   usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -83,6 +85,19 @@ export const JUPITER_CONFIG = {
 
   // Price fetch timeout
   timeout: 10000
+};
+
+// =============================================================================
+// PUMP.FUN BONDING-CURVE FALLBACK CONFIGURATION
+// =============================================================================
+
+// pump.fun's frontend API exposes per-coin data (`usd_market_cap`, virtual
+// reserves, etc.) for mints that are still on the bonding curve and therefore
+// haven't been indexed by Jupiter or DexScreener yet. Final fallback in the
+// price chain so fresh launches don't break credit purchases on day one.
+export const PUMPFUN_CONFIG = {
+  coinApiUrl: 'https://frontend-api.pump.fun/coins',
+  timeout: 8000
 };
 
 // =============================================================================
@@ -166,6 +181,7 @@ export default {
   TOKEN_CONFIG,
   PAYMENT_CONFIG,
   JUPITER_CONFIG,
+  PUMPFUN_CONFIG,
   WALLET_CONFIG,
   TRANSACTION_CONFIG,
   getRpcEndpoint,

@@ -60,8 +60,15 @@ const PAYMENT_RECEIVER =
   ?? Deno.env.get('PAYMENT_RECEIVER')
   ?? 'T6EkvAVdHPRr6Ngub1vk7VTzqtgw2KoGJwA8RCJmmGg';
 
-// Jupiter Price API for dynamic pricing
-const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price';
+// Price API endpoints for dynamic pricing.
+// Jupiter v6 was retired late 2024; v2 lives at lite-api.jup.ag and returns
+// `usdPrice` (not `price`) on `data[mint]`. pump.fun's coins endpoint covers
+// fresh, pre-graduation mints that neither Jupiter nor DexScreener has indexed
+// yet — fixed 1B total supply per pump.fun mint, so price = usd_market_cap / 1e9.
+const JUPITER_PRICE_API = 'https://lite-api.jup.ag/price/v2';
+const DEXSCREENER_API = 'https://api.dexscreener.com/latest/dex/tokens';
+const PUMPFUN_COIN_API = 'https://frontend-api.pump.fun/coins';
+const PUMPFUN_TOTAL_SUPPLY = 1_000_000_000;
 
 // Allow 7% tolerance for price fluctuation (crypto is volatile).
 // Must stay in sync with src/solana.config.js -> PAYMENT_CONFIG.priceTolerance.
@@ -351,39 +358,73 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Get token price from Jupiter API (with DexScreener fallback)
+// Get token price: DexScreener → Jupiter v2 → pump.fun bonding curve.
+// First non-null wins. pump.fun fallback keeps the chain alive for fresh
+// pre-graduation mints that no aggregator has indexed yet.
 async function getTokenPrice(): Promise<number | null> {
-  try {
-    const response = await fetch(`${JUPITER_PRICE_API}?ids=${PAYMENT_TOKEN_MINT}`);
-    const data = await response.json();
+  const dex = await getTokenPriceFromDexScreener();
+  if (dex !== null) return dex;
 
-    if (data.data && data.data[PAYMENT_TOKEN_MINT]) {
-      return data.data[PAYMENT_TOKEN_MINT].price;
-    }
+  const jup = await getTokenPriceFromJupiter();
+  if (jup !== null) return jup;
 
-    return await getTokenPriceFromDexScreener();
-  } catch (error) {
-    console.error(`Failed to fetch ${TOKEN_SYMBOL} price from Jupiter:`, error);
-    return await getTokenPriceFromDexScreener();
-  }
+  const pump = await getTokenPriceFromPumpFun();
+  if (pump !== null) return pump;
+
+  return null;
 }
 
-// Fallback price source: DexScreener
 async function getTokenPriceFromDexScreener(): Promise<number | null> {
   try {
-    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${PAYMENT_TOKEN_MINT}`);
+    const response = await fetch(`${DEXSCREENER_API}/${PAYMENT_TOKEN_MINT}`);
+    if (!response.ok) return null;
     const data = await response.json();
 
     if (data.pairs && data.pairs.length > 0) {
       const bestPair = data.pairs.reduce((best: any, pair: any) =>
         (pair.liquidity?.usd || 0) > (best.liquidity?.usd || 0) ? pair : best
       );
-      return parseFloat(bestPair.priceUsd);
+      const price = parseFloat(bestPair.priceUsd);
+      return Number.isFinite(price) && price > 0 ? price : null;
     }
 
     return null;
   } catch (error) {
     console.error(`Failed to fetch ${TOKEN_SYMBOL} price from DexScreener:`, error);
+    return null;
+  }
+}
+
+async function getTokenPriceFromJupiter(): Promise<number | null> {
+  try {
+    const response = await fetch(`${JUPITER_PRICE_API}?ids=${PAYMENT_TOKEN_MINT}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+
+    const tokenData = data?.data?.[PAYMENT_TOKEN_MINT];
+    const rawPrice = tokenData?.usdPrice ?? tokenData?.price;
+    if (rawPrice === undefined || rawPrice === null) return null;
+
+    const price = Number(rawPrice);
+    return Number.isFinite(price) && price > 0 ? price : null;
+  } catch (error) {
+    console.error(`Failed to fetch ${TOKEN_SYMBOL} price from Jupiter:`, error);
+    return null;
+  }
+}
+
+async function getTokenPriceFromPumpFun(): Promise<number | null> {
+  try {
+    const response = await fetch(`${PUMPFUN_COIN_API}/${PAYMENT_TOKEN_MINT}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+
+    const marketCap = Number(data?.usd_market_cap);
+    if (!Number.isFinite(marketCap) || marketCap <= 0) return null;
+
+    return marketCap / PUMPFUN_TOTAL_SUPPLY;
+  } catch (error) {
+    console.error(`Failed to fetch ${TOKEN_SYMBOL} price from pump.fun:`, error);
     return null;
   }
 }
