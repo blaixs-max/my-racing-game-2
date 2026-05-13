@@ -121,9 +121,13 @@ describe('getTokenPrice', () => {
     expect(price).toBe(0.003);
   });
 
-  it('falls back to pump.fun bonding curve when DexScreener + Jupiter both miss', async () => {
-    // pump.fun price = usd_market_cap / 1e9 (fixed 1B supply per mint).
-    // mcap=50,000 → 0.00005 USD per token.
+  it('falls back to the Edge Function proxy when DexScreener + Jupiter both miss', async () => {
+    // Edge Function proxy returns `{ price, source, mint }` after running the
+    // full server-side chain (DexScreener + Jupiter + pump.fun). Used when
+    // the browser-side chain is blocked (carrier DNS filter, pump.fun CORS).
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
+
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
@@ -135,21 +139,44 @@ describe('getTokenPrice', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ usd_market_cap: 50_000 }),
+        json: () => Promise.resolve({ price: 0.00005, source: 'pumpfun', mint: TOKEN_CONFIG.mint }),
       });
 
     const price = await getTokenPrice();
     expect(price).toBeCloseTo(0.00005, 10);
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    vi.unstubAllEnvs();
   });
 
-  it('throws when DexScreener, Jupiter, and pump.fun all fail and cache is empty', async () => {
+  it('skips the Edge Function proxy when Supabase env vars are absent', async () => {
+    // Offline / unit-test builds without VITE_SUPABASE_URL should not throw
+    // a noisy network error from the proxy leg — it short-circuits to null,
+    // and the chain falls through to the empty-cache throw.
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ pairs: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: {} }),
+      });
+
+    await expect(getTokenPrice()).rejects.toThrow(/Unable to fetch token price/);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws when DexScreener, Jupiter, and Edge Function proxy all fail and cache is empty', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
+
     globalThis.fetch = vi.fn()
       .mockRejectedValueOnce(new Error('DexScreener network'))
       .mockRejectedValueOnce(new Error('Jupiter network'))
-      .mockRejectedValueOnce(new Error('pump.fun network'));
+      .mockRejectedValueOnce(new Error('Edge proxy network'));
 
     await expect(getTokenPrice()).rejects.toThrow(/Unable to fetch token price/);
+    vi.unstubAllEnvs();
   });
 
   it('serves cached price within the cache window without re-fetching', async () => {
@@ -198,8 +225,9 @@ describe('calculateTokenAmount', () => {
     // When DexScreener returns priceUsd: '0', getDexScreenerPrice returns 0,
     // which getTokenPrice's `if (price)` filters out as falsy. The function
     // then falls through to Jupiter; if that also fails (here: rejected),
-    // it tries pump.fun; if that also fails (here: rejected), the cache is
-    // empty so getTokenPrice throws "Unable to fetch token price".
+    // it tries the Edge Function proxy; if that also fails (here:
+    // env vars are absent so the proxy leg short-circuits to null), the
+    // cache is empty so getTokenPrice throws "Unable to fetch token price".
     // calculateTokenAmount surfaces that error verbatim — its own
     // `Invalid <symbol> price` guard is defensive and not reachable from
     // this path.
@@ -210,8 +238,7 @@ describe('calculateTokenAmount', () => {
           pairs: [{ liquidity: { usd: 100 }, priceUsd: '0' }],
         }),
       })
-      .mockRejectedValueOnce(new Error('Jupiter network'))
-      .mockRejectedValueOnce(new Error('pump.fun network'));
+      .mockRejectedValueOnce(new Error('Jupiter network'));
 
     await expect(calculateTokenAmount(1)).rejects.toThrow(/Unable to fetch token price/);
   });
