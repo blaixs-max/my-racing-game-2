@@ -1,11 +1,23 @@
 /**
  * Token Price API Integration
  * Fetches real-time payment token price in USD.
- * Primary: DexScreener (better for new/pump.fun tokens)
- * Fallback: Jupiter Price API
+ *
+ * Source chain (first non-null wins):
+ *   1. DexScreener — works once the token graduates to Raydium/Meteora.
+ *   2. Jupiter Price API v2 — works once Jupiter has the token routed.
+ *   3. pump.fun bonding-curve API — works during the pre-graduation phase
+ *      when neither aggregator has indexed the mint yet (e.g. fresh launches).
+ *
+ * Jupiter v6 was retired in late 2024; the v2 endpoint returns `usdPrice`
+ * (not `price`) on the same `data[mint]` shape. pump.fun exposes
+ * `usd_market_cap` per coin; price = usd_market_cap / 1e9 since every
+ * pump.fun mint has a fixed 1B total supply.
  */
 
-import { TOKEN_CONFIG, JUPITER_CONFIG } from '../solana.config.js';
+import { TOKEN_CONFIG, JUPITER_CONFIG, PUMPFUN_CONFIG } from '../solana.config.js';
+
+// pump.fun total supply is fixed at 1,000,000,000 (1B) for every coin.
+const PUMPFUN_TOTAL_SUPPLY = 1_000_000_000;
 
 // Price cache
 let priceCache = {
@@ -14,7 +26,7 @@ let priceCache = {
 };
 
 /**
- * Fetch token price - DexScreener first (better for new tokens), then Jupiter fallback.
+ * Fetch token price - DexScreener → Jupiter v2 → pump.fun fallback.
  * @returns {Promise<number>} Price in USD
  */
 export async function getTokenPrice() {
@@ -25,7 +37,7 @@ export async function getTokenPrice() {
     return priceCache.price;
   }
 
-  // Try DexScreener first (better for new/pump.fun tokens)
+  // Try DexScreener first (better for graduated tokens with deep liquidity)
   try {
     const price = await getDexScreenerPrice();
     if (price) {
@@ -36,7 +48,7 @@ export async function getTokenPrice() {
     console.warn('[DexScreener] Failed:', error.message);
   }
 
-  // Fallback to Jupiter
+  // Fallback to Jupiter v2
   try {
     const price = await getJupiterPrice();
     if (price) {
@@ -45,6 +57,17 @@ export async function getTokenPrice() {
     }
   } catch (error) {
     console.warn('[Jupiter] Failed:', error.message);
+  }
+
+  // Final fallback: pump.fun bonding curve (works for fresh, pre-graduation mints)
+  try {
+    const price = await getPumpFunPrice();
+    if (price) {
+      priceCache = { price, timestamp: now };
+      return price;
+    }
+  } catch (error) {
+    console.warn('[pump.fun] Failed:', error.message);
   }
 
   // Return cached price if all sources fail
@@ -88,7 +111,11 @@ async function getDexScreenerPrice() {
 }
 
 /**
- * Get price from Jupiter API
+ * Get price from Jupiter Price API v2.
+ *
+ * v2 response shape: `{ data: { [mint]: { usdPrice, blockId, decimals, ... } } }`.
+ * The legacy v6 endpoint exposed `price` on the same path; we accept either
+ * key so a future schema tweak doesn't take the chain down.
  */
 async function getJupiterPrice() {
   const url = `${JUPITER_CONFIG.priceApiUrl}?ids=${TOKEN_CONFIG.mint}`;
@@ -105,10 +132,47 @@ async function getJupiterPrice() {
 
   const data = await response.json();
   const tokenData = data.data?.[TOKEN_CONFIG.mint];
+  const rawPrice = tokenData?.usdPrice ?? tokenData?.price;
 
-  if (tokenData?.price) {
-    console.log(`[Jupiter] Token Price: $${tokenData.price}`);
-    return tokenData.price;
+  if (rawPrice) {
+    const price = Number(rawPrice);
+    if (Number.isFinite(price) && price > 0) {
+      console.log(`[Jupiter] Token Price: $${price}`);
+      return price;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get price from pump.fun bonding-curve API.
+ *
+ * For pre-graduation mints (still on the pump.fun bonding curve), neither
+ * DexScreener nor Jupiter exposes a price. pump.fun's coins endpoint
+ * returns `usd_market_cap`, and every pump.fun mint has a fixed 1B total
+ * supply, so price = usd_market_cap / 1e9.
+ */
+async function getPumpFunPrice() {
+  const url = `${PUMPFUN_CONFIG.coinApiUrl}/${TOKEN_CONFIG.mint}`;
+  console.log('[pump.fun] Fetching price from:', url);
+
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(PUMPFUN_CONFIG.timeout),
+    headers: { 'Accept': 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`pump.fun API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const marketCap = Number(data?.usd_market_cap);
+
+  if (Number.isFinite(marketCap) && marketCap > 0) {
+    const price = marketCap / PUMPFUN_TOTAL_SUPPLY;
+    console.log(`[pump.fun] Token Price: $${price} (mcap=$${marketCap})`);
+    return price;
   }
 
   return null;

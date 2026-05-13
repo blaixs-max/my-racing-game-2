@@ -44,6 +44,14 @@ const SOL_MINT = 'So11111111111111111111111111111111111111112'
 const COINGECKO_SOL_URL =
   'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'
 
+// Jupiter v6 retired late 2024; v2 returns `usdPrice` (legacy `price` accepted
+// as fallback). pump.fun's coins endpoint covers fresh, pre-graduation mints
+// that neither aggregator has indexed yet — fixed 1B total supply per
+// pump.fun mint, so price = usd_market_cap / 1e9.
+const JUPITER_PRICE_API = 'https://lite-api.jup.ag/price/v2'
+const PUMPFUN_COIN_API = 'https://frontend-api.pump.fun/coins'
+const PUMPFUN_TOTAL_SUPPLY = 1_000_000_000
+
 // Hard timeout per external request — keeps the cron call from hanging
 // when an upstream API is slow.
 const FETCH_TIMEOUT_MS = 8000
@@ -102,13 +110,32 @@ async function fetchPriceFromDexScreener(mint: string): Promise<number | null> {
 }
 
 async function fetchPriceFromJupiter(mint: string): Promise<number | null> {
-  const res = await fetchWithTimeout(`https://price.jup.ag/v6/price?ids=${mint}`)
+  const res = await fetchWithTimeout(`${JUPITER_PRICE_API}?ids=${mint}`)
   if (!res || !res.ok) return null
   try {
     const data = await res.json()
-    const price = data?.data?.[mint]?.price
-    if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) return null
+    const tokenData = data?.data?.[mint]
+    const rawPrice = tokenData?.usdPrice ?? tokenData?.price
+    if (rawPrice === undefined || rawPrice === null) return null
+    const price = Number(rawPrice)
+    if (!Number.isFinite(price) || price <= 0) return null
     return price
+  } catch {
+    return null
+  }
+}
+
+// pump.fun bonding-curve fallback. Returns null for non-pump.fun mints (the
+// endpoint 404s for anything outside the pump.fun coin table — that's fine,
+// callers see null and move on).
+async function fetchPriceFromPumpFun(mint: string): Promise<number | null> {
+  const res = await fetchWithTimeout(`${PUMPFUN_COIN_API}/${mint}`)
+  if (!res || !res.ok) return null
+  try {
+    const data = await res.json()
+    const marketCap = Number(data?.usd_market_cap)
+    if (!Number.isFinite(marketCap) || marketCap <= 0) return null
+    return marketCap / PUMPFUN_TOTAL_SUPPLY
   } catch {
     return null
   }
@@ -142,6 +169,10 @@ async function fetchTokabuPriceUsd(): Promise<number | null> {
   if (dex !== null) return dex
   const jup = await fetchPriceFromJupiter(TOKABU_MINT)
   if (jup !== null) return jup
+  // Final API fallback before the per-wallet DB fallback: pump.fun bonding
+  // curve. Keeps cycle-end pricing alive for fresh pre-graduation mints.
+  const pump = await fetchPriceFromPumpFun(TOKABU_MINT)
+  if (pump !== null) return pump
   return null
 }
 
