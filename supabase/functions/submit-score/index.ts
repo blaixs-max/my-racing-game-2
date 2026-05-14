@@ -55,9 +55,16 @@ const isValidSolanaAddress = (a: string): boolean =>
 // score-per-meter outliers) while allowing legitimate skilled play.
 const MAX_SPEED_M_PER_S = 60;       // 200 km/h ≈ 55 m/s; +10% tolerance
 const MIN_GAME_DURATION = 10;       // seconds; bot-like below this
-const MIN_M_PER_COIN = 10;          // coin spawn density floor (relaxed from 50
-                                    // after legit plays at ~24 m/coin tripped
-                                    // the rule — see suspicious_scores 2026-05-01)
+// Coin spawn density floor. Originally 50, relaxed to 10 (2026-05-01) after
+// legit plays at ~24 m/coin tripped the rule. After the magnet power-up
+// shipped (commit 80e05f6) the linear density rule became a structural
+// false-positive generator: magnet auto-collects every coin in front of the
+// player from any lane for 10s, so 1 coin / ~7m is normal during a magnet
+// burst (see suspicious_scores wallet 5bMz...7bqY, 2026-05-14). Loosen to
+// 3m/coin — still catches teleport-style cheats (e.g. 1000 coins in 100m)
+// while leaving room for magnet bursts. score_anomaly already enforces the
+// score-density ceiling.
+const MIN_M_PER_COIN = 3;
 const MAX_SCORE_PER_M = 200;        // empirical score-density ceiling
 const TIME_DRIFT_TOLERANCE = 5;     // seconds for clientStartTime
 // -----------------------------------------------------------------------
