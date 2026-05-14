@@ -1,6 +1,84 @@
 # Lumexia Racing Game - Gorev Takip
 
-> Son guncelleme: 2026-05-09 (v29)
+> Son guncelleme: 2026-05-14 (v30)
+
+---
+
+## 2026-05-13/14: Buy-screen price reliability + magnet-aware anti-cheat (4 PR)
+
+**Bağlam:** Sprint 8 token launch (LMX, mint `ELaSG…pump`) sonrası iki yapısal sorun ortaya çıktı:
+
+1. **Buy ekranı price hatası** — Mobil carrier'larda `*.dexscreener.com`, `*.jup.ag`, `*.pump.fun` DNS-bloklu ya da pre-graduation pump.fun mint hiçbir aggregator'da indekslenmemiş → frontend "Failed to check balance: Unable to fetch token price from any source" → satın alma akışı kapalı.
+2. **`submit-score` 422 false-positive** — Magnet power-up (`80e05f6`) oyuncunun önündeki tüm coinleri 10s boyunca otomatik topluyor; bu mekanikle birlikte anti-cheat `coin_density` kuralı (`coins ≤ floor(distance / 10)`) yapısal false-positive üretici hâline geldi → meşru oyunlar `score_rejected` ile reddediliyor, frontend "Edge Function returned a non-2xx status code" gösteriyor, skor kaybı.
+
+### PR #115 (`9adada2`) — Jupiter v2 + pump.fun fallback (2026-05-13)
+
+Jupiter Price API v6 endpoint'i (`price.jup.ag/v6/price`) 2024 sonu retire edilmiş; LMX ELaSG mint orada cevap vermiyor. DexScreener fresh pump.fun mintleri için `pairs: []` dönüyor. Sonuç: 2-tier chain (DexScreener → Jupiter v6) tamamen düşüyor.
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `src/utils/jupiterPrice.js` + `src/solana.config.js` | URL: `price.jup.ag/v6/price` → `lite-api.jup.ag/price/v2`, parser `usdPrice`/`price` her ikisini kabul ediyor, yeni `getPumpFunPrice()` (`frontend-api.pump.fun/coins/<mint>`, `usd_market_cap / 1e9`) — chain: DexScreener → Jupiter v2 → pump.fun → stale cache → throw |
+| `src/utils/jupiterPrice.test.js` | Jupiter v2 mocks, "accepts legacy price key" + "falls back to pump.fun" + "all sources fail" testleri (22/22 ✓) |
+| `supabase/functions/verify-payment/index.ts` | 3 single-purpose fetcher + tek orchestrator |
+| `supabase/functions/reconcile-payments/index.ts` | Aynı 3-tier chain |
+| `supabase/functions/calculate-daily-rewards/index.ts` | Jupiter URL v2'ye çıktı, yeni `fetchPriceFromPumpFun()` `fetchTokabuPriceUsd()`'a 3. tier olarak eklendi |
+
+### PR #116 (`b55798b`) — Server-side price proxy Edge Function (2026-05-13)
+
+Mobil 4G/5G'de `*.dexscreener.com` ve `*.jup.ag` carrier seviyesinde bloklu (kullanıcı bu hattı doğruladı). `*.supabase.co` blok dışı. Çözüm: yeni `get-token-price` Edge Function — frontend'in client-side chain'i fail ettiğinde (`supabaseUrl` env varsa) bu proxy'ye düşüp aynı 3 source'u sunucu tarafında deniyor.
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `supabase/functions/get-token-price/index.ts` (yeni) | DexScreener → Jupiter → pump.fun, ortak CORS allowlist (`lumexia.net`, `game.lumexia.net`, `localhost:5173`), 8s timeout, JWT verify on |
+| `src/utils/jupiterPrice.js` | `getEdgeFunctionPrice()` chain'in son tier'ı (stale cache ve throw'dan önce) |
+| `.github/workflows/deploy-edge-functions.yml` | `get-token-price` deploy step |
+
+### PR #117 (`0c78448`) — On-chain pump.fun bonding curve fallback + per-source diagnostics (2026-05-14)
+
+Edge Function deploy sonrası loglardan görüldü: 3 source aynı çağrıda 200 + `null` dönebiliyor (333–357 ms execution) — indexer lag, Supabase shared egress IP rate-limit, ya da pre-graduation mint'in hâlâ indekslenmemiş olması. Frontend null'u ölümcül hata sayıyor.
+
+Çözüm: 4. source olarak **on-chain pump.fun bonding curve okuması**:
+- Bonding curve PDA `["bonding-curve", mint]` seed + program ID `6EF8…F6P` ile derive ediliyor (`@solana/web3.js@1.95.3` üzerinden)
+- Solana RPC `getAccountInfo` (Helius öncelikli, mainnet-beta fallback) ile 49-byte Anchor account okunuyor
+- Layout: `[8 disc][8 vTok][8 vSol][8 rTok][8 rSol][8 supply][1 complete]` little-endian decode
+- Fiyat: `priceSol = (vSol/1e9) / (vTok/1e6)`, `priceUsd = priceSol × solUsd`
+- SOL/USD: Jupiter → Coingecko fallback (rate-limited host'lar single-point-of-failure olmasın)
+- `complete=true` ise (token graduated): bonding curve null döner, chain pump.fun frontend-api'ya düşer (DexScreener/Jupiter zaten yakalamış olmalı)
+
+Diagnostic: `timed()` wrapper her source için `[price:xxx] result=... duration_ms=...` log atıyor — bir daha null dönerse hangi adımın nerede çuvalladığı edge-function loglarından okunabiliyor.
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `supabase/functions/get-token-price/index.ts` | +241/-18 satır — `fromBondingCurve()`, `getSolPriceUsd()`, `timed()`, `fetchWithTimeout` `RequestInit` desteği |
+
+Chain final hâli: **DexScreener → Jupiter v2 → bonding curve direct → pump.fun frontend-api**.
+
+### PR #118 (`dc72621`) — `coin_density` floor 10 → 3 m/coin (2026-05-14)
+
+`suspicious_scores` forensic analiz: wallet `5bMz…7bqY`'in 8 ardışık denemesi `coin_density` ile reject. Tipik run: 486 m / 68 coin (= 7.1 m/coin), 761 m / 117 coin (= 6.5 m/coin). Eski 10 m/coin floor altında bunlar reject oluyor (max izin 48 / 76 coin), gerçek max meşru oyun ~150–250 coin.
+
+`store.js:740-746` (magnet pull) şu anda magnet aktifken oyuncunun önündeki tüm coinleri (her şerit) `lerp(c.x, playerTargetX, dt × 12)` ile çekiyor; spawn rate ~5/s + sahada max 15 coin → magnet 10s boyunca yoğun toplama yapılabilir. Linear density rule bu mekanikle yapısal uyumsuz.
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `supabase/functions/submit-score/index.ts` | `MIN_M_PER_COIN = 10` → `MIN_M_PER_COIN = 3` (+ 8 satır açıklama) |
+
+`score_anomaly` (`score ≤ distance × 200`) score-density tavanını koruyor; coin-stuffing'in skor tarafı kapalı.
+
+### Deploy notu
+
+PR #118 squash merge'inden sonra `.github/workflows/deploy-edge-functions.yml` çalışmadı (sebep: muhtemelen squash SHA path filter detayı veya runner gecikmesi). `submit-score` v11 deploy'u Supabase MCP `deploy_edge_function` ile manuel yapıldı (`updated_at: 1778764110975`, 2026-05-14 13:48:30 UTC). Bir sonraki edge function değişikliğinden önce workflow trigger'ının neden tetiklenmediği araştırılmalı.
+
+### Doğrulama (kullanıcı, PROD)
+
+- ✅ WiFi + PC: cüzdan bağlandı, coin satın alındı, oyun oynandı, skor `scores` tablosuna düştü, leaderboard UI dashboard'da görünüyor
+- Mevcut prod versiyonlar: `get-token-price v2` (bonding curve), `submit-score v11` (3 m/coin), her iki fonksiyon `ACTIVE`
+
+### Risk + Geriye uyumluluk
+
+- **Risk:** ORTA — yeni RPC kod yolu (web3.js + Anchor decode), deploy sonrası loglardan doğrulandı; submit-score değişikliği tek sabit, score_anomaly güvenlik tavanı korunuyor
+- **Geriye uyumluluk:** Eski Jupiter `price` key parser'da hâlâ kabul, response shape değişmedi (`{ price, source, mint }`)
+- **Yeni dependency:** `@solana/web3.js@1.95.3` (Edge Function bundle'ı içinde)
 
 ---
 
