@@ -1,12 +1,12 @@
 # Lumexia Racing Game - Gelistirme Plani
 
-> Son guncelleme: 2026-05-09 (v14)
+> Son guncelleme: 2026-05-14 (v15)
 
 ## Mevcut Durum Ozeti
 
-Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. **LMX token** (mint `ELaSG...pump`, Sprint 8 sonrası 2026-05-09) ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 + Sprint 6 + Sprint 7-mini + **Sprint 8 (token launch)** tamamlandi. Cycle reward payout pipeline operasyonel; cycle anchor 2026-05-09. Render hattı Faz-1/Faz-2 ile selector pattern'a alındı; yan çevre CC0 asset pack'lerle gerçek 3D'ye geçti.
+Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. **LMX token** (mint `ELaSG...pump`, Sprint 8 sonrası 2026-05-09) ile odeme akisi end-to-end calisiyor. Sprint 0-4 + Sprint 4.5 + Sprint 6 + Sprint 7-mini + **Sprint 8 (token launch)** + **Sprint 9 (price chain hardening + magnet-aware anti-cheat)** tamamlandi. Cycle reward payout pipeline operasyonel; cycle anchor 2026-05-09. Render hattı Faz-1/Faz-2 ile selector pattern'a alındı; yan çevre CC0 asset pack'lerle gerçek 3D'ye geçti. Buy ekranı price fetch'i 4-source chain (DexScreener → Jupiter v2 → on-chain bonding curve → pump.fun frontend-api) + Edge Function proxy ile hardened.
 
-**Aktif sprint durumu (2026-05-09):**
+**Aktif sprint durumu (2026-05-14):**
 
 | Sprint | Durum | Not |
 |--------|-------|-----|
@@ -19,7 +19,8 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. **LMX token** (mint
 | Faz-1/Faz-2 render perf | ✅ KAPALI | `d6cd4f6` + `bcfd091` — selector pattern + module-level laneOccupancy cache |
 | UI cleanup | ✅ KAPALI | PR #110 — launcher dead bottom-nav bar |
 | Asset env (CC0) | ✅ KAPALI | `2d48460` + `2d8e584` — KayKit + Quaternius asset packs |
-| **8 (Token launch)** | **✅ KAPALI** | **PR #112 (4U24...pump) → re-launch PR #113 (ELaSG...pump aktif) + Landing PR #20 senkron + Phase 1b ops; aktif token: LMX mint `ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump`, anchor 2026-05-09.** |
+| 8 (Token launch) | ✅ KAPALI | PR #112 (4U24...pump) → re-launch PR #113 (ELaSG...pump aktif) + Landing PR #20 senkron + Phase 1b ops; aktif token: LMX mint `ELaSGbXf6KMcw9wzyLgG78Tef6BLrHwkGpH5euLSpump`, anchor 2026-05-09 |
+| **9 (Price chain hardening + anti-cheat tuning)** | **✅ KAPALI** | **4 PR — #115 Jupiter v2 + pump.fun fallback (frontend + 3 Edge Function), #116 server-side price proxy, #117 on-chain bonding curve fallback + diagnostic logging, #118 `coin_density` 10 → 3 m/coin (magnet-aware)** |
 
 **Son merge edilen PR'lar / commit'ler (kronolojik):**
 - Racing PR #99/#100/#101: Payment self-healing — 2026-05-01
@@ -41,6 +42,10 @@ Proje, **calisir ve oyunabilir** durumda bir 3D yaris oyunu. **LMX token** (mint
 - **Racing PR #112 (`cb8c56c`): Sprint 8 ilk launch — TOKABU → LMX (mint `4U24...pump`), cycle anchor 2026-05-01 → 2026-05-09 (migration `20260509200000_cycle_reset_token_launch.sql`) — 2026-05-09**
 - **Racing PR #113 (`94cadf8`): Sprint 8 re-launch — mint `4U24...pump` → `ELaSG...pump` (LMX), 4 dosya +4/-4 satır — 2026-05-09**
 - **Landing PR #20 (`6f5f043`): Sprint 8 landing senkron — TOKEN_CONFIG (TOKABU → LMX, mint ELaSG) + 3 cycle anchor (2026-05-01 → 2026-05-09) + leaderboard hardcoded "$TOKABU" → `${TOKEN_CONFIG.symbol}` — 2026-05-09**
+- **Racing PR #115 (`9adada2`): Jupiter v2 + pump.fun frontend-api fallback (frontend + 3 Edge Function: verify-payment, reconcile-payments, calculate-daily-rewards), 22/22 test ✓ — 2026-05-13**
+- **Racing PR #116 (`b55798b`): server-side price proxy `get-token-price` Edge Function (DexScreener → Jupiter → pump.fun, CORS allowlist, 8s timeout, JWT verify on) + frontend `getEdgeFunctionPrice()` final tier — 2026-05-13**
+- **Racing PR #117 (`0c78448`): on-chain pump.fun bonding curve fallback (Solana RPC `getAccountInfo` + 49-byte Anchor decode, `priceSol = vSol/vTok × 10⁻³`, SOL/USD Jupiter→Coingecko fallback) + per-source `timed()` diagnostic logging — 2026-05-14**
+- **Racing PR #118 (`dc72621`): `submit-score` `MIN_M_PER_COIN` 10 → 3 m/coin (magnet power-up false-positive fix; score_anomaly tavanı korunuyor); manuel deploy via Supabase MCP (workflow trigger gecikmesi) — 2026-05-14**
 
 **Tamamlanmis altyapi:**
 - Branch protection her iki repo'da aktif (main'e direkt push yasak, force push yasak, 1 review zorunlu, CI status check)

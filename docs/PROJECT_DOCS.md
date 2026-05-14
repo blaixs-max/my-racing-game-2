@@ -85,7 +85,7 @@ my-racing-game-2/
 │   └── utils/
 │       ├── supabaseClient.js       # Veritabani islemleri (getOrCreateUser, getUserCredits, useCredit)
 │       ├── solanaWallet.js         # Token transfer & bakiye kontrol (getTokenBalance, transferToken - jenerik isimler)
-│       └── jupiterPrice.js         # Token fiyat API (frontend: DexScreener -> Jupiter fallback)
+│       └── jupiterPrice.js         # Token fiyat zinciri (frontend: DexScreener → Jupiter v2 → get-token-price Edge Function proxy → stale cache)
 ├── public/
 │   ├── Lumexia.jpg                 # Loading screen banner
 │   ├── Lumexia.png                 # Branding asset
@@ -425,9 +425,12 @@ updatePriority: -50        // Dusuk oncelik (render'dan once)
    - Transaction signature: base58, 80-90 karakter
    - Paket miktari: sadece 1, 5, 10
 3. Tekrar islem kontrolu (transaction_hash unique)
-4. Token fiyati alma (backend oncelik sirasi):
-   - Jupiter Price API (ana)
-   - DexScreener (yedek)
+4. Token fiyati alma (backend oncelik sirasi, Sprint 9 sonrası):
+   - **DexScreener** (graduated tokenlar, deepest liquidity signal)
+   - **Jupiter v2** (`lite-api.jup.ag/price/v2`, `usdPrice`/legacy `price` her ikisini parse eder)
+   - **pump.fun frontend-api** (`frontend-api.pump.fun/coins/<mint>`, `usd_market_cap / 1e9`, pre-graduation mintler için)
+   - Frontend için 4. tier: **`get-token-price` Edge Function proxy** (mobil carrier DNS bloku ya da sandboxed ortamlar için)
+   - `get-token-price` Edge Function ek 4. source olarak **on-chain bonding curve** okuması yapar (Solana RPC `getAccountInfo` + 49-byte Anchor decode, `priceSol = vSol/vTok × 10⁻³`, SOL/USD Jupiter→Coingecko fallback)
    - `PRICE_TOLERANCE = 0.10` (%10 fiyat toleransi - kripto volatilite icin)
    - **NOT:** Frontend `solana.config.js` ise `priceTolerance: 0.05` (%5) kullanir - tolerans frontend/backend arasinda tutarsiz
 5. Blockchain dogrulama:
