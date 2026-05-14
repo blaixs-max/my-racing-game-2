@@ -2384,6 +2384,78 @@ const GameContent = () => {
   );
 };
 
+// ==================== POWER-UP HUD TIMER ====================
+// Aktif power-up icin SVG ring + ikon + saniye sayaci. 100ms interval ile
+// kalan sureyi guncelliyor. Mevcut Speedometer/Score ile cakismayacak sekilde
+// ust orta'da yerlesir.
+const PowerUpTimer = memo(({ active, endTime, totalDurationMs, icon, color, label }) => {
+  const [remaining, setRemaining] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const tick = () => {
+      const r = Math.max(0, (endTime - Date.now()) / 1000);
+      setRemaining(r);
+    };
+    tick();
+    const id = setInterval(tick, 100);
+    return () => clearInterval(id);
+  }, [active, endTime]);
+
+  if (!active || remaining <= 0) return null;
+
+  const size = 64;
+  const stroke = 5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = Math.max(0, Math.min(1, remaining / (totalDurationMs / 1000)));
+  const dashOffset = circumference * (1 - progress);
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, filter: `drop-shadow(0 0 8px ${color})` }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        {/* Arka plan halka */}
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          stroke="rgba(0,0,0,0.55)"
+          strokeWidth={stroke}
+          fill="rgba(0,0,0,0.4)"
+        />
+        {/* Progress halka (sure azaldikca azalir) */}
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          style={{ transition: 'stroke-dashoffset 0.1s linear' }}
+        />
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontWeight: 'bold',
+        userSelect: 'none', pointerEvents: 'none'
+      }}>
+        <div style={{ fontSize: '18px', lineHeight: 1 }}>{icon}</div>
+        <div style={{ fontSize: '11px', lineHeight: 1.2, marginTop: '2px', textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{Math.ceil(remaining)}s</div>
+      </div>
+      {/* Label cok kucuk, ringin altinda */}
+      <div style={{
+        position: 'absolute', top: '100%', left: '50%',
+        transform: 'translateX(-50%)', marginTop: '2px',
+        fontSize: '9px', color, fontWeight: 'bold',
+        letterSpacing: '1px', textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+        whiteSpace: 'nowrap', userSelect: 'none', pointerEvents: 'none'
+      }}>{label}</div>
+    </div>
+  );
+});
+PowerUpTimer.displayName = 'PowerUpTimer';
+
 // ==================== ANA UYGULAMA ====================
 function Game() {
   // PERF 1A: Tum store'a destructure subscribe etmek yerine her field icin
@@ -2404,6 +2476,10 @@ function Game() {
   const currentLevel = useGameStore(s => s.currentLevel);
   // PAKET-ROCKET: vignette overlay icin
   const rocketActive = useGameStore(s => s.rocketActive);
+  // PAKET-MAGNET/ROCKET HUD: timer ring icin
+  const magnetActive = useGameStore(s => s.magnetActive);
+  const magnetEndTime = useGameStore(s => s.magnetEndTime);
+  const rocketEndTime = useGameStore(s => s.rocketEndTime);
   // Action'lar Zustand'da stable referans - subscribe etmek render tetiklemez.
   const steer = useGameStore(s => s.steer);
   const cleanupTimer = useGameStore(s => s.cleanupTimer);
@@ -2803,6 +2879,37 @@ function Game() {
           </>
         )
       }
+
+      {/* PAKET-MAGNET/ROCKET: HUD timer ringleri - ust orta, mesaj alaninin ustunde */}
+      {(magnetActive || rocketActive) && (
+        <div style={{
+          position: 'fixed',
+          top: isMobile ? '50px' : '90px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: '14px',
+          zIndex: 100,
+          pointerEvents: 'none'
+        }}>
+          <PowerUpTimer
+            active={magnetActive}
+            endTime={magnetEndTime}
+            totalDurationMs={10000}
+            icon="🧲"
+            color="#4488ff"
+            label="MAGNET"
+          />
+          <PowerUpTimer
+            active={rocketActive}
+            endTime={rocketEndTime}
+            totalDurationMs={12000}
+            icon="🚀"
+            color="#ff4400"
+            label="ROCKET"
+          />
+        </div>
+      )}
 
       {/* Message */}
       {
