@@ -2384,6 +2384,54 @@ const GameContent = () => {
   );
 };
 
+// ==================== BACKGROUND MUSIC ====================
+// Sadece gameState === 'playing' iken çalar. Countdown / launcher / gameover'da
+// duraklar. Mevcut audioSystem (coin/crash/near-miss/magnet/rocket sesleri) Web
+// Audio API kullaniyor; bu ise ayrı bir HTML <audio> elementi - birbirini
+// etkilemez. Volume 0.35 (SFX'i ezmesin), loop aktif.
+const BackgroundMusic = memo(() => {
+  const gameState = useGameStore(s => s.gameState);
+  const audioRef = useRef(null);
+
+  // İlk mount'ta volume ayarla
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = 0.35;
+    }
+  }, []);
+
+  // gameState'e göre çal/duraklat
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (gameState === 'playing') {
+      // play() promise döner; autoplay block olursa sessizce geç
+      const p = audio.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => { /* user etkileşimi bekleniyor, sorun değil */ });
+      }
+    } else {
+      audio.pause();
+      // gameover/launcher'a düşünce baştan başlasın bir sonraki oyunda
+      if (gameState === 'gameover' || gameState === 'launcher') {
+        audio.currentTime = 0;
+      }
+    }
+  }, [gameState]);
+
+  return (
+    <audio
+      ref={audioRef}
+      src="/audio/bgm.mp4"
+      loop
+      preload="auto"
+      style={{ display: 'none' }}
+    />
+  );
+});
+BackgroundMusic.displayName = 'BackgroundMusic';
+
 // ==================== POWER-UP HUD TIMER ====================
 // Aktif power-up icin SVG ring + ikon + saniye sayaci. 100ms interval ile
 // kalan sureyi guncelliyor. Mevcut Speedometer/Score ile cakismayacak sekilde
@@ -2715,6 +2763,9 @@ function Game() {
           </div>
         )
       }
+
+      {/* PAKET-BGM: Arka plan müziği (sadece playing iken çalar) */}
+      <BackgroundMusic />
 
       {/* HUD - Speedometer */}
       <div style={{ position: 'absolute', top: isLandscape ? '3px' : (isMobile ? '3px' : '20px'), left: isLandscape ? '3px' : (isMobile ? '3px' : '20px'), zIndex: 10, pointerEvents: 'none' }}>
