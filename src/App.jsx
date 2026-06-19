@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, Suspense, useMemo, useCallback, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, Stars, useGLTF, useProgress, useTexture } from '@react-three/drei';
+import { PerspectiveCamera, Stars, Environment, useGLTF, useProgress, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import coinLogo from './assets/coin_logo.png';
 import RealLauncherUI from './components/RealLauncherUI';
@@ -1640,12 +1640,13 @@ const RURAL_BUILDINGS = [
 ];
 
 const TREE_ASSETS = [
-  { path: '/models/Nature-pack/Pine_Trees.glb', scale: 2.5 },
-  { path: '/models/Nature-pack/Birch_Trees.glb', scale: 2.5 },
-  { path: '/models/Nature-pack/Maple_Trees.glb', scale: 2.5 },
-  { path: '/models/Nature-pack/Trees.glb', scale: 2.5 },
-  { path: '/models/Nature-pack/Palm_Trees.glb', scale: 2.5 },
-  { path: '/models/Nature-pack/Dead_Trees.glb', scale: 2.5 }
+  // Quaternius pack agaclari assete gore degisken boy; 1.7 binalarla uyumlu
+  { path: '/models/Nature-pack/Pine_Trees.glb', scale: 1.7 },
+  { path: '/models/Nature-pack/Birch_Trees.glb', scale: 1.7 },
+  { path: '/models/Nature-pack/Maple_Trees.glb', scale: 1.7 },
+  { path: '/models/Nature-pack/Trees.glb', scale: 1.7 },
+  { path: '/models/Nature-pack/Palm_Trees.glb', scale: 1.7 },
+  { path: '/models/Nature-pack/Dead_Trees.glb', scale: 1.7 }
 ];
 
 const SMALL_NATURE = [
@@ -2188,8 +2189,15 @@ CameraShake.displayName = 'CameraShake';
 
 // ==================== GÖKYÜZÜ ====================
 const SkyEnvironment = memo(() => {
+  // Ay yüzeyi - hafif sarımsı beyaz emissive (geceleri parlar gibi)
   const moonMaterial = useMemo(() =>
-    new THREE.MeshBasicMaterial({ color: "#ffffff" }), []
+    new THREE.MeshStandardMaterial({
+      color: "#fffaf0",
+      emissive: "#ffeebb",
+      emissiveIntensity: 1.2,
+      roughness: 0.9,
+      metalness: 0
+    }), []
   );
 
   useEffect(() => {
@@ -2201,11 +2209,15 @@ const SkyEnvironment = memo(() => {
   return (
     <group>
       <Stars radius={150} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-      <mesh position={[50, 80, -200]}>
-        <sphereGeometry args={[10, 32, 32]} />
-        <primitive object={moonMaterial} attach="material" />
-      </mesh>
-      <pointLight position={[50, 80, -180]} intensity={1.5} color="#aabbff" distance={500} />
+      {/* Ay konumu yükseltildi (Y 80 → 110) ve büyütüldü (R 10 → 15). Halo kaldırıldı. */}
+      <group position={[50, 110, -200]}>
+        <mesh>
+          <sphereGeometry args={[15, 48, 48]} />
+          <primitive object={moonMaterial} attach="material" />
+        </mesh>
+      </group>
+      {/* Aydan gelen ışık (mavimsi soğuk) */}
+      <pointLight position={[50, 110, -180]} intensity={2.2} color="#aabbff" distance={600} />
     </group>
   );
 });
@@ -2370,6 +2382,11 @@ const GameContent = () => {
       <hemisphereLight skyColor="#445566" groundColor="#223344" intensity={0.6} />
 
       <Suspense fallback={null}>
+        {/* HDRI ortam ışığı. drei "night" preset aslında açık şafak HDRI'sı,
+            background={true} yapınca gerçek gece olmuyor → manuel SkyEnvironment
+            (siyah/ay/yıldız) ile çakışıyor. background={false} ile sadece
+            yansıma/ışıklandırma için kullan, gökyüzü manuel kalır. */}
+        <Environment preset="night" background={false} />
         <ShaderWarmup />
         <SkyEnvironment />
         <CameraShake />
